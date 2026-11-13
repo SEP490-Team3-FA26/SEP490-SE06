@@ -42,6 +42,8 @@ export class FeedbackController implements OnModuleInit {
       'user.feedback.resolve',
       'user.feedback.chain_summary',
       'user.feedback.get_by_customer',
+      'user.feedback.staff_performance',
+      'user.feedback.branch_performance',
     ]);
     await subscribeToKafkaTopics(this.orderClient, ['orders.check']);
   }
@@ -156,5 +158,41 @@ export class FeedbackController implements OnModuleInit {
       await this.cacheManager.set(this.CHAIN_SUMMARY_CACHE_KEY, summary, this.CHAIN_SUMMARY_TTL);
     }
     return summary;
+  }
+
+  // =========================================================================
+  // 6. BÁO CÁO HIỆU SUẤT DƯỢC SĨ BÁN HÀNG: Top 5* & Cảnh báo 1-2*
+  // =========================================================================
+  @Get('analytics/staff-performance')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Báo cáo hiệu suất nhân viên bán hàng: Top 5 sao & nhân viên có tỷ lệ 1-2 sao' })
+  async getStaffPerformance(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return await sendKafkaMessage(this.userClient, 'user.feedback.staff_performance', {
+      branchId,
+      startDate,
+      endDate,
+    });
+  }
+
+  // =========================================================================
+  // 7. BÁO CÁO HIỆU SUẤT TỪNG CHI NHÁNH & CHẤT LƯỢNG PHỤC VỤ (Kèm dữ liệu mua bán)
+  // =========================================================================
+  @Get('analytics/branch-performance')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Báo cáo hiệu suất từng chi nhánh: Xếp hạng chất lượng phục vụ tốt/xấu kèm dữ liệu mua bán' })
+  async getBranchPerformance(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return await sendKafkaMessage(this.userClient, 'user.feedback.branch_performance', {
+      branchId,
+      startDate,
+      endDate,
+    });
   }
 }

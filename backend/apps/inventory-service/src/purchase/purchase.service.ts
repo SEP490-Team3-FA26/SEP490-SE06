@@ -2127,7 +2127,6 @@ export class PurchaseService {
                 { _id: branchInvItem._id },
                 {
                   $inc: { stock: receivedQuantity },
-                  $set: { status: "ACTIVE" },
                 },
                 { new: true, session },
               )
@@ -3204,7 +3203,7 @@ export class PurchaseService {
       if (query.branchId && query.branchId !== 'all') {
         filter.branchId = query.branchId;
       }
-      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).exec();
+      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).lean().exec();
     } catch (error) {
       throw new RpcException({ message: error.message || 'Lỗi lấy danh sách RFQ' });
     }
@@ -3212,9 +3211,13 @@ export class PurchaseService {
 
   async getRfqById(id: string) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).lean().exec();
       if (!rfq) {
-        throw new RpcException({ message: `Không tìm thấy RFQ với ID: ${id}` });
+        throw new RpcException({ message: `Không tìm thấy RFQ với ID hoặc Mã: ${id}`, statusCode: 404 });
       }
       return rfq;
     } catch (error) {
@@ -3224,7 +3227,11 @@ export class PurchaseService {
 
   async sendRfq(id: string) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3322,7 +3329,11 @@ export class PurchaseService {
 
   async submitSupplierQuotation(id: string, quotationDto: any) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3392,10 +3403,14 @@ export class PurchaseService {
   }
 
   async awardRfq(id: string, awardDto: { quotationId: string; supplierId: string; reason?: string; createdBy?: string }) {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+    }
     const session = await this.rfqModel.db.startSession();
     session.startTransaction();
     try {
-      const rfq = await this.rfqModel.findById(id).session(session).exec();
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).session(session).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }

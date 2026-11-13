@@ -9,6 +9,7 @@ import {
   OnModuleInit,
   UseGuards,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -68,6 +69,9 @@ export class RfqController implements OnModuleInit {
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết RFQ và ma trận so sánh bảng báo giá' })
   async getRfqById(@Param('id') id: string) {
+    if (!id || id === 'undefined' || id === 'null' || !id.trim()) {
+      throw new BadRequestException('ID RFQ không hợp lệ');
+    }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.rfq.get_by_id', id);
   }
 
@@ -81,6 +85,9 @@ export class RfqController implements OnModuleInit {
     entityType: 'RequestForQuotation',
   })
   async sendRfq(@Param('id') id: string) {
+    if (!id || id === 'undefined' || id === 'null' || !id.trim()) {
+      throw new BadRequestException('ID RFQ không hợp lệ');
+    }
     const result = await sendKafkaMessage(this.inventoryClient, 'inventory.rfq.send', id);
     if (this.websocketGateway?.server) {
       this.websocketGateway.server.to('admin').emit('rfq_sent', { rfqId: id });
@@ -98,6 +105,9 @@ export class RfqController implements OnModuleInit {
     entityType: 'SupplierQuotation',
   })
   async submitQuotation(@Param('id') id: string, @Body() quotationDto: any) {
+    if (!id || id === 'undefined' || id === 'null' || !id.trim()) {
+      throw new BadRequestException('ID RFQ không hợp lệ');
+    }
     const result = await sendKafkaMessage(this.inventoryClient, 'inventory.rfq.submit_quote', {
       id,
       quotation: quotationDto,
@@ -126,6 +136,9 @@ export class RfqController implements OnModuleInit {
     @Body() body: { quotationId: string; supplierId: string; reason?: string },
     @Req() req: any,
   ) {
+    if (!id || id === 'undefined' || id === 'null' || !id.trim()) {
+      throw new BadRequestException('ID RFQ không hợp lệ');
+    }
     const awardPayload = {
       ...body,
       createdBy: req.user?.id || req.user?._id || 'ADMIN',

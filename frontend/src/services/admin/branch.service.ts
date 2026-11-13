@@ -23,6 +23,11 @@ export const branchService = {
     return response.data;
   },
 
+  async activateBranch(id: string) {
+    const response = await api.patch(`/api/branches/${id}/activate`);
+    return response.data;
+  },
+
   async deleteBranch(id: string) {
     const response = await api.delete(API_ENDPOINTS.BRANCHES.DELETE(id));
     return response.data;

@@ -16,7 +16,7 @@ export function HQApproval() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tab, setTab] = useState<"URGENT" | "PENDING_APPROVAL" | "SHIPPING" | "CANCELLED">("URGENT");
+  const [tab, setTab] = useState<"URGENT" | "PENDING_APPROVAL" | "SHIPPING" | "CANCELLED" | "GRN_APPROVAL">("URGENT");
   const [selectedPos, setSelectedPos] = useState<string[]>([]);
   const [selectedPrs, setSelectedPrs] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);

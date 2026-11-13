@@ -56,8 +56,23 @@ export class Branch {
   @Prop({ required: true })
   image: string;
 
-  @Prop({ required: true, enum: ['active', 'maintenance'], default: 'active' })
+  @Prop({ required: true, enum: ['preparing', 'active', 'maintenance'], default: 'preparing' })
   status: string;
+
+  @Prop({ type: String })
+  gppNumber?: string; // Số giấy chứng nhận đạt chuẩn GPP
+
+  @Prop({ type: Date })
+  gppIssueDate?: Date; // Ngày cấp chứng nhận GPP
+
+  @Prop({ type: Date })
+  gppExpiryDate?: Date; // Ngày hết hạn chứng nhận GPP
+
+  @Prop({ type: Date })
+  activatedAt?: Date; // Thời điểm kích hoạt mở chi nhánh
+
+  @Prop({ type: String })
+  activatedBy?: string; // Người duyệt kích hoạt chi nhánh
 
   @Prop({ required: true })
   manager: string;

@@ -173,17 +173,22 @@ export class MedicineController {
   @MessagePattern('inventory.check.list')
   async listInventoryChecks(@Payload() data?: any) {
     try {
-      return await this.medicineService.listInventoryChecks();
+      return await this.medicineService.listInventoryChecks(data?.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách biên bản kiểm kê');
     }
   }
 
+  @MessagePattern('inventory.check.batches')
+  async listInventoryCheckBatches(@Payload() data: { branchId: string }) {
+    return this.medicineService.listInventoryCheckBatches(data.branchId);
+  }
+
   @MessagePattern('inventory.check.get_by_id')
-  async getInventoryCheckById(@Payload() data: { id: string }) {
+  async getInventoryCheckById(@Payload() data: { id: string; branchId: string }) {
     try {
-      return await this.medicineService.getInventoryCheckById(data.id);
+      return await this.medicineService.getInventoryCheckById(data.id, data.branchId);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy chi tiết biên bản kiểm kê');
@@ -191,9 +196,9 @@ export class MedicineController {
   }
 
   @MessagePattern('inventory.check.complete')
-  async completeInventoryCheck(@Payload() data: { id: string }) {
+  async completeInventoryCheck(@Payload() data: { id: string; branchId: string; approvedBy: string }) {
     try {
-      return await this.medicineService.completeInventoryCheck(data.id);
+      return await this.medicineService.completeInventoryCheck(data.id, data.branchId, data.approvedBy);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi hoàn tất biên bản kiểm kê');

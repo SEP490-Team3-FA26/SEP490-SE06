@@ -24,7 +24,10 @@ export class BranchInventory extends Document {
   @Prop({ type: Number, required: true, default: 0, min: 0 })
   importPrice: number;
 
-  @Prop({ type: String, default: 'ACTIVE', enum: ['ACTIVE', 'EXPIRED', 'DISPOSED'], index: true })
+  @Prop({ type: Number, min: 0 })
+  expiryDiscountPrice?: number;
+
+  @Prop({ type: String, default: 'ACTIVE', enum: ['ACTIVE', 'EXPIRED', 'DISPOSED', 'QUARANTINED'], index: true })
   status: string;
 
   @Prop({

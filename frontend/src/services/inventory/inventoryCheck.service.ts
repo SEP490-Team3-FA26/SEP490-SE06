@@ -2,6 +2,7 @@ import api from '../core/api';
 import { API_ENDPOINTS } from '../../constants/apiEndpoints';
 
 export interface InventoryCheckItem {
+  batchId: string;
   medicineId: string;
   medicineName?: string;
   batchNo: string;
@@ -12,18 +13,33 @@ export interface InventoryCheckItem {
 }
 
 export interface InventoryCheckPayload {
-  status: 'DRAFT' | 'COMPLETED';
   items: {
+    batchId: string;
     medicineId: string;
     batchNo: string;
     actualStock: number;
     reason?: string;
   }[];
-  performedBy?: string;
   notes?: string;
 }
 
+export interface InventoryCheckMedicine {
+  id: string;
+  name: string;
+  unit: string;
+  image?: string;
+  category?: string;
+  price?: number;
+  registrationNumber?: string;
+  barcode?: string;
+  batches: { id: string; batchNo: string; stock: number; expDate: string; status: string }[];
+}
+
 export const inventoryCheckService = {
+  async getBatches() {
+    const response = await api.get<InventoryCheckMedicine[]>(API_ENDPOINTS.INVENTORY_CHECKS.BATCHES);
+    return response.data;
+  },
   async getChecks() {
     const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.LIST);
     return response.data;

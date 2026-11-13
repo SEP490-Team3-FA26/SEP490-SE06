@@ -155,6 +155,47 @@ describe('BranchService', () => {
     });
   });
 
+  describe('activateBranch', () => {
+    // [Normal Values]
+    it('[Normal Values] kích hoạt thành công chi nhánh khi đủ quản lý và GPP hợp lệ', async () => {
+      const validBranch = {
+        ...mockBranch,
+        status: 'preparing',
+        manager: 'DS. Mai',
+        gppNumber: 'GPP-HN-2026-088',
+        gppExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      };
+      mockBranchModel.findOne.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue(validBranch) }) });
+      mockBranchModel.findByIdAndUpdate.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue({ ...validBranch, status: 'active' }) }) });
+      const res = await service.activateBranch('BR-001', 'Admin');
+      expect(res.success).toBe(true);
+      expect(res.data.status).toBe('active');
+    });
+
+    // [Boundary Values]
+    it('[Boundary Values] trả về thành công ngay nếu chi nhánh đã ở trạng thái active (idempotent)', async () => {
+      const activeBranch = { ...mockBranch, status: 'active' };
+      mockBranchModel.findOne.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue(activeBranch) }) });
+      const res = await service.activateBranch('BR-001');
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('đã hoạt động');
+    });
+
+    // [Abnormal Values]
+    it('[Abnormal Values] ném lỗi RpcException khi chi nhánh chưa có quản lý hoặc thiếu GPP', async () => {
+      mockBranchModel.findOne.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue({ ...mockBranch, status: 'preparing', manager: null }) }) });
+      await expect(service.activateBranch('BR-001')).rejects.toThrow(RpcException);
+
+      mockBranchModel.findOne.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue({ ...mockBranch, status: 'preparing', manager: 'DS. Mai', gppNumber: null }) }) });
+      await expect(service.activateBranch('BR-001')).rejects.toThrow(RpcException);
+
+      mockBranchModel.findOne.mockReturnValueOnce({ lean: () => ({ exec: jest.fn().mockResolvedValue({
+        ...mockBranch, status: 'preparing', manager: 'DS. Mai', gppNumber: 'GPP-01', gppExpiryDate: new Date(Date.now() - 86400000)
+      }) }) });
+      await expect(service.activateBranch('BR-001')).rejects.toThrow(RpcException);
+    });
+  });
+
   describe('findById', () => {
     it('tìm kiếm theo branchCode khi id không phải là ObjectId', async () => {
       const res = await service.findById('BR-001');

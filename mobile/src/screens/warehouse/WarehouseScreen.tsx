@@ -28,6 +28,10 @@ import { Medicine, StockTransfer, WarehouseZone } from '../../types/pharmacy.typ
 import { BarcodeScannerModal } from '../../components/barcode/BarcodeScannerModal';
 import { BarcodeLabelModal } from '../../components/barcode/BarcodeLabelModal';
 import { WarehouseShelfModal } from '../../components/warehouse/WarehouseShelfModal';
+import { WarehouseMap3D } from '../../components/warehouse/WarehouseMap3D';
+import { MedicineLocationModal } from '../../components/warehouse/MedicineLocationModal';
+import { InventoryCheckModal } from '../../components/warehouse/InventoryCheckModal';
+import { buildCheckItemsFromShelf, InventoryCheckItem } from '../../services/inventoryCheckHelper';
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
@@ -46,7 +50,20 @@ const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; la
 
 export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
+  const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'CHECKS' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
+  const [mapViewMode, setMapViewMode] = useState<'3D' | '2D'>('3D');
+
+  // --- Biên Bản Kiểm Kê Kho (BW07) State ---
+  const [inventoryChecksList, setInventoryChecksList] = useState<any[]>([]);
+  const [checksLoading, setChecksLoading] = useState<boolean>(false);
+  const [inventoryCheckModalVisible, setInventoryCheckModalVisible] = useState<boolean>(false);
+  const [activeCheckItems, setActiveCheckItems] = useState<InventoryCheckItem[]>([]);
+  const [activeCheckLocation, setActiveCheckLocation] = useState<{ zone: string; rack: string; shelf: number } | undefined>(undefined);
+  const [existingCheckId, setExistingCheckId] = useState<string | undefined>(undefined);
+
+  // --- Modal Vị Trí Thuốc 3D Sau Khi Quét Barcode ---
+  const [medicineLocationModalVisible, setMedicineLocationModalVisible] = useState<boolean>(false);
+  const [scannedMedicineForLocation, setScannedMedicineForLocation] = useState<any | null>(null);
 
   // Attendance & Shift Modal
   const [showCheckInModal, setShowCheckInModal] = useState<boolean>(false);
@@ -172,15 +189,28 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     }
   }, []);
 
+  const loadChecks = useCallback(async () => {
+    try {
+      setChecksLoading(true);
+      const list = await ApiService.getInventoryChecks();
+      setInventoryChecksList(list);
+    } catch (e) {
+      console.warn('Error loading inventory checks:', e);
+    } finally {
+      setChecksLoading(false);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, mapRes, lowStock, transferList, grnList] = await Promise.all([
+      const [medList, mapRes, lowStock, transferList, grnList, checksList] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getWarehouseMap(),
         ApiService.getLowStockReport(),
         ApiService.getStockTransfers(),
         ApiService.getGoodsReceipts(),
+        ApiService.getInventoryChecks(),
       ]);
 
       if (medList) {
@@ -202,6 +232,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
       setTransfers(transferList || []);
       setReceipts(grnList || []);
+      if (checksList) setInventoryChecksList(checksList);
     } catch (e) {
       console.warn('Error loading warehouse data:', e);
     } finally {
@@ -212,6 +243,47 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Tự động mở phiên kiểm đếm đơn PO khi nhận được poId từ Deep Link hoặc Navigation params
+  useEffect(() => {
+    const deepPoId = route?.params?.poId;
+    if (deepPoId && typeof deepPoId === 'string') {
+      const handleDeepPo = async () => {
+        try {
+          const po = await ApiService.getPurchaseOrderById(deepPoId);
+          if (po) {
+            const poReceipt = {
+              id: `GRN-${po.poCode || (po._id ? po._id.slice(-6).toUpperCase() : 'PO')}`,
+              poCode: po.poCode || po._id,
+              poId: po._id,
+              supplier: po.supplierName || 'Nhà cung cấp',
+              status: 'INSPECTING',
+              items: (po.items || []).map((it: any, idx: number) => ({
+                medicineId: it.medicineId || it.id || `item_${idx}`,
+                name: it.medicineName || it.name || `Thuốc #${idx + 1}`,
+                expected: Number(it.quantity) || 100,
+                actual: 0,
+                unit: it.unit || 'Hộp',
+                status: 'PENDING',
+                batchNo: it.batchNo || '',
+                expDate: it.expDate || '',
+              })),
+            };
+            setReceipts((prev) => {
+              const exists = prev.some((r) => r.id === poReceipt.id || r.poCode === poReceipt.poCode);
+              return exists ? prev : [poReceipt, ...prev];
+            });
+            setActiveTab('RECEIPTS');
+            handleStartInspection(poReceipt);
+            showToast.success('Đồng bộ đơn PO', `Mở phiên kiểm đếm kiện hàng: ${poReceipt.poCode}`);
+          }
+        } catch (err) {
+          console.warn('Lỗi mở đơn PO từ deep link:', err);
+        }
+      };
+      handleDeepPo();
+    }
+  }, [route?.params?.poId]);
 
   // --- Scanner Handler ---
   const handleBarcodeScanned = async (scannedCode: string, type?: string) => {
@@ -224,10 +296,18 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (results && results.length > 0) {
         const first = results[0];
         setHighlightedTarget(first.targetId);
-        showToast.success(
-          'Đã tìm thấy vị trí',
-          `Thuốc: ${first.name}\nVị trí: Khu ${first.location.zone} · Kệ ${first.location.rack} · Tầng ${first.location.shelf}`
-        );
+        setScannedMedicineForLocation({
+          id: first.medicineId,
+          name: first.name,
+          category: (first as any).category,
+          sku: (first as any).sku,
+          barcode: code,
+          image: (first as any).image,
+          stock: (first as any).stock || 100,
+          unit: (first as any).unit || 'Hộp',
+          location: first.location,
+        });
+        setMedicineLocationModalVisible(true);
       } else {
         // Fallback barcode lookup
         const lookup = await ApiService.getByBarcode(code);
@@ -235,10 +315,14 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           const loc = lookup.fefoBatch?.location || { zone: 'B', rack: 'B1', shelf: 1 };
           const targetId = `${loc.zone}-${loc.rack}-${loc.shelf}`;
           setHighlightedTarget(targetId);
-          showToast.success(
-            'Đã tìm thấy vị trí',
-            `Thuốc: ${lookup.medicine.name}\nVị trí: Khu ${loc.zone} · Kệ ${loc.rack} · Tầng ${loc.shelf}`
-          );
+          setScannedMedicineForLocation({
+            ...lookup.medicine,
+            fefoBatch: lookup.fefoBatch,
+            location: loc,
+            stock: lookup.totalBranchStock || lookup.medicine.stock || 0,
+            barcode: code,
+          });
+          setMedicineLocationModalVisible(true);
         } else {
           showToast.error('Không tìm thấy', `Mã ${code} chưa được gán vị trí trên sơ đồ kho.`);
         }
@@ -721,6 +805,17 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </AnimatedTouchable>
 
           <AnimatedTouchable
+            onPress={() => {
+              setActiveTab('CHECKS');
+              loadChecks();
+            }}
+            style={[styles.tabItem, activeTab === 'CHECKS' && styles.activeTabItem]}
+          >
+            <Ionicons name="clipboard" size={15} color={activeTab === 'CHECKS' ? '#0284C7' : '#94A3B8'} />
+            <Text style={[styles.tabText, activeTab === 'CHECKS' && styles.activeTabText]}>Kiểm Kê Kho</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
             onPress={() => setActiveTab('TRANSFERS')}
             style={[styles.tabItem, activeTab === 'TRANSFERS' && styles.activeTabItem]}
           >
@@ -771,6 +866,40 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         {/* ========================================================= */}
         {activeTab === 'MAP' && (
           <View>
+            {/* 3D vs 2D Switch Bar */}
+            <View style={styles.mapModeToggleRow}>
+              <TouchableOpacity
+                onPress={() => setMapViewMode('3D')}
+                style={[styles.mapModeToggleBtn, mapViewMode === '3D' && styles.mapModeToggleBtnActive]}
+              >
+                <Ionicons name="cube" size={15} color={mapViewMode === '3D' ? '#0284C7' : '#64748B'} />
+                <Text style={[styles.mapModeToggleText, mapViewMode === '3D' && styles.mapModeToggleTextActive]}>
+                  Sơ Đồ 3D Không Gian
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setMapViewMode('2D')}
+                style={[styles.mapModeToggleBtn, mapViewMode === '2D' && styles.mapModeToggleBtnActive]}
+              >
+                <Ionicons name="grid" size={15} color={mapViewMode === '2D' ? '#0284C7' : '#64748B'} />
+                <Text style={[styles.mapModeToggleText, mapViewMode === '2D' && styles.mapModeToggleTextActive]}>
+                  Mặt Bằng 2D Phẳng
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {mapViewMode === '3D' ? (
+              <WarehouseMap3D
+                zones={warehouseZones}
+                selectedZoneFilter={selectedZoneFilter}
+                onSelectZoneFilter={setSelectedZoneFilter}
+                highlightedTarget={highlightedTarget}
+                onSelectShelf={(loc) => setSelectedShelfForDetail(loc)}
+                onClearHighlight={() => setHighlightedTarget('')}
+              />
+            ) : (
+              <>
             {/* KPI Summary */}
             <View style={styles.kpiRow}>
               <GradientCard gradientVariant="ocean" style={styles.kpiCard}>
@@ -928,6 +1057,178 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </View>
               );
             })}
+          </>
+            )}
+          </View>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB KIỂM KÊ KHO (INVENTORY CHECKS - BW07) */}
+        {/* ========================================================= */}
+        {activeTab === 'CHECKS' && (
+          <View>
+            {/* Header Thống kê & Nút tạo mới */}
+            <View style={styles.checksHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Biên Bản Kiểm Kê Kho</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Kiểm đếm thực tế · Đối soát sai lệch · Tự động cân bằng tồn kho GSP
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setActiveCheckLocation(undefined);
+                  setActiveCheckItems([]);
+                  setExistingCheckId(undefined);
+                  setInventoryCheckModalVisible(true);
+                }}
+                style={styles.createCheckBtn}
+              >
+                <Ionicons name="add" size={18} color="#FFFFFF" />
+                <Text style={styles.createCheckBtnText}>Tạo Đợt Mới</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Actions Card */}
+            <View style={styles.checksNoticeCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Ionicons name="bulb-outline" size={18} color="#0284C7" />
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0369A1' }}>
+                  Kiểm Kê Nhanh Từ Sơ Đồ Kho
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11, color: '#64748B', lineHeight: 16 }}>
+                Bạn có thể vào tab "Sơ Đồ Kho", chạm vào bất kỳ tầng/kệ nào và bấm "Kiểm Kê Tầng/Kệ Này" để nạp sẵn toàn bộ danh sách thuốc mà không cần tìm kiếm thủ công!
+              </Text>
+            </View>
+
+            {/* Refreshing indicator or Empty State or List of Checks */}
+            {checksLoading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#0284C7" />
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 10 }}>
+                  Đang tải danh sách biên bản kiểm kê...
+                </Text>
+              </View>
+            ) : inventoryChecksList.length === 0 ? (
+              <View style={styles.checksEmptyBox}>
+                <Ionicons name="clipboard-outline" size={54} color="#CBD5E1" />
+                <Text style={styles.checksEmptyTitle}>Chưa có biên bản kiểm kê nào</Text>
+                <Text style={styles.checksEmptySub}>
+                  Bấm "Tạo Đợt Mới" hoặc chọn tầng kệ trên sơ đồ kho để lập biên bản kiểm kê đầu tiên.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setActiveCheckLocation(undefined);
+                    setActiveCheckItems([]);
+                    setExistingCheckId(undefined);
+                    setInventoryCheckModalVisible(true);
+                  }}
+                  style={styles.emptyActionBtn}
+                >
+                  <Text style={styles.emptyActionBtnText}>Bắt Đầu Kiểm Kê Ngay</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.checksListContainer}>
+                {inventoryChecksList.map((check: any, cIdx: number) => {
+                  const isCompleted = check.status === 'COMPLETED';
+                  const itemsCount = Array.isArray(check.items) ? check.items.length : 0;
+                  const dateStr = check.createdAt
+                    ? new Date(check.createdAt).toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : 'Chưa cập nhật';
+
+                  return (
+                    <TouchableOpacity
+                      key={`chk_${check._id || check.id || cIdx}`}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        const formattedItems = (check.items || []).map((it: any) => ({
+                          medicineId: it.medicineId || it.id || '',
+                          medicineName: it.medicineName || 'Dược phẩm',
+                          sku: it.sku || '',
+                          barcode: it.barcode || '',
+                          batchId: it.batchId || '',
+                          batchNo: it.batchNo || '',
+                          expDate: it.expDate || '',
+                          systemStock: Number(it.systemStock || 0),
+                          actualStock: Number(it.actualStock || 0),
+                          difference: Number(it.difference || 0),
+                          discrepancyReason: it.discrepancyReason || '',
+                          unit: it.unit || 'Hộp',
+                          location: it.location,
+                        }));
+                        setActiveCheckItems(formattedItems);
+                        setActiveCheckLocation(undefined);
+                        setExistingCheckId(check._id || check.id);
+                        setInventoryCheckModalVisible(true);
+                      }}
+                      style={[styles.checkCard, isCompleted && styles.checkCardCompleted]}
+                    >
+                      <View style={styles.checkCardTop}>
+                        <View>
+                          <Text style={styles.checkCode}>{check.checkCode || `IC-${cIdx + 1}`}</Text>
+                          <Text style={styles.checkDate}>{dateStr}</Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.checkStatusBadge,
+                            isCompleted ? styles.badgeSuccess : styles.badgeDraft,
+                          ]}
+                        >
+                          <Ionicons
+                            name={isCompleted ? 'checkmark-circle' : 'time-outline'}
+                            size={12}
+                            color={isCompleted ? '#10B981' : '#F59E0B'}
+                          />
+                          <Text
+                            style={[
+                              styles.checkStatusText,
+                              isCompleted ? { color: '#059669' } : { color: '#D97706' },
+                            ]}
+                          >
+                            {isCompleted ? 'Đã Cân Bằng Kho' : 'Bản Nháp (Chờ Duyệt)'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.checkCardBody}>
+                        <View style={styles.checkInfoRow}>
+                          <Text style={styles.checkInfoLabel}>Người lập:</Text>
+                          <Text style={styles.checkInfoVal}>{check.performedBy || 'Thủ kho'}</Text>
+                        </View>
+                        <View style={styles.checkInfoRow}>
+                          <Text style={styles.checkInfoLabel}>Số mặt hàng kiểm:</Text>
+                          <Text style={[styles.checkInfoVal, { color: '#0284C7', fontWeight: 'bold' }]}>
+                            {itemsCount} thuốc / lô
+                          </Text>
+                        </View>
+                        {check.notes ? (
+                          <View style={styles.checkInfoRow}>
+                            <Text style={styles.checkInfoLabel}>Ghi chú:</Text>
+                            <Text style={[styles.checkInfoVal, { flex: 1 }]} numberOfLines={1}>
+                              {check.notes}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.checkCardFooter}>
+                        <Text style={styles.openDetailText}>Xem chi tiết & Cập nhật số đếm</Text>
+                        <Ionicons name="chevron-forward" size={14} color="#0284C7" />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
@@ -1872,8 +2173,67 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           zone={selectedShelfForDetail.zone}
           rack={selectedShelfForDetail.rack}
           shelf={selectedShelfForDetail.shelf}
+          onStartInventoryCheck={(selectedMeds, loc) => {
+            const checkItems = buildCheckItemsFromShelf({
+              zone: loc.zone,
+              rack: loc.rack,
+              shelf: loc.shelf,
+              batches: selectedMeds,
+            });
+            setActiveCheckLocation(loc);
+            setActiveCheckItems(checkItems);
+            setExistingCheckId(undefined);
+            setInventoryCheckModalVisible(true);
+          }}
         />
       )}
+
+      {/* Medicine Location 3D Modal (Quét Barcode Định Vị Thuốc GSP) */}
+      <MedicineLocationModal
+        visible={medicineLocationModalVisible}
+        onClose={() => setMedicineLocationModalVisible(false)}
+        medicine={scannedMedicineForLocation}
+        onLocateOn3DMap={(loc) => {
+          setActiveTab('MAP');
+          setMapViewMode('3D');
+          setHighlightedTarget(`${loc.zone}-${loc.rack}-${loc.shelf}`);
+          showToast.info('Đã định vị trên sơ đồ 3D', `Khu ${loc.zone} · Kệ ${loc.rack} · Tầng ${loc.shelf}`);
+        }}
+        onStartCheckMedicine={(med, loc) => {
+          const item = {
+            medicineId: String(med.id || med._id || med.sku),
+            medicineName: med.name,
+            sku: med.sku,
+            barcode: med.barcode,
+            batchId: med.fefoBatch?._id || '',
+            batchNo: med.fefoBatch?.batchNo || '',
+            expDate: med.fefoBatch?.expDate || '',
+            systemStock: med.stock || 0,
+            actualStock: med.stock || 0,
+            difference: 0,
+            discrepancyReason: '',
+            unit: med.unit || 'Hộp',
+            location: loc,
+          };
+          setActiveCheckLocation(loc);
+          setActiveCheckItems([item]);
+          setExistingCheckId(undefined);
+          setInventoryCheckModalVisible(true);
+        }}
+      />
+
+      {/* Inventory Check Modal (Phiên Kiểm Kê Kho BW07) */}
+      <InventoryCheckModal
+        visible={inventoryCheckModalVisible}
+        onClose={() => setInventoryCheckModalVisible(false)}
+        initialItems={activeCheckItems}
+        shelfLocation={activeCheckLocation}
+        existingCheckId={existingCheckId}
+        onCheckCompleted={() => {
+          loadChecks();
+          loadData();
+        }}
+      />
 
       {/* 4. Transfer Dispatch QR Modal */}
       <TransferQRModal
@@ -3324,5 +3684,186 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 16,
+  },
+  mapModeToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  mapModeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  mapModeToggleBtnActive: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#0284C7',
+  },
+  mapModeToggleText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  mapModeToggleTextActive: {
+    color: '#0284C7',
+    fontWeight: 'bold',
+  },
+  checksHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  createCheckBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  createCheckBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  checksNoticeCard: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  checksEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 24,
+  },
+  checksEmptyTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#334155',
+    marginTop: 12,
+  },
+  checksEmptySub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  emptyActionBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  emptyActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  checksListContainer: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  checkCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  checkCardCompleted: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#F0FDF4',
+  },
+  checkCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  checkCode: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#0F172A',
+  },
+  checkDate: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  checkStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeSuccess: {
+    backgroundColor: '#ECFDF5',
+  },
+  badgeDraft: {
+    backgroundColor: '#FFFBEB',
+  },
+  checkStatusText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  checkCardBody: {
+    gap: 4,
+    marginBottom: 10,
+  },
+  checkInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  checkInfoLabel: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  checkInfoVal: {
+    fontSize: 12,
+    color: '#1E293B',
+    fontWeight: '500',
+  },
+  checkCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  openDetailText: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '600',
   },
 });

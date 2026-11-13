@@ -36,7 +36,7 @@ jest.mock('react-native', () => ({
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: mockConstants,
-}));
+}), { virtual: true });
 
 import { EnvService } from '../../src/services/env.service';
 

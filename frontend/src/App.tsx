@@ -281,6 +281,7 @@ export default function App() {
               <Route path="requisitions" element={<BranchRequisition />} />
               <Route path="receive-transfers" element={<BranchStockReceive />} />
               <Route path="inventory" element={<BranchInventory />} />
+              <Route path="inventory/checks" element={<InventoryCheck />} />
               <Route path="transfers" element={<BranchTransfer />} />
               <Route path="finance" element={<Finance />} />
               <Route path="supplier-credit" element={<SupplierCreditManagement />} />

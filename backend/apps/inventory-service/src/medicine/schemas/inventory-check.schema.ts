@@ -3,6 +3,12 @@ import { Document } from 'mongoose';
 
 @Schema()
 export class InventoryCheckItem {
+  @Prop({ type: String })
+  batchId?: string;
+
+  @Prop({ type: Date })
+  expDate?: Date;
+
   @Prop({ type: String, required: true })
   medicineId: string;
 
@@ -44,6 +50,12 @@ export class InventoryCheck extends Document {
   performedBy: string;
 
   @Prop({ type: String })
+  approvedBy?: string;
+
+  @Prop({ type: Date })
+  approvedAt?: Date;
+
+  @Prop({ type: String })
   notes: string;
 
   // --- Liên thông Cơ sở Dữ liệu Dược Quốc gia (Mục 5.4.7 QĐ 232) ---
@@ -53,7 +65,7 @@ export class InventoryCheck extends Document {
   @Prop({ type: String, index: true })
   nationalSyncCode?: string;
 
-  @Prop({ type: String, default: 'SYNCED', enum: ['PENDING', 'SYNCED', 'FAILED'], index: true })
+  @Prop({ type: String, enum: ['PENDING', 'SYNCED', 'FAILED'], index: true })
   nationalSyncStatus?: string;
 
   @Prop({ type: Date })

@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, EventPattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, EventPattern, Payload, RpcException } from '@nestjs/microservices';
 import { UserService } from './user-service.service';
 import { BranchService } from './branch.service';
 import { ExportJobStatusDto } from './dto/export-job-status.dto';
@@ -90,14 +90,19 @@ export class UserServiceController {
 
   @MessagePattern('user.branch.create')
   async handleCreateBranch(@Payload() data: any) {
+    if (data.managerId) {
+      // Xác thực tài khoản quản lý tồn tại và có vai trò branch trước khi tạo
+      const managerUser: any = await this.userService.getEmployeeById(data.managerId);
+      if (!managerUser || managerUser.error) {
+        throw new RpcException(`Tài khoản quản lý ID ${data.managerId} không tồn tại`);
+      }
+      if (managerUser.role !== 'branch') {
+        throw new RpcException(`Tài khoản ${managerUser.fullName || managerUser.email} không có vai trò Quản lý chi nhánh (role: branch)`);
+      }
+    }
     const newBranch = await this.branchService.create(data);
     if (data.managerId && newBranch.branchCode) {
-      try {
-        await this.userService.updateEmployee(data.managerId, { branchId: newBranch.branchCode });
-      } catch (err) {
-        // Log the error but don't fail branch creation
-        console.error('Error linking manager to branch:', err);
-      }
+      await this.userService.updateEmployee(data.managerId, { branchId: newBranch.branchCode });
     }
     return newBranch;
   }
@@ -108,8 +113,17 @@ export class UserServiceController {
   }
 
   @MessagePattern('user.branch.update')
-  handleUpdateBranch(@Payload() data: { id: string; updateData: any }) {
-    return this.branchService.update(data.id, data.updateData);
+  async handleUpdateBranch(@Payload() data: { id: string; updateData: any }) {
+    const updated = await this.branchService.update(data.id, data.updateData);
+    if (data.updateData?.managerId && updated?.branchCode) {
+      await this.userService.updateEmployee(data.updateData.managerId, { branchId: updated.branchCode });
+    }
+    return updated;
+  }
+
+  @MessagePattern('user.branch.activate')
+  handleActivateBranch(@Payload() data: { id: string; activatedBy?: string }) {
+    return this.branchService.activateBranch(data.id, data.activatedBy);
   }
 
   @MessagePattern('user.branch.update_location')
@@ -274,6 +288,16 @@ export class UserServiceController {
   @MessagePattern('user.feedback.get_by_customer')
   handleGetFeedbacksByCustomer(@Payload() data: { customerPhone: string }) {
     return this.userService.getFeedbacksByCustomerPhone(data.customerPhone);
+  }
+
+  @MessagePattern('user.feedback.staff_performance')
+  handleGetStaffPerformance(@Payload() query: any) {
+    return this.userService.getStaffPerformanceReport(query);
+  }
+
+  @MessagePattern('user.feedback.branch_performance')
+  handleGetBranchPerformance(@Payload() query: any) {
+    return this.userService.getBranchPerformanceReport(query);
   }
 
   // --- RFM CUSTOMER SEGMENTATION ---

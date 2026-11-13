@@ -61,7 +61,7 @@ export interface Medicine {
   is_medicine?: boolean;
   national_drug_code?: string;
   national_drug_id?: string;
-  national_sync_status?: 'SYNCED' | 'UNSYNCED' | 'NOT_REQUIRED';
+  national_sync_status?: 'SYNCED' | 'UNSYNCED' | 'NOT_REQUIRED' | string;
   national_synced_at?: string;
   registration_number?: string;
 }
@@ -166,7 +166,9 @@ export const medicineService = {
   },
 
   async handleExpirationAction(payload: {
-    batchId: string;
+    batchId?: string;
+    medicineId?: string;
+    batchNo?: string;
     action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
     quantity: number;
     notes?: string;

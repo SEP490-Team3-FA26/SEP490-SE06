@@ -965,6 +965,93 @@ export class ApiService {
     }
   }
 
+  // ==========================================
+  // BIÊN BẢN KIỂM KÊ KHO (INVENTORY CHECKS - BW07)
+  // ==========================================
+  public static async getInventoryChecks(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return Array.isArray(json) ? json : json.data || [];
+      }
+    } catch (e) {
+      console.warn('[getInventoryChecks] API error:', e);
+    }
+    return [];
+  }
+
+  public static async getInventoryCheckById(id: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('[getInventoryCheckById] API error:', e);
+    }
+    return null;
+  }
+
+  public static async createInventoryCheck(data: {
+    items: any[];
+    notes?: string;
+    status?: string;
+  }): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể tạo biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi tạo biên bản kiểm kê' };
+    }
+  }
+
+  public static async completeInventoryCheck(id: string): Promise<{ success: boolean; message?: string; data?: any }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}/complete`, {
+        method: 'POST',
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể hoàn tất biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi hoàn tất kiểm kê' };
+    }
+  }
+
+  public static async getInventoryCheckBatches(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/batches`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return Array.isArray(json) ? json : json.data || [];
+      }
+    } catch (e) {
+      console.warn('[getInventoryCheckBatches] API error:', e);
+    }
+    return [];
+  }
+
   public static async traceLot(batchNo: string): Promise<any> {
     try {
       const res = await fetch(

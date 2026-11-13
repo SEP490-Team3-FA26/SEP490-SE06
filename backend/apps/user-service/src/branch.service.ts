@@ -37,25 +37,43 @@ export class BranchService implements OnModuleInit {
           isApproved: { $ne: 'rejected' },
         }).exec();
 
-        // 2. Tính tổng số tồn kho thực tế từ MedicineBatch
-        const stockAggregate = await this.batchModel.aggregate([
-          { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
-          { $group: { _id: null, total: { $sum: '$stock' } } },
-        ]).exec();
+        // 2. Tính tổng số tồn kho thực tế từ MedicineBatch kết hợp branch_inventories
+        const [batchAggregate, branchInvAggregate] = await Promise.all([
+          this.batchModel.aggregate([
+            { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
+            { $group: { _id: null, total: { $sum: '$stock' } } },
+          ]).exec(),
+          this.batchModel.db.collection('branch_inventories').aggregate([
+            { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
+            { $group: { _id: null, total: { $sum: '$stock' } } },
+          ]).toArray().catch(() => []),
+        ]);
 
-        const realTotalStock = stockAggregate.length > 0 ? stockAggregate[0].total : 0;
+        const batchStock = batchAggregate.length > 0 ? batchAggregate[0].total : 0;
+        const branchInvStock = branchInvAggregate.length > 0 ? branchInvAggregate[0].total : 0;
+        const realTotalStock = batchStock + branchInvStock;
 
         // 3. Đếm số lô thuốc hết hạn hoặc sắp hết hạn (< 30 ngày)
         const now = new Date();
         const thirtyDaysLater = new Date();
         thirtyDaysLater.setDate(now.getDate() + 30);
 
-        const expiringCount = await this.batchModel.countDocuments({
-          branchId: code,
-          status: 'ACTIVE',
-          stock: { $gt: 0 },
-          expDate: { $lte: thirtyDaysLater },
-        }).exec();
+        const [expiringBatchCount, expiringBranchInvCount] = await Promise.all([
+          this.batchModel.countDocuments({
+            branchId: code,
+            status: 'ACTIVE',
+            stock: { $gt: 0 },
+            expDate: { $lte: thirtyDaysLater },
+          }).exec(),
+          this.batchModel.db.collection('branch_inventories').countDocuments({
+            branchId: code,
+            status: 'ACTIVE',
+            stock: { $gt: 0 },
+            expDate: { $lte: thirtyDaysLater },
+          }).catch(() => 0),
+        ]);
+
+        const expiringCount = expiringBatchCount + expiringBranchInvCount;
 
         return {
           ...branch,
@@ -74,15 +92,55 @@ export class BranchService implements OnModuleInit {
 
   async create(data: any): Promise<Branch> {
     const count = await this.branchModel.countDocuments().exec();
-    // Auto-generate code if not provided
+    // Tự động sinh mã chi nhánh an toàn, chống va chạm mã khi tạo đồng thời hoặc sau khi xóa chi nhánh
     if (!data.branchCode) {
-      data.branchCode = `BR-${String(count + 1).padStart(3, '0')}`;
+      let nextIndex = count + 1;
+      let candidate = `BR-${String(nextIndex).padStart(3, '0')}`;
+      while (await this.branchModel.findOne({ branchCode: candidate }).exec()) {
+        nextIndex++;
+        candidate = `BR-${String(nextIndex).padStart(3, '0')}`;
+      }
+      data.branchCode = candidate;
+    }
+    if (!data.status) {
+      data.status = 'preparing';
     }
     if (!data.image) {
       data.image = 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60';
     }
     const newBranch = new this.branchModel(data);
     return newBranch.save();
+  }
+
+  async activateBranch(idOrCode: string, activatedBy?: string): Promise<any> {
+    const branch = await this.findById(idOrCode);
+    if (!branch) {
+      throw new RpcException(`Chi nhánh ${idOrCode} không tồn tại`);
+    }
+    if (branch.status === 'active') {
+      return { success: true, message: 'Chi nhánh đã hoạt động', data: branch };
+    }
+    if (!branch.manager) {
+      throw new RpcException('Chi nhánh chưa được phân công Quản lý');
+    }
+    if (!branch.gppNumber) {
+      throw new RpcException('Chi nhánh chưa có thông tin Giấy chứng nhận đạt chuẩn GPP hợp lệ');
+    }
+    if (branch.gppExpiryDate && new Date(branch.gppExpiryDate).getTime() < Date.now()) {
+      throw new RpcException('Giấy chứng nhận GPP của chi nhánh đã hết hiệu lực');
+    }
+    const updated = await this.branchModel.findByIdAndUpdate(
+      branch._id,
+      {
+        $set: {
+          status: 'active',
+          activatedAt: new Date(),
+          activatedBy: activatedBy || 'Admin',
+        },
+      },
+      { new: true }
+    ).lean().exec();
+    return { success: true, message: `Đã kích hoạt thành công chi nhánh ${branch.branchCode}`, data: updated };
   }
 
   async findById(id: string): Promise<any> {

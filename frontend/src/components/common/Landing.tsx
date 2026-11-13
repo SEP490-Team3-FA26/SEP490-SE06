@@ -1155,7 +1155,6 @@ export function Landing() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedMedicineForModal(med);
                             }}
                             disabled
                             className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-none bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80"

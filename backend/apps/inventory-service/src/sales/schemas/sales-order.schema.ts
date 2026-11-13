@@ -3,6 +3,9 @@ import { Document } from 'mongoose';
 
 @Schema({ _id: false })
 export class SalesOrderBatchItem {
+  @Prop({ type: String })
+  batchId?: string;
+
   @Prop({ type: String, required: true })
   batchNo: string;
 
@@ -11,6 +14,9 @@ export class SalesOrderBatchItem {
 
   @Prop({ type: Number, required: true, default: 0 })
   importPrice: number;
+
+  @Prop({ type: Number, min: 0 })
+  saleAmount?: number;
 }
 export const SalesOrderBatchItemSchema = SchemaFactory.createForClass(SalesOrderBatchItem);
 

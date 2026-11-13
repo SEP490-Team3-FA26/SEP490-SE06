@@ -106,6 +106,7 @@ export const API_ENDPOINTS = {
 
   INVENTORY_CHECKS: {
     LIST: '/api/inventory-checks',
+    BATCHES: '/api/inventory-checks/batches',
     CREATE: '/api/inventory-checks',
     DETAIL: (id: string) => `/api/inventory-checks/${encodeURIComponent(id)}`,
     COMPLETE: (id: string) => `/api/inventory-checks/${encodeURIComponent(id)}/complete`,
@@ -296,7 +297,9 @@ export const API_ENDPOINTS = {
     BY_BRANCH: (branchId: string) => `/api/feedbacks/branch/${encodeURIComponent(branchId)}`,
     BY_CUSTOMER: (phone: string) => `/api/feedbacks/customer/${encodeURIComponent(phone)}`,
     LOOKUP: (orderCode: string) => `/api/feedbacks/lookup/${encodeURIComponent(orderCode)}`,
-    CHAIN_ANALYTICS: '/api/feedbacks/analytics/chain',
+    CHAIN_ANALYTICS: '/api/feedbacks/analytics/chain-summary',
+    STAFF_PERFORMANCE: '/api/feedbacks/analytics/staff-performance',
+    BRANCH_PERFORMANCE: '/api/feedbacks/analytics/branch-performance',
     RESOLVE: (id: string) => `/api/feedbacks/${encodeURIComponent(id)}/resolve`,
   },
 

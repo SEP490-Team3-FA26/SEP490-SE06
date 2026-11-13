@@ -583,8 +583,9 @@ export const DoveFigure = forwardRef<DoveFigureHandle, Props>(function DoveFigur
                 e.stopPropagation();
                 raakHoofd();
               }}
-              title="Gõ nhẹ vào trán tớ nè!"
-            />
+            >
+              <title>Gõ nhẹ vào trán tớ nè!</title>
+            </circle>
           )}
 
           {/* Hitmarker SVG effect */}

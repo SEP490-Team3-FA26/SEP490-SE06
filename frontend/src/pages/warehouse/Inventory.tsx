@@ -197,8 +197,14 @@ export function Inventory() {
       showToast("Số lượng xử lý phải lớn hơn 0", "warning");
       return;
     }
-    if (expirationAction === 'DISCOUNT' && (!expirationDiscountPrice || expirationDiscountPrice <= 0)) {
-      showToast("Giá khuyến mãi phải lớn hơn 0", "warning");
+    if (expirationAction === 'DISCOUNT' && (
+      selectedExpirationBatch.status !== 'SOON_TO_EXPIRE' ||
+      selectedExpirationBatch.batchStatus !== 'ACTIVE' ||
+      !Number.isSafeInteger(expirationDiscountPrice) ||
+      expirationDiscountPrice <= 0 ||
+      expirationDiscountPrice >= selectedExpirationBatch.price
+    )) {
+      showToast("Chỉ giảm giá lô cận hạn còn bán được, với giá thấp hơn giá hiện tại", "warning");
       return;
     }
 
@@ -1547,11 +1553,13 @@ export function Inventory() {
                   {/* Discount Card */}
                   <button
                     onClick={() => setExpirationAction('DISCOUNT')}
+                    disabled={selectedExpirationBatch.status !== 'SOON_TO_EXPIRE' ||
+                      selectedExpirationBatch.batchStatus !== 'ACTIVE'}
                     className={`flex flex-col items-center justify-center p-4 rounded-2xl border text-center transition-all ${
                       expirationAction === 'DISCOUNT'
                         ? 'border-sky-500 bg-sky-50/40 text-sky-700 shadow-sm ring-2 ring-sky-500/20'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600'
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <Tag size={24} className={expirationAction === 'DISCOUNT' ? 'text-sky-600' : 'text-slate-400'} />
                     <span className="text-xs font-bold mt-2">Khuyến mãi</span>

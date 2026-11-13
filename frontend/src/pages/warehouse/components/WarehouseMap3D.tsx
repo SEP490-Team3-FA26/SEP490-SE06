@@ -8,6 +8,7 @@ import { Canvas } from '@react-three/fiber';
 import {
   FOV,
   RACK_ORDER,
+  RACK_PLACEMENTS,
   RACK_TO_ZONE,
   WarehouseMap3DProps,
   parseWarehouseTargetId,

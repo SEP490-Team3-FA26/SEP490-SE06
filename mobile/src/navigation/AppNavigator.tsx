@@ -147,6 +147,7 @@ export default function AppNavigator() {
           <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
           <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
+          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
@@ -188,6 +189,9 @@ export default function AppNavigator() {
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+          {!isWarehouse && (
+            <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          )}
         </Stack.Group>
       )}
     </Stack.Navigator>

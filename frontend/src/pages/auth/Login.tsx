@@ -8,8 +8,11 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
+  // Chỉ cho phép Developer Test Accounts ở môi trường phát triển (DEV) hoặc khi có cờ VITE_ENABLE_DEV_LOGIN rõ ràng
+  const isDevAllowed = Boolean(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true');
+
   // Kiểm tra cờ dev trong URL (?dev=true hoặc ?mode=dev)
-  const isDevParam = searchParams.get('dev') === 'true' || searchParams.get('mode') === 'dev' || searchParams.get('developer') === 'true';
+  const isDevParam = isDevAllowed && (searchParams.get('dev') === 'true' || searchParams.get('mode') === 'dev' || searchParams.get('developer') === 'true');
   const [isDevMode, setIsDevMode] = useState<boolean>(isDevParam);
 
   const [role, setRole] = useState(isDevParam ? "admin" : "user");
@@ -32,9 +35,10 @@ export function Login() {
   }, [isDevParam]);
 
   const handleToggleDevMode = (dev: boolean) => {
-    setIsDevMode(dev);
+    if (dev && !isDevAllowed) return;
+    setIsDevMode(dev && isDevAllowed);
     setError("");
-    if (dev) {
+    if (dev && isDevAllowed) {
       setRole("admin");
       setEmail("admin@vinapharmacy.com");
       setPassword("123456");
@@ -168,9 +172,9 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Nhận diện thông minh: nếu người dùng gõ "dev" hoặc "developer" vào ô email, tự động kích hoạt Chế độ Nhà phát triển
+    // Nhận diện thông minh: nếu ở môi trường dev và người dùng gõ "dev" hoặc "developer" vào ô email, tự động kích hoạt Chế độ Nhà phát triển
     const trimmedEmail = email.trim().toLowerCase();
-    if (trimmedEmail === "dev" || trimmedEmail === "developer") {
+    if (isDevAllowed && (trimmedEmail === "dev" || trimmedEmail === "developer")) {
       setError("");
       handleToggleDevMode(true);
       return;
@@ -337,8 +341,8 @@ export function Login() {
                 />
               </div>
 
-              {/* Gợi ý kích hoạt Dev Mode ngay nếu người dùng gõ dev hoặc developer */}
-              {!isDevMode && (email.trim().toLowerCase() === "dev" || email.trim().toLowerCase() === "developer") && (
+              {/* Gợi ý kích hoạt Dev Mode ngay nếu người dùng gõ dev hoặc developer (chỉ cho phép ở môi trường dev) */}
+              {isDevAllowed && !isDevMode && (email.trim().toLowerCase() === "dev" || email.trim().toLowerCase() === "developer") && (
                 <div className="mt-2 p-2.5 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between text-xs text-purple-700 animate-in fade-in">
                   <span className="font-semibold flex items-center gap-1.5">
                     <Code2 size={14} className="text-purple-600 shrink-0" />
@@ -437,8 +441,8 @@ export function Login() {
           </Link>
         </div>
 
-        {/* Nút chuyển sang chế độ developer khi đang ở chế độ bình thường */}
-        {!isDevMode && (
+        {/* Nút chuyển sang chế độ developer khi đang ở chế độ bình thường (chỉ cho phép ở môi trường dev) */}
+        {isDevAllowed && !isDevMode && (
           <div>
             <button
               type="button"
