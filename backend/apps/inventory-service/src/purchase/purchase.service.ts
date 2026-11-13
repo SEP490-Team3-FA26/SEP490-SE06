@@ -1504,43 +1504,87 @@ export class PurchaseService {
 
   async getPurchaseOrderById(id: string) {
     if (!id) return null;
-    const cleanId = String(id).replace('#', '').trim();
+    let cleanId = String(id).trim();
+
+    // 1. Tự động bóc tách ID nếu quét phải đường link Web (URL deep link)
+    if (cleanId.includes('poId=')) {
+      const match = cleanId.match(/poId=([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    } else if (cleanId.includes('grnId=')) {
+      const match = cleanId.match(/grnId=([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    }
+
+    cleanId = cleanId.replace(/^[#:\s]+/, '').trim();
     if (!cleanId) return null;
 
-    // 1. Tìm theo ObjectId hợp lệ
+    // Chuẩn hóa loại bỏ tiền tố PO (ví dụ: PO-A064C2 -> A064C2)
+    const rawWithoutPo = cleanId.replace(/^PO[-_:\s]*/i, '').trim();
+
+    // 2. Tìm theo ObjectId hợp lệ (cả cleanId và rawWithoutPo)
     if (isValidObjectId(cleanId)) {
       try {
         const po = await this.poModel.findById(cleanId).lean().exec();
         if (po) return po;
       } catch (_) {}
     }
+    if (rawWithoutPo && rawWithoutPo !== cleanId && isValidObjectId(rawWithoutPo)) {
+      try {
+        const po = await this.poModel.findById(rawWithoutPo).lean().exec();
+        if (po) return po;
+      } catch (_) {}
+    }
 
-    // 2. Tìm theo poCode
+    // 3. Tìm theo poCode khớp chính xác hoặc không phân biệt hoa thường
     try {
+      const escapedClean = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedRaw = rawWithoutPo ? rawWithoutPo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+      const codeRegex = escapedRaw
+        ? `^(${escapedClean}|PO-${escapedRaw}|${escapedRaw})$`
+        : `^${escapedClean}$`;
+
       const poByCode = await this.poModel.findOne({
         $or: [
+          { poCode: { $regex: codeRegex, $options: 'i' } },
           { poCode: cleanId },
           { poCode: `PO-${cleanId}` },
           { poCode: `#${cleanId}` },
-        ]
-      }).lean().exec();
+          ...(rawWithoutPo ? [{ poCode: rawWithoutPo }, { poCode: `PO-${rawWithoutPo}` }] : []),
+        ],
+      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+
       if (poByCode) return poByCode;
     } catch (_) {}
 
-    // 3. Tra cứu hậu tố QR ngay trên MongoDB, kể cả với PO cũ.
-    if (cleanId.length >= 6) {
-      const escapedId = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const suffix = escapedId + '$';
-      return this.poModel.findOne({
-        $or: [
-          { poCode: { $regex: suffix, $options: 'i' } },
-          {
-            $expr: {
-              $regexMatch: { input: { $toString: '$_id' }, regex: suffix, options: 'i' },
+    // 4. Tra cứu hậu tố QR ngay trên MongoDB, hỗ trợ cả mã hex _id rút gọn 6 ký tự hoặc hậu tố poCode
+    const targetSuffix = (rawWithoutPo && rawWithoutPo.length >= 4) ? rawWithoutPo : (cleanId.length >= 4 ? cleanId : '');
+    if (targetSuffix) {
+      const escapedTarget = targetSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions: any[] = [
+        { poCode: { $regex: `${escapedTarget}$`, $options: 'i' } },
+        { poCode: { $regex: cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', $options: 'i' } },
+      ];
+
+      // Nếu targetSuffix là chuỗi hex hợp lệ, tra cứu hậu tố trên _id của MongoDB
+      if (/^[0-9a-fA-F]+$/.test(targetSuffix)) {
+        orConditions.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: '$_id' },
+              regex: `${targetSuffix}$`,
+              options: 'i',
             },
           },
-        ],
-      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+        });
+      }
+
+      try {
+        const poBySuffix = await this.poModel.findOne({
+          $or: orConditions,
+        }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+
+        if (poBySuffix) return poBySuffix;
+      } catch (_) {}
     }
 
     return null;

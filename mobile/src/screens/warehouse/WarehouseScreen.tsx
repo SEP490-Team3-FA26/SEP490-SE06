@@ -94,8 +94,10 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [selectedTransferForQR, setSelectedTransferForQR] = useState<StockTransfer | null>(null);
   const [transferFilter, setTransferFilter] = useState<string>('ALL');
 
-  // --- Goods Receipts state (GRN) ---
+  // --- Goods Receipts state (GRN) & Incoming POs ---
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [incomingPOs, setIncomingPOs] = useState<any[]>([]);
+  const [receiptSubTab, setReceiptSubTab] = useState<'PENDING_PO' | 'GRN'>('PENDING_PO');
 
   // AI Goods Inspection Scanner state
   const [inspectModalVisible, setInspectModalVisible] = useState<boolean>(false);
@@ -205,7 +207,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [medList, mapRes, lowStock, transferList, grnList, checksList, statsRes] = await Promise.all([
+      const [medList, mapRes, lowStock, transferList, grnList, checksList, statsRes, poList] = await Promise.all([
         ApiService.getMedicines({ search: searchQuery }),
         ApiService.getWarehouseMap(),
         ApiService.getLowStockReport(),
@@ -213,6 +215,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         ApiService.getGoodsReceipts(),
         ApiService.getInventoryChecks(),
         ApiService.getInventoryStats('CENTRAL_WH'),
+        ApiService.getPurchaseOrders().catch(() => []),
       ]);
 
       if (statsRes && statsRes.totalMedicines > 0) {
@@ -241,6 +244,15 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
       setTransfers(transferList || []);
       setReceipts(grnList || []);
+
+      // Lọc các đơn PO cần kiểm đếm / đang vận chuyển nhập kho
+      if (Array.isArray(poList)) {
+        const pending = poList.filter((p: any) =>
+          ['SHIPPING', 'RECEIVING', 'PARTIAL_RECEIVED', 'APPROVED', 'ORDERED', 'SENT', 'DELIVERING', 'PENDING_INSPECTION', 'PENDING_APPROVAL'].includes(p.status)
+        );
+        setIncomingPOs(pending);
+      }
+
       if (checksList) setInventoryChecksList(checksList);
     } catch (e) {
       console.warn('Error loading warehouse data:', e);
@@ -394,17 +406,30 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           if (match) cleanCode = match[1];
         }
 
-        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN (Ưu tiên tra cứu trực tiếp theo ID để tránh block JS Thread)
+        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN (Tra cứu trực tiếp qua API Gateway)
         let matchedPo = null;
-        if (cleanCode.length >= 8) {
+        if (cleanCode.length >= 3) {
           matchedPo = await ApiService.getPurchaseOrderById(cleanCode).catch(() => null);
         }
 
-        // Nếu chưa thấy, mới fallback tìm trong danh sách PO
+        // Nếu chưa thấy, mới fallback tìm trong danh sách PO (tìm không phân biệt hoa thường và hỗ trợ hậu tố)
         if (!matchedPo) {
-          const pos = await ApiService.getPurchaseOrders().catch(() => []);
+          const pos = incomingPOs.length > 0 ? incomingPOs : await ApiService.getPurchaseOrders().catch(() => []);
+          const targetClean = cleanCode.toLowerCase().replace(/^po[-_:\s]*/i, '');
           matchedPo = Array.isArray(pos)
-            ? pos.find((p: any) => p._id === cleanCode || p.poCode === cleanCode || p.id === cleanCode || (p._id && cleanCode.includes(p._id.slice(-6))))
+            ? pos.find((p: any) => {
+                const pId = String(p._id || p.id || '').toLowerCase();
+                const pCode = String(p.poCode || '').toLowerCase();
+                const codeLower = cleanCode.toLowerCase();
+                return (
+                  pId === codeLower ||
+                  pCode === codeLower ||
+                  pId === targetClean ||
+                  pCode === targetClean ||
+                  (targetClean.length >= 4 && pId.endsWith(targetClean)) ||
+                  (targetClean.length >= 4 && pCode.includes(targetClean))
+                );
+              })
             : null;
         }
 
@@ -544,6 +569,36 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     if (item?.image && item.image.startsWith('http')) return item.image;
     const med = getMedicineForItem(item);
     return med?.image || med?.image_url || 'https://cdn.nhathuoclongchau.com.vn/v1/static/DSC_09429_8cea307452.jpg';
+  };
+
+  const handleStartInspectionFromPo = (po: any) => {
+    const poCodeStr = po.poCode || (po._id ? String(po._id).slice(-6).toUpperCase() : 'PO');
+    const poReceipt = {
+      id: `GRN-${poCodeStr}`,
+      poCode: po.poCode || po._id,
+      poId: po._id || po.id,
+      supplier: po.supplierName || (po.supplier?.name || po.supplier) || 'Nhà cung cấp',
+      status: 'INSPECTING',
+      items: (po.items || []).map((it: any, idx: number) => ({
+        medicineId: it.medicineId || it.id || `item_${idx}`,
+        name: it.medicineName || it.name || `Thuốc #${idx + 1}`,
+        expected: Number(it.quantity || it.expected) || 100,
+        actual: 0,
+        unit: it.unit || 'Hộp',
+        status: 'PENDING',
+        batchNo: it.batchNo || '',
+        expDate: it.expDate || '',
+        barcode: it.barcode || '',
+        sku: it.sku || '',
+      })),
+    };
+    setReceipts((prev) => {
+      const exists = prev.some((r) => r.id === poReceipt.id || r.poCode === poReceipt.poCode);
+      return exists ? prev : [poReceipt, ...prev];
+    });
+    setActiveTab('RECEIPTS');
+    handleStartInspection(poReceipt);
+    showToast.success('Bắt đầu kiểm đếm', `Mở phiên kiểm đếm kiện hàng: ${poReceipt.poCode}`);
   };
 
   const handleStartInspection = (receipt: any) => {
@@ -706,7 +761,24 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       if (receiptId && !receiptId.startsWith('GRN-PO')) {
         await ApiService.approveGoodsReceipt(receiptId);
       } else if (selectedReceiptForInspection.poId) {
-        await ApiService.submitInspection(selectedReceiptForInspection.poId);
+        // Đồng bộ dữ liệu kiểm đếm lên Redis/WebSocket để Web PC tiếp nhận tức thì
+        const inspectionPayload = {
+          poId: selectedReceiptForInspection.poId,
+          inspectorName: 'Thủ kho Mobile',
+          status: 'COMPLETED',
+          items: (selectedReceiptForInspection.items || []).map((it: any) => ({
+            _id: it.medicineId || it.id,
+            medicineId: it.medicineId || it.id,
+            name: it.name,
+            expectedQty: it.expected,
+            actualQty: it.actual,
+            batchNo: it.batchNo || 'LOT-2026',
+            expDate: it.expDate || '2028-12-31',
+            status: it.status,
+          })),
+        };
+        await ApiService.savePoInspection(selectedReceiptForInspection.poId, inspectionPayload);
+        await ApiService.submitInspection(selectedReceiptForInspection.poId).catch(() => null);
       }
     } catch (e) {
       console.warn('Lỗi lưu kết quả kiểm đếm lên backend:', e);
@@ -1535,7 +1607,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         {activeTab === 'RECEIPTS' && (
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Phiếu Nhập Kho (GRN)</Text>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Kiểm Nhận Nhập Kho</Text>
               <TouchableOpacity
                 onPress={() => {
                   setScannerPurpose('SCAN_PO');
@@ -1568,7 +1640,7 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 borderWidth: 1,
                 borderRadius: 16,
                 padding: 14,
-                marginBottom: 16,
+                marginBottom: 14,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 12,
@@ -1586,127 +1658,304 @@ export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               <Ionicons name="chevron-forward" size={18} color="#4F46E5" />
             </TouchableOpacity>
 
-            {receipts.map((gr, idx) => (
-              <View key={gr.id || (gr as any)._id || `receipt-${idx}`} style={styles.receiptCard}>
-                <View style={styles.receiptHeader}>
-                  <View>
-                    <Text style={styles.receiptCode}>{gr.id}</Text>
-                    <Text style={styles.receiptPo}>Từ đơn PO: {gr.poCode}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.receiptStatusTag,
-                      {
-                        backgroundColor:
-                          gr.status === 'COMPLETED'
-                            ? '#F0F9FF'
-                            : gr.status === 'INSPECTING'
-                            ? '#FEF3C7'
-                            : '#EFF6FF',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.receiptStatusText,
-                        {
-                          color:
-                            gr.status === 'COMPLETED'
-                              ? '#0284C7'
-                              : gr.status === 'INSPECTING'
-                              ? '#D97706'
-                              : '#2563EB',
-                        },
-                      ]}
-                    >
-                      {gr.status}
-                    </Text>
-                  </View>
-                </View>
+            {/* Thanh chuyển đổi chế độ xem: Đơn PO Chờ Nhập vs Phiếu GRN */}
+            <View style={{ flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+              <TouchableOpacity
+                onPress={() => setReceiptSubTab('PENDING_PO')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: receiptSubTab === 'PENDING_PO' ? '#FFFFFF' : 'transparent',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: receiptSubTab === 'PENDING_PO' ? '#000' : 'transparent',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 2,
+                  elevation: receiptSubTab === 'PENDING_PO' ? 2 : 0,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: receiptSubTab === 'PENDING_PO' ? '#4F46E5' : '#64748B' }}>
+                  📦 Đơn PO Chờ Nhập ({incomingPOs.length})
+                </Text>
+              </TouchableOpacity>
 
-                <Text style={styles.supplierText}>Nhà cung cấp: {gr.supplier}</Text>
+              <TouchableOpacity
+                onPress={() => setReceiptSubTab('GRN')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: receiptSubTab === 'GRN' ? '#FFFFFF' : 'transparent',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: receiptSubTab === 'GRN' ? '#000' : 'transparent',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 2,
+                  elevation: receiptSubTab === 'GRN' ? 2 : 0,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: receiptSubTab === 'GRN' ? '#0284C7' : '#64748B' }}>
+                  📋 Phiếu Nhập Kho ({receipts.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                <View style={styles.receiptItemsList}>
-                  {gr.items.map((it: any, itIdx: number) => (
-                    <View key={itIdx} style={styles.receiptItemRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.itemName}>• {it.name}</Text>
-                        <Text style={styles.itemQty}>
-                          Dự kiến: {it.expected} | Thực nhận: {it.actual} {it.unit}
+            {/* Chế độ 1: Danh sách Đơn Hàng PO Chờ Nhập Kho */}
+            {receiptSubTab === 'PENDING_PO' && (
+              <View>
+                {incomingPOs.map((po, idx) => {
+                  const poCodeDisplay = po.poCode || (po._id ? `PO-${String(po._id).slice(-6).toUpperCase()}` : `PO-${idx + 1}`);
+                  const supplierName = po.supplierName || (po.supplier?.name || po.supplier) || 'Nhà cung cấp';
+                  const itemsCount = (po.items || []).length;
+                  const totalExpectedUnits = (po.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity || it.expected) || 0), 0);
+
+                  return (
+                    <View key={po._id || po.id || `incoming-po-${idx}`} style={styles.receiptCard}>
+                      <View style={styles.receiptHeader}>
+                        <View>
+                          <Text style={styles.receiptCode}>{poCodeDisplay}</Text>
+                          <Text style={styles.receiptPo}>Nhà CC: {supplierName}</Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.receiptStatusTag,
+                            {
+                              backgroundColor:
+                                po.status === 'SHIPPING' || po.status === 'DELIVERING'
+                                  ? '#FEF3C7'
+                                  : po.status === 'APPROVED' || po.status === 'ORDERED'
+                                  ? '#EEF2FF'
+                                  : '#F0FDF4',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.receiptStatusText,
+                              {
+                                color:
+                                  po.status === 'SHIPPING' || po.status === 'DELIVERING'
+                                    ? '#D97706'
+                                    : po.status === 'APPROVED' || po.status === 'ORDERED'
+                                    ? '#4F46E5'
+                                    : '#16A34A',
+                              },
+                            ]}
+                          >
+                            {po.status === 'SHIPPING'
+                              ? 'ĐANG VẬN CHUYỂN'
+                              : po.status === 'DELIVERING'
+                              ? 'HÀNG ĐANG ĐẾN'
+                              : po.status === 'APPROVED'
+                              ? 'ĐÃ DUYỆT PO'
+                              : po.status === 'ORDERED'
+                              ? 'ĐÃ ĐẶT HÀNG'
+                              : po.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, marginBottom: 8 }}>
+                        <Text style={{ fontSize: 11, color: '#64748B' }}>
+                          📦 <Text style={{ fontWeight: '700', color: '#1E293B' }}>{itemsCount}</Text> mặt hàng
                         </Text>
+                        <Text style={{ fontSize: 11, color: '#64748B' }}>
+                          🔢 Tổng: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{totalExpectedUnits}</Text> đơn vị
+                        </Text>
+                      </View>
+
+                      {/* Danh sách mặt hàng vắn tắt */}
+                      <View style={styles.receiptItemsList}>
+                        {(po.items || []).slice(0, 3).map((it: any, itIdx: number) => (
+                          <View key={itIdx} style={styles.receiptItemRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.itemName}>• {it.medicineName || it.name || `Thuốc #${itIdx + 1}`}</Text>
+                              <Text style={styles.itemQty}>
+                                SL đặt: {it.quantity || it.expected || 0} {it.unit || 'Hộp'}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                        {(po.items || []).length > 3 && (
+                          <Text style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', marginTop: 4 }}>
+                            + {(po.items || []).length - 3} mặt hàng khác...
+                          </Text>
+                        )}
+                      </View>
+
+                      <View style={{ marginTop: 12 }}>
+                        <GradientButton
+                          title="🔍 AI KIỂM ĐẾM & NHẬN HÀNG"
+                          onPress={() => handleStartInspectionFromPo(po)}
+                          gradientVariant="cyan"
+                          size="sm"
+                          icon={<Ionicons name="scan-circle" size={18} color="#FFFFFF" />}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {incomingPOs.length === 0 && (
+                  <View style={styles.emptyCard}>
+                    <Ionicons name="cube-outline" size={42} color="#94A3B8" />
+                    <Text style={styles.emptyCardTitle}>Không có đơn PO chờ nhập</Text>
+                    <Text style={styles.emptyCardSub}>
+                      Tất cả đơn đặt hàng PO đã được kiểm nhận hoặc chưa có đơn hàng mới từ phòng mua hàng.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setScannerPurpose('SCAN_PO');
+                        setScannerVisible(true);
+                      }}
+                      style={{
+                        marginTop: 14,
+                        backgroundColor: '#4F46E5',
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Quét Mã QR Đơn Hàng PO</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Chế độ 2: Danh sách Phiếu Nhập Kho (GRN) */}
+            {receiptSubTab === 'GRN' && (
+              <View>
+                {receipts.map((gr, idx) => (
+                  <View key={gr.id || (gr as any)._id || `receipt-${idx}`} style={styles.receiptCard}>
+                    <View style={styles.receiptHeader}>
+                      <View>
+                        <Text style={styles.receiptCode}>{gr.id}</Text>
+                        <Text style={styles.receiptPo}>Từ đơn PO: {gr.poCode}</Text>
                       </View>
                       <View
                         style={[
-                          styles.itemStatusPill,
-                          { backgroundColor: it.status === 'VERIFIED' ? '#F0F9FF' : '#FEF3C7' },
+                          styles.receiptStatusTag,
+                          {
+                            backgroundColor:
+                              gr.status === 'COMPLETED'
+                                ? '#F0F9FF'
+                                : gr.status === 'INSPECTING'
+                                ? '#FEF3C7'
+                                : '#EFF6FF',
+                          },
                         ]}
                       >
                         <Text
                           style={[
-                            styles.itemStatusPillText,
-                            { color: it.status === 'VERIFIED' ? '#0284C7' : '#D97706' },
+                            styles.receiptStatusText,
+                            {
+                              color:
+                                gr.status === 'COMPLETED'
+                                  ? '#0284C7'
+                                  : gr.status === 'INSPECTING'
+                                  ? '#D97706'
+                                  : '#2563EB',
+                            },
                           ]}
                         >
-                          {it.status === 'VERIFIED' ? 'Đã kiểm AI' : 'Chờ kiểm'}
+                          {gr.status}
                         </Text>
                       </View>
                     </View>
-                  ))}
-                </View>
 
-                {gr.status !== 'COMPLETED' ? (
-                  <View style={{ marginTop: 12 }}>
-                    <GradientButton
-                      title="🔍 QUÉT AI KIỂM ĐẾM & NHẬN HÀNG"
-                      onPress={() => handleStartInspection(gr)}
-                      gradientVariant="cyan"
-                      size="sm"
-                      icon={<Ionicons name="scan-circle" size={18} color="#FFFFFF" />}
-                    />
-                    <View style={{ marginTop: 8 }}>
-                      <GradientButton
-                        title="Duyệt Nhập Kho Thủ Công"
-                        onPress={() => handleApproveReceipt(gr.id)}
-                        gradientVariant="purple"
-                        size="sm"
-                      />
+                    <Text style={styles.supplierText}>Nhà cung cấp: {gr.supplier}</Text>
+
+                    <View style={styles.receiptItemsList}>
+                      {gr.items.map((it: any, itIdx: number) => (
+                        <View key={itIdx} style={styles.receiptItemRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.itemName}>• {it.name}</Text>
+                            <Text style={styles.itemQty}>
+                              Dự kiến: {it.expected} | Thực nhận: {it.actual} {it.unit}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.itemStatusPill,
+                              { backgroundColor: it.status === 'VERIFIED' ? '#F0F9FF' : '#FEF3C7' },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.itemStatusPillText,
+                                { color: it.status === 'VERIFIED' ? '#0284C7' : '#D97706' },
+                              ]}
+                            >
+                              {it.status === 'VERIFIED' ? 'Đã kiểm AI' : 'Chờ kiểm'}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
                     </View>
+
+                    {gr.status !== 'COMPLETED' ? (
+                      <View style={{ marginTop: 12 }}>
+                        <GradientButton
+                          title="🔍 QUÉT AI KIỂM ĐẾM & NHẬN HÀNG"
+                          onPress={() => handleStartInspection(gr)}
+                          gradientVariant="cyan"
+                          size="sm"
+                          icon={<Ionicons name="scan-circle" size={18} color="#FFFFFF" />}
+                        />
+                        <View style={{ marginTop: 8 }}>
+                          <GradientButton
+                            title="Duyệt Nhập Kho Thủ Công"
+                            onPress={() => handleApproveReceipt(gr.id)}
+                            gradientVariant="purple"
+                            size="sm"
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.completedReceiptBadge}>
+                        <Ionicons name="checkmark-done-circle" size={18} color="#0284C7" />
+                        <Text style={styles.completedReceiptText}>
+                          Đã hoàn tất kiểm nhận AI & nhập kho lưu trữ GSP
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                ) : (
-                  <View style={styles.completedReceiptBadge}>
-                    <Ionicons name="checkmark-done-circle" size={18} color="#0284C7" />
-                    <Text style={styles.completedReceiptText}>
-                      Đã hoàn tất kiểm nhận AI & nhập kho lưu trữ GSP
-                    </Text>
+                ))}
+
+                {receipts.length === 0 && (
+                  <View style={styles.emptyCard}>
+                    <Ionicons name="document-text-outline" size={42} color="#94A3B8" />
+                    <Text style={styles.emptyCardTitle}>Chưa có phiếu nhập kho</Text>
+                    <Text style={styles.emptyCardSub}>Quét mã QR từ Web hoặc tạo đơn nhập hàng PO để bắt đầu kiểm đếm.</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setScannerPurpose('SCAN_PO');
+                        setScannerVisible(true);
+                      }}
+                      style={{
+                        marginTop: 14,
+                        backgroundColor: '#4F46E5',
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Mở Camera Quét Mã PO Ngay</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-              </View>
-            ))}
-
-            {receipts.length === 0 && (
-              <View style={styles.emptyCard}>
-                <Ionicons name="document-text-outline" size={42} color="#94A3B8" />
-                <Text style={styles.emptyCardTitle}>Chưa có phiếu nhập kho</Text>
-                <Text style={styles.emptyCardSub}>Quét mã QR từ Web hoặc tạo đơn nhập hàng PO để bắt đầu kiểm đếm.</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setScannerPurpose('SCAN_PO');
-                    setScannerVisible(true);
-                  }}
-                  style={{
-                    marginTop: 14,
-                    backgroundColor: '#4F46E5',
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
-                  <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Mở Camera Quét Mã PO Ngay</Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
