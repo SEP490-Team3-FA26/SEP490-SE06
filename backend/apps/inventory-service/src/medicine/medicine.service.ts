@@ -1123,8 +1123,6 @@ export class MedicineService implements OnModuleInit {
           stockBefore: batch.stock,
           stockAfter: batch.stock,
           referenceType: 'PRICE_DISCOUNT',
-          batchId: batch._id.toString(),
-          branchId: batch.branchId || 'CENTRAL_WH',
           performedBy: performedBy || 'Quản lý',
           notes: notes || `Thiết lập giá khuyến mãi cận hạn: ${oldPrice?.toLocaleString('vi-VN')}đ -> ${discountPrice?.toLocaleString('vi-VN')}đ`,
         });
