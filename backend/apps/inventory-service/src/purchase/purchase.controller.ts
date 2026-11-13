@@ -451,4 +451,14 @@ export class PurchaseController {
       throw new RpcException(error.message || 'Lỗi gửi báo giá qua Token');
     }
   }
+
+  // Tổng hợp dữ liệu mua hàng (PO) theo chi nhánh (Event-Driven Microservices)
+  @MessagePattern('inventory.po.summary_by_branch')
+  async getPoSummaryByBranch() {
+    try {
+      return await this.purchaseService.getPoSummaryByBranch();
+    } catch (error: any) {
+      throw new RpcException(error.message || 'Lỗi khi tổng hợp PO theo chi nhánh');
+    }
+  }
 }

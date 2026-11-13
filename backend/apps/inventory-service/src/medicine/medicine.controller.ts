@@ -170,6 +170,16 @@ export class MedicineController {
     }
   }
 
+  @MessagePattern('inventory.check.update')
+  async updateInventoryCheck(@Payload() data: any) {
+    try {
+      return await this.medicineService.updateInventoryCheck(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi cập nhật biên bản kiểm kê');
+    }
+  }
+
   @MessagePattern('inventory.check.list')
   async listInventoryChecks(@Payload() data?: any) {
     try {

@@ -3515,4 +3515,31 @@ export class PurchaseService {
       session.endSession();
     }
   }
+
+  // Tổng hợp dữ liệu mua hàng (PO) theo chi nhánh phục vụ báo cáo hiệu suất (Tuân thủ Microservices Bounded Context)
+  async getPoSummaryByBranch(): Promise<Record<string, { totalPoCount: number; totalPurchaseValue: number }>> {
+    try {
+      const poAgg = await this.poModel.aggregate([
+        {
+          $group: {
+            _id: { $ifNull: ['$branchId', 'CENTRAL_WH'] },
+            totalPoCount: { $sum: 1 },
+            totalPurchaseValue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          },
+        },
+      ]).exec();
+
+      const result: Record<string, { totalPoCount: number; totalPurchaseValue: number }> = {};
+      (poAgg || []).forEach((p: any) => {
+        result[p._id] = {
+          totalPoCount: p.totalPoCount || 0,
+          totalPurchaseValue: p.totalPurchaseValue || 0,
+        };
+      });
+      return result;
+    } catch (err: any) {
+      this.logger.error(`[getPoSummaryByBranch] Lỗi tổng hợp PO: ${err.message}`);
+      return {};
+    }
+  }
 }

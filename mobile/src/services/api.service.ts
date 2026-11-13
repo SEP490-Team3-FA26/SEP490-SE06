@@ -1291,6 +1291,34 @@ export class ApiService {
     }
   }
 
+  public static async updateInventoryCheck(
+    id: string,
+    data: {
+      items?: any[];
+      notes?: string;
+      performedBy?: string;
+    }
+  ): Promise<{ success: boolean; message?: string; data?: any }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...this.authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể cập nhật biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi cập nhật biên bản kiểm kê' };
+    }
+  }
+
   public static async completeInventoryCheck(id: string): Promise<{ success: boolean; message?: string; data?: any }> {
     try {
       const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}/complete`, {

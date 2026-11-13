@@ -48,7 +48,7 @@ const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; la
   F: { bg: 'rgba(100, 116, 139, 0.1)', border: '#64748B', text: '#475569', label: 'Vật tư y tế', icon: '🩺' },
 };
 
-export const WarehouseScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'CHECKS' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
   const [mapViewMode, setMapViewMode] = useState<'3D' | '2D'>('3D');

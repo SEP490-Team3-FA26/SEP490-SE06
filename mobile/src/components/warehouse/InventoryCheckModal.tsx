@@ -61,8 +61,30 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [scannerVisible, setScannerVisible] = useState<boolean>(false);
 
+  // Danh mục thuốc & lô sẵn có trong kho (hỗ trợ thêm thuốc và chống Dead-end UX)
+  const [warehouseMedicines, setWarehouseMedicines] = useState<any[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState<boolean>(false);
+  const [batchSelectorVisible, setBatchSelectorVisible] = useState<boolean>(false);
+  const [selectorSearch, setSelectorSearch] = useState<string>('');
+
+  // Tải danh mục thuốc và các lô trong kho từ Backend
+  const loadWarehouseBatches = useCallback(async () => {
+    try {
+      setLoadingBatches(true);
+      const data = await ApiService.getInventoryCheckBatches();
+      if (Array.isArray(data)) {
+        setWarehouseMedicines(data);
+      }
+    } catch (e: any) {
+      console.warn('Lỗi tải danh mục lô kiểm kê:', e);
+    } finally {
+      setLoadingBatches(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (visible) {
+      loadWarehouseBatches();
       if (initialItems && initialItems.length > 0) {
         setItems(JSON.parse(JSON.stringify(initialItems)));
       } else {
@@ -74,7 +96,37 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           : 'Đợt kiểm kê kho định kỳ'
       );
     }
-  }, [visible, initialItems, shelfLocation]);
+  }, [visible, initialItems, shelfLocation, loadWarehouseBatches]);
+
+  // Tổng số lô thuốc có trong kho
+  const totalWarehouseBatchesCount = useMemo(() => {
+    return warehouseMedicines.reduce(
+      (sum, med) => sum + (Array.isArray(med.batches) ? med.batches.length : 0),
+      0
+    );
+  }, [warehouseMedicines]);
+
+  // Lọc danh sách lô thuốc theo ô tìm kiếm trong modal chọn
+  const filteredWarehouseMedicines = useMemo(() => {
+    if (!selectorSearch.trim()) return warehouseMedicines;
+    const q = selectorSearch.toLowerCase().trim();
+    return warehouseMedicines
+      .map((med) => {
+        const medMatches =
+          (med.name && med.name.toLowerCase().includes(q)) ||
+          (med.barcode && med.barcode.toLowerCase().includes(q)) ||
+          (med.registrationNumber && med.registrationNumber.toLowerCase().includes(q));
+        const matchedBatches = (med.batches || []).filter(
+          (b: any) =>
+            medMatches || (b.batchNo && b.batchNo.toLowerCase().includes(q))
+        );
+        if (matchedBatches.length > 0) {
+          return { ...med, batches: matchedBatches };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [warehouseMedicines, selectorSearch]);
 
   // Cập nhật số lượng đếm thực tế của 1 dòng
   const handleUpdateActualStock = (idx: number, newStockStr: string) => {
@@ -116,19 +168,119 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
     );
   };
 
-  // Quét Barcode trực tiếp từ camera để đếm thuốc
+  // Thêm 1 lô thuốc cụ thể từ kho vào danh sách kiểm kê
+  const handleAddBatchToCheck = (med: any, batch: any) => {
+    const existingIndex = items.findIndex(
+      (it) => it.medicineId === (med.id || med._id) && it.batchNo === batch.batchNo
+    );
+    if (existingIndex >= 0) {
+      showToast.info('Đã có trong danh sách', `Lô ${batch.batchNo} đã nằm trong đợt kiểm kê.`);
+      return;
+    }
+    const newItem: InventoryCheckItem = {
+      medicineId: med.id || med._id,
+      medicineName: med.name,
+      sku: med.sku || '',
+      barcode: med.barcode || '',
+      batchId: batch.id || batch._id,
+      batchNo: batch.batchNo,
+      expDate: batch.expDate,
+      systemStock: batch.stock,
+      actualStock: batch.stock,
+      difference: 0,
+      discrepancyReason: '',
+      unit: med.unit || 'Hộp',
+      location: shelfLocation || { zone: 'A', rack: 'A1', shelf: 1 },
+    };
+    setItems((prev) => [newItem, ...prev]);
+    showToast.success('Đã thêm thuốc', `Đã thêm lô ${batch.batchNo} (${med.name}) vào đợt kiểm kê.`);
+  };
+
+  // Nạp toàn bộ danh mục lô đang có tồn kho
+  const handleLoadAllWarehouseBatches = () => {
+    if (warehouseMedicines.length === 0) {
+      showToast.error('Kho trống', 'Không tìm thấy lô thuốc nào trong kho kiểm kê.');
+      return;
+    }
+    const allItems: InventoryCheckItem[] = [];
+    for (const med of warehouseMedicines) {
+      if (Array.isArray(med.batches)) {
+        for (const b of med.batches) {
+          allItems.push({
+            medicineId: med.id || med._id,
+            medicineName: med.name,
+            sku: med.sku || '',
+            barcode: med.barcode || '',
+            batchId: b.id || b._id,
+            batchNo: b.batchNo,
+            expDate: b.expDate,
+            systemStock: b.stock,
+            actualStock: b.stock,
+            difference: 0,
+            discrepancyReason: '',
+            unit: med.unit || 'Hộp',
+            location: shelfLocation || { zone: 'A', rack: 'A1', shelf: 1 },
+          });
+        }
+      }
+    }
+    setItems(allItems);
+    showToast.success('Nạp thành công', `Đã nạp ${allItems.length} lô thuốc vào phiên kiểm kê.`);
+  };
+
+  // Quét Barcode trực tiếp từ camera để đếm thuốc hoặc tự động thêm lô mới
   const handleBarcodeScanned = (scannedCode: string) => {
-    const { updatedItems, found, matchedItem } = incrementStockByBarcode(items, scannedCode);
+    const cleanCode = (scannedCode || '').trim().toLowerCase();
+    const { updatedItems, found, matchedItem } = incrementStockByBarcode(items, cleanCode);
     if (found && matchedItem) {
       setItems(updatedItems);
       showToast.success(
         'Đã đếm +1',
         `${matchedItem.medicineName}\nSố lượng thực tế: ${matchedItem.actualStock}`
       );
-    } else {
+      return;
+    }
+
+    // Nếu chưa có trong danh sách kiểm, tự động tra cứu trong danh mục lô của kho
+    let foundInWarehouse = false;
+    for (const med of warehouseMedicines) {
+      const isMedMatch =
+        (med.barcode && med.barcode.toLowerCase() === cleanCode) ||
+        (med.registrationNumber && med.registrationNumber.toLowerCase() === cleanCode);
+      if (Array.isArray(med.batches) && med.batches.length > 0) {
+        for (const b of med.batches) {
+          if (isMedMatch || (b.batchNo && b.batchNo.toLowerCase() === cleanCode)) {
+            const newItem: InventoryCheckItem = {
+              medicineId: med.id || med._id,
+              medicineName: med.name,
+              sku: med.sku || '',
+              barcode: med.barcode || '',
+              batchId: b.id || b._id,
+              batchNo: b.batchNo,
+              expDate: b.expDate,
+              systemStock: b.stock,
+              actualStock: 1,
+              difference: 1 - b.stock,
+              discrepancyReason: '',
+              unit: med.unit || 'Hộp',
+              location: shelfLocation || { zone: 'A', rack: 'A1', shelf: 1 },
+            };
+            setItems((prev) => [newItem, ...prev]);
+            showToast.success(
+              'Đã thêm lô mới',
+              `Lô ${b.batchNo} - ${med.name}\nSố lượng đếm: 1`
+            );
+            foundInWarehouse = true;
+            return;
+          }
+        }
+      }
+    }
+
+    if (!foundInWarehouse) {
       showToast.error(
         'Không tìm thấy',
-        `Mã ${scannedCode} không có trong danh sách đợt kiểm kê hiện tại.`
+        `Mã "${scannedCode}" không có trong kho kiểm kê hiện tại.`
       );
     }
   };
@@ -160,7 +312,7 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
     return { total, matched, surplus, deficit };
   }, [items]);
 
-  // Lưu Nháp (DRAFT)
+  // Lưu Nháp (DRAFT) - Hỗ trợ cập nhật bản nháp cũ mà không sinh bản ghi mồ côi
   const handleSaveDraft = async () => {
     if (items.length === 0) {
       Alert.alert('Thông báo', 'Danh sách kiểm kê trống.');
@@ -180,14 +332,21 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           systemStock: it.systemStock,
           actualStock: it.actualStock,
           difference: it.difference,
-          discrepancyReason: it.discrepancyReason,
+          reason: (it.discrepancyReason || (it as any).reason || '').trim(),
+          discrepancyReason: (it.discrepancyReason || (it as any).reason || '').trim(),
           location: it.location,
         })),
         notes,
         status: 'DRAFT',
       };
 
-      const res = await ApiService.createInventoryCheck(payload);
+      let res;
+      if (existingCheckId) {
+        res = await ApiService.updateInventoryCheck(existingCheckId, payload);
+      } else {
+        res = await ApiService.createInventoryCheck(payload);
+      }
+
       if (res.success) {
         showToast.success('Thành công', 'Đã lưu nháp biên bản kiểm kê kho.');
         if (onCheckCompleted) onCheckCompleted();
@@ -202,7 +361,7 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
     }
   };
 
-  // Hoàn tất kiểm kê & Chốt cân bằng tồn kho (COMPLETE)
+  // Hoàn tất kiểm kê & Chốt cân bằng tồn kho (COMPLETE) - Triệt tiêu lỗi tạo rác bản nháp
   const handleCompleteCheck = async () => {
     const validation = validateInventoryCheckSubmission(items);
     if (!validation.isValid) {
@@ -221,29 +380,40 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           onPress: async () => {
             try {
               setSubmitting(true);
-              // 1. Tạo biên bản nháp trước
-              const createRes = await ApiService.createInventoryCheck({
-                items: items.map((it) => ({
-                  medicineId: it.medicineId,
-                  medicineName: it.medicineName,
-                  sku: it.sku,
-                  barcode: it.barcode,
-                  batchId: it.batchId,
-                  batchNo: it.batchNo,
-                  systemStock: it.systemStock,
-                  actualStock: it.actualStock,
-                  difference: it.difference,
-                  discrepancyReason: it.discrepancyReason,
-                  location: it.location,
-                })),
-                notes,
-                status: 'DRAFT',
-              });
+              const formattedItems = items.map((it) => ({
+                medicineId: it.medicineId,
+                medicineName: it.medicineName,
+                sku: it.sku,
+                barcode: it.barcode,
+                batchId: it.batchId,
+                batchNo: it.batchNo,
+                systemStock: it.systemStock,
+                actualStock: it.actualStock,
+                difference: it.difference,
+                reason: (it.discrepancyReason || (it as any).reason || '').trim(),
+                discrepancyReason: (it.discrepancyReason || (it as any).reason || '').trim(),
+                location: it.location,
+              }));
 
-              const checkId = existingCheckId || createRes.data?._id || createRes.data?.id;
+              let checkId = existingCheckId;
+              if (existingCheckId) {
+                // Đã có biên bản cũ: Cập nhật lại số liệu thực tế trước khi chốt, KHÔNG tạo record mới
+                await ApiService.updateInventoryCheck(existingCheckId, {
+                  items: formattedItems,
+                  notes,
+                });
+              } else {
+                // Chưa có: Tạo biên bản nháp mới
+                const createRes = await ApiService.createInventoryCheck({
+                  items: formattedItems,
+                  notes,
+                  status: 'DRAFT',
+                });
+                checkId = createRes.data?._id || createRes.data?.id;
+              }
 
               if (checkId) {
-                // 2. Gọi API hoàn tất để kích hoạt cân bằng tồn kho DB
+                // Gọi API hoàn tất để kích hoạt cân bằng tồn kho DB
                 const compRes = await ApiService.completeInventoryCheck(checkId);
                 if (compRes.success) {
                   showToast.success(
@@ -252,6 +422,9 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
                   );
                   if (onCheckCompleted) onCheckCompleted();
                   onClose();
+                  return;
+                } else {
+                  showToast.error('Lỗi chốt tồn kho', compRes.message || 'Không thể hoàn tất biên bản');
                   return;
                 }
               }
@@ -284,13 +457,23 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
               {shelfLocation ? formatWarehouseLocationLabel(shelfLocation) : 'Chuẩn BW07 · Cân Bằng Tồn GSP'}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => setScannerVisible(true)}
-            style={styles.scanBarcodeBtn}
-          >
-            <Ionicons name="barcode-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.scanBarcodeBtnText}>Quét Đếm</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => setBatchSelectorVisible(true)}
+              style={styles.addBatchBtn}
+            >
+              <Ionicons name="add" size={16} color="#0284C7" />
+              <Text style={styles.addBatchBtnText}>+ Thêm</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setScannerVisible(true)}
+              style={styles.scanBarcodeBtn}
+            >
+              <Ionicons name="barcode-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.scanBarcodeBtnText}>Quét Đếm</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Thống kê nhanh */}
@@ -333,11 +516,31 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
         {/* Danh sách các mặt hàng kiểm */}
         {displayedItems.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="clipboard-outline" size={54} color="#CBD5E1" />
-            <Text style={styles.emptyText}>Chưa có thuốc nào trong đợt kiểm kê này.</Text>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="clipboard-outline" size={36} color="#0284C7" />
+            </View>
+            <Text style={styles.emptyText}>Chưa có thuốc nào trong đợt kiểm kê này</Text>
             <Text style={styles.emptySubText}>
-              Bấm vào tầng kệ trên Sơ Đồ Kho hoặc quét mã vạch để thêm thuốc cần kiểm.
+              Bổ sung thuốc vào đợt kiểm kê bằng cách chọn từng lô, nạp toàn bộ kho hoặc quét mã vạch trên vỏ hộp.
             </Text>
+            <View style={styles.emptyActionCol}>
+              <TouchableOpacity
+                onPress={() => setBatchSelectorVisible(true)}
+                style={styles.emptyAddBtn}
+              >
+                <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                <Text style={styles.emptyAddBtnText}>Chọn Thuốc / Lô từ Kho</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLoadAllWarehouseBatches}
+                style={styles.emptyLoadAllBtn}
+              >
+                <Ionicons name="cloud-download-outline" size={18} color="#0284C7" />
+                <Text style={styles.emptyLoadAllBtnText}>
+                  Nạp Toàn Bộ Lô ({totalWarehouseBatchesCount} Lô)
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <ScrollView style={styles.itemsList} showsVerticalScrollIndicator={false}>
@@ -513,6 +716,106 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           </View>
         </View>
 
+        {/* Modal Chọn Thuốc & Lô Từ Kho */}
+        <Modal
+          visible={batchSelectorVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setBatchSelectorVisible(false)}
+        >
+          <View style={styles.selectorOverlay}>
+            <View style={styles.selectorSheet}>
+              <View style={styles.selectorHeader}>
+                <View>
+                  <Text style={styles.selectorTitle}>Chọn Thuốc / Lô Kiểm Kê</Text>
+                  <Text style={styles.selectorSub}>
+                    {totalWarehouseBatchesCount} lô thuốc sẵn có trong kho
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setBatchSelectorVisible(false)}
+                  style={styles.selectorCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Tìm kiếm trong danh sách lô */}
+              <View style={styles.selectorSearchBox}>
+                <Ionicons name="search" size={16} color="#94A3B8" />
+                <TextInput
+                  style={styles.selectorSearchInput}
+                  placeholder="Tìm theo tên thuốc, số lô, mã vạch..."
+                  placeholderTextColor="#94A3B8"
+                  value={selectorSearch}
+                  onChangeText={setSelectorSearch}
+                />
+                {selectorSearch ? (
+                  <TouchableOpacity onPress={() => setSelectorSearch('')}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Danh sách các lô thuốc */}
+              <ScrollView style={styles.selectorList} showsVerticalScrollIndicator={false}>
+                {filteredWarehouseMedicines.map((med: any) => {
+                  const batches = med.batches || [];
+                  return (
+                    <View key={`sel_med_${med.id || med._id}`} style={styles.selectorMedGroup}>
+                      <Text style={styles.selectorMedName}>{med.name}</Text>
+                      {batches.map((b: any) => {
+                        const isAdded = items.some(
+                          (it) => it.medicineId === (med.id || med._id) && it.batchNo === b.batchNo
+                        );
+                        return (
+                          <TouchableOpacity
+                            key={`sel_batch_${b.id || b.batchNo}`}
+                            onPress={() => handleAddBatchToCheck(med, b)}
+                            style={[
+                              styles.selectorBatchRow,
+                              isAdded && styles.selectorBatchRowAdded,
+                            ]}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.selectorBatchNo}>Lô: {b.batchNo}</Text>
+                                {isAdded && (
+                                  <View style={styles.selectorAddedPill}>
+                                    <Text style={styles.selectorAddedPillText}>Đã thêm</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.selectorBatchMeta}>
+                                Tồn: {b.stock} {med.unit || 'Hộp'} · HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'N/A'}
+                              </Text>
+                            </View>
+                            <View style={[styles.selectorAddBadge, isAdded && styles.selectorAddBadgeDone]}>
+                              <Ionicons
+                                name={isAdded ? 'checkmark' : 'add'}
+                                size={16}
+                                color={isAdded ? '#10B981' : '#0284C7'}
+                              />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+                {filteredWarehouseMedicines.length === 0 && (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="search-outline" size={36} color="#CBD5E1" />
+                    <Text style={{ color: '#94A3B8', marginTop: 8, fontSize: 13 }}>
+                      {loadingBatches ? 'Đang tải danh mục kho...' : 'Không tìm thấy thuốc hoặc lô phù hợp'}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
         {/* Modal Quét Barcode Đếm Hàng */}
         <BarcodeScannerModal
           visible={scannerVisible}
@@ -555,6 +858,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#0284C7',
     fontWeight: '600',
+  },
+  addBatchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  addBatchBtnText: {
+    color: '#0284C7',
+    fontSize: 12,
+    fontWeight: '700',
   },
   scanBarcodeBtn: {
     flexDirection: 'row',
@@ -866,6 +1185,165 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  emptyIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyActionCol: {
+    width: '100%',
+    gap: 10,
+    marginTop: 18,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0284C7',
+    paddingVertical: 12,
+    borderRadius: 10,
+    width: '100%',
+  },
+  emptyAddBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  emptyLoadAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#0284C7',
+    paddingVertical: 12,
+    borderRadius: 10,
+    width: '100%',
+  },
+  emptyLoadAllBtnText: {
+    color: '#0284C7',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectorOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  selectorSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '82%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  selectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  selectorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0F172A',
+  },
+  selectorSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  selectorCloseBtn: {
+    padding: 6,
+  },
+  selectorSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 16,
+    marginVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  selectorSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    padding: 0,
+  },
+  selectorList: {
+    paddingHorizontal: 16,
+  },
+  selectorMedGroup: {
+    marginBottom: 14,
+  },
+  selectorMedName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 6,
+  },
+  selectorBatchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  selectorBatchRowAdded: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  selectorBatchNo: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  selectorBatchMeta: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  selectorAddedPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  selectorAddedPillText: {
+    fontSize: 10,
+    color: '#15803D',
+    fontWeight: '700',
+  },
+  selectorAddBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectorAddBadgeDone: {
+    backgroundColor: '#DCFCE7',
   },
 });
 

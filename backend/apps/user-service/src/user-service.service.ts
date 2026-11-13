@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
@@ -74,11 +74,18 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly inventoryClient: ClientKafka,
     @Inject('AUTH_SERVICE')
     private readonly authClient: ClientKafka,
+    @Optional()
+    @Inject('ORDER_SERVICE')
+    private readonly orderClient?: ClientKafka,
   ) { }
 
   async onModuleInit() {
     this.inventoryClient.subscribeToResponseOf('inventory.medicine.get_by_id');
     this.inventoryClient.subscribeToResponseOf('inventory.medicine.get_by_ids');
+    this.inventoryClient.subscribeToResponseOf('inventory.po.summary_by_branch');
+    if (this.orderClient) {
+      this.orderClient.subscribeToResponseOf('orders.summary_by_branch');
+    }
 
     // Start periodic bulk flush timer (every 150ms)
     this.flushInterval = setInterval(() => {
@@ -2140,50 +2147,36 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       },
     ]);
 
-    // 2. Lấy dữ liệu mua hàng (Purchase Orders) theo chi nhánh
+    // 2. Lấy dữ liệu mua hàng (Purchase Orders) theo chi nhánh qua Kafka (Event-Driven Microservices, Zero Cross-DB Access)
     let purchaseByBranch: Record<string, { totalPoCount: number; totalPurchaseValue: number }> = {};
     try {
-      const poCollection = this.connection.collection('purchaseorders');
-      const poAgg = await poCollection.aggregate([
-        {
-          $group: {
-            _id: { $ifNull: ['$branchId', 'CENTRAL_WH'] },
-            totalPoCount: { $sum: 1 },
-            totalPurchaseValue: { $sum: { $ifNull: ['$totalAmount', 0] } },
-          },
-        },
-      ]).toArray();
-      (poAgg || []).forEach((p: any) => {
-        purchaseByBranch[p._id] = {
-          totalPoCount: p.totalPoCount,
-          totalPurchaseValue: p.totalPurchaseValue,
-        };
-      });
+      const poRes = await lastValueFrom(
+        this.inventoryClient.send('inventory.po.summary_by_branch', {}).pipe(
+          require('rxjs').timeout(3000),
+        ),
+      );
+      if (poRes && typeof poRes === 'object') {
+        purchaseByBranch = poRes as any;
+      }
     } catch (e: any) {
-      this.logger.warn(`Không thể lấy dữ liệu mua hàng: ${e.message}`);
+      this.logger.warn(`Không thể lấy dữ liệu mua hàng qua Kafka: ${e.message}`);
     }
 
-    // 3. Lấy dữ liệu bán hàng (Orders) theo chi nhánh
+    // 3. Lấy dữ liệu bán hàng (Orders) theo chi nhánh qua Kafka (Event-Driven Microservices, Zero Cross-DB Access)
     let salesByBranch: Record<string, { totalOrders: number; totalSalesRevenue: number }> = {};
     try {
-      const ordersCol = this.connection.collection('orders');
-      const salesAgg = await ordersCol.aggregate([
-        {
-          $group: {
-            _id: { $ifNull: ['$branchId', 'BR-001'] },
-            totalOrders: { $sum: 1 },
-            totalSalesRevenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
-          },
-        },
-      ]).toArray();
-      (salesAgg || []).forEach((s: any) => {
-        salesByBranch[s._id] = {
-          totalOrders: s.totalOrders,
-          totalSalesRevenue: s.totalSalesRevenue,
-        };
-      });
+      if (this.orderClient) {
+        const salesRes = await lastValueFrom(
+          this.orderClient.send('orders.summary_by_branch', {}).pipe(
+            require('rxjs').timeout(3000),
+          ),
+        );
+        if (salesRes && typeof salesRes === 'object') {
+          salesByBranch = salesRes as any;
+        }
+      }
     } catch (e: any) {
-      this.logger.warn(`Không thể lấy dữ liệu bán hàng: ${e.message}`);
+      this.logger.warn(`Không thể lấy dữ liệu bán hàng qua Kafka: ${e.message}`);
     }
 
     // Lấy danh sách toàn bộ chi nhánh để không bỏ sót chi nhánh chưa có đánh giá

@@ -151,7 +151,6 @@ export default function AppNavigator() {
           <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
           <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
-          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
         </Stack.Group>
       ) : (
@@ -165,7 +164,7 @@ export default function AppNavigator() {
             <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
           )}
 
-          {isWarehouse && (
+          {(isWarehouse || isBranch || isAdmin) && (
             <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           )}
 
@@ -194,9 +193,6 @@ export default function AppNavigator() {
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
-          {!isWarehouse && (
-            <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
-          )}
         </Stack.Group>
       )}
     </Stack.Navigator>

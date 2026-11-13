@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Param, Body, Inject, OnModuleInit, Optional, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Param, Body, Query, Inject, OnModuleInit, Optional, Req, UseGuards } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ClientKafka } from '@nestjs/microservices';
@@ -26,6 +26,7 @@ export class InventoryCheckController implements OnModuleInit {
   async onModuleInit() {
     await subscribeToKafkaTopics(this.inventoryClient, [
       'inventory.check.create',
+      'inventory.check.update',
       'inventory.check.list',
       'inventory.check.get_by_id',
       'inventory.check.complete',
@@ -33,8 +34,15 @@ export class InventoryCheckController implements OnModuleInit {
     ]);
   }
 
-  private branchFor(req?: InventoryCheckRequest) {
+  // Xác định chi nhánh kiểm kê: Admin và Director có thể truyền branchId để giám sát toàn chuỗi
+  private branchFor(req?: InventoryCheckRequest, queryBranchId?: string) {
     const role = (req?.user?.role || '').toLowerCase();
+    if (role === 'admin' || role === 'director') {
+      if (queryBranchId && typeof queryBranchId === 'string' && queryBranchId.trim()) {
+        return queryBranchId.trim();
+      }
+      return 'CENTRAL_WH';
+    }
     if (role !== 'branch' && role !== 'head_branch') return 'CENTRAL_WH';
     const branchId = req?.user?.branchId;
     if (!branchId || branchId === 'CENTRAL_WH') {
@@ -52,33 +60,52 @@ export class InventoryCheckController implements OnModuleInit {
     eventType: 'CREATE',
     entityType: 'InventoryCheck',
   })
-  async createCheck(@Body() data: any, @Req() req: InventoryCheckRequest) {
+  async createCheck(@Body() data: any, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
     if (data?.status && data.status !== 'DRAFT') {
       throw new BadRequestException('Lưu nháp và mở biên bản để phê duyệt');
     }
     return sendKafkaMessage(this.inventoryClient, 'inventory.check.create', {
       items: data?.items,
       notes: data?.notes,
-      branchId: this.branchFor(req),
+      branchId: this.branchFor(req, data?.branchId || branchIdQuery),
+      performedBy: req.user.fullName || req.user.email,
+    });
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Cập nhật biên bản kiểm kê kho ở trạng thái nháp' })
+  @AuditLogAction({
+    actionCode: 'INVENTORY_CHECK_UPDATE',
+    actionName: 'Cập nhật biên bản kiểm kê kho',
+    module: 'Inventory',
+    eventType: 'UPDATE',
+    entityType: 'InventoryCheck',
+  })
+  async updateCheck(@Param('id') id: string, @Body() data: any, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.update', {
+      id,
+      items: data?.items,
+      notes: data?.notes,
+      branchId: this.branchFor(req, data?.branchId || branchIdQuery),
       performedBy: req.user.fullName || req.user.email,
     });
   }
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách biên bản kiểm kê kho' })
-  async listChecks(@Req() req: InventoryCheckRequest) {
-    return sendKafkaMessage(this.inventoryClient, 'inventory.check.list', { branchId: this.branchFor(req) });
+  async listChecks(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.list', { branchId: this.branchFor(req, branchIdQuery) });
   }
 
   @Get('batches')
-  async listBatches(@Req() req: InventoryCheckRequest) {
-    return sendKafkaMessage(this.inventoryClient, 'inventory.check.batches', { branchId: this.branchFor(req) });
+  async listBatches(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.batches', { branchId: this.branchFor(req, branchIdQuery) });
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Chi tiết biên bản kiểm kê kho' })
-  async getCheckById(@Param('id') id: string, @Req() req?: InventoryCheckRequest) {
-    const res = await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id, branchId: this.branchFor(req) });
+  async getCheckById(@Param('id') id: string, @Req() req?: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    const res = await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id, branchId: this.branchFor(req, branchIdQuery) });
     if (typeof res === 'string') {
       try {
         return JSON.parse(res);
@@ -98,8 +125,8 @@ export class InventoryCheckController implements OnModuleInit {
     eventType: 'APPROVE',
     entityType: 'InventoryCheck',
   })
-  async completeCheck(@Param('id') id: string, @Req() req: InventoryCheckRequest) {
-    const branchId = this.branchFor(req);
+  async completeCheck(@Param('id') id: string, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    const branchId = this.branchFor(req, branchIdQuery);
     const result = await sendKafkaMessage(this.inventoryClient, 'inventory.check.complete', {
       id, branchId, approvedBy: req.user.sub,
     });
