@@ -86,6 +86,25 @@ export function getRelatedMedicines(
   return allMedicines.filter((m) => m && m.id !== currentMedId).slice(0, limit);
 }
 
+/**
+ * Trích xuất danh sách ảnh thuốc không bị trùng lặp, không nhân bản giả tạo khi chỉ có 1 ảnh
+ */
+export function extractProductImages(medicine: any): string[] {
+  if (!medicine) return [];
+  const list: string[] = [];
+  if (Array.isArray(medicine.images) && medicine.images.length > 0) {
+    medicine.images.forEach((img: any) => {
+      if (img && typeof img === 'string' && img.trim().length > 0 && !list.includes(img.trim())) {
+        list.push(img.trim());
+      }
+    });
+  }
+  if (medicine.image && typeof medicine.image === 'string' && medicine.image.trim().length > 0 && !list.includes(medicine.image.trim())) {
+    list.unshift(medicine.image.trim());
+  }
+  return list.length > 0 ? list : ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=800&auto=format&fit=crop&q=80'];
+}
+
 // =========================================================================
 // BỘ KIỂM THỬ ĐƠN VỊ TOÀN DIỆN (UNIT TESTS)
 // =========================================================================
@@ -187,6 +206,22 @@ describe('MedicineDetailScreen - Kiểm Thử Màn Hình Chi Tiết Thuốc', ()
       expect(relatedIds).toContain('med-detail-02');
       expect(relatedIds).toContain('med-detail-04');
     });
+
+    it('Phải trích xuất đầy đủ toàn bộ ảnh từ mảng images của thuốc (ví dụ Yaguchi 12 ảnh)', () => {
+      const mockYaguchiMed = {
+        id: 'med-yaguchi',
+        name: 'Cao dán Yaguchi Tatra',
+        image: 'https://cdn.nhathuoclongchau.com.vn/v1/static/yaguchi_01.png',
+        images: [
+          'https://cdn.nhathuoclongchau.com.vn/unsafe/Option_1_2.png',
+          'https://cdn.nhathuoclongchau.com.vn/unsafe/Option_1_1.png',
+          'https://cdn.nhathuoclongchau.com.vn/unsafe/IMG_3998.jpg',
+        ],
+      };
+      const images = extractProductImages(mockYaguchiMed);
+      expect(images.length).toBe(4);
+      expect(images).toContain('https://cdn.nhathuoclongchau.com.vn/unsafe/Option_1_2.png');
+    });
   });
 
   // =========================================================================
@@ -224,6 +259,18 @@ describe('MedicineDetailScreen - Kiểm Thử Màn Hình Chi Tiết Thuốc', ()
       const cart = mergeItemIntoCart([], mockCurrentMedicine, 1);
       expect(cart).toHaveLength(1);
     });
+
+    it('Khi thuốc chỉ có đúng 1 ảnh, trả về đúng 1 ảnh duy nhất, tuyệt đối KHÔNG nhân bản thành 2 tấm giống nhau (x2)', () => {
+      const singleImageMed = {
+        id: 'med-single-img',
+        name: 'Thuốc chỉ có 1 ảnh',
+        image: 'https://cdn.pharmacy.vn/single.png',
+        images: [],
+      };
+      const images = extractProductImages(singleImageMed);
+      expect(images).toHaveLength(1);
+      expect(images[0]).toBe('https://cdn.pharmacy.vn/single.png');
+    });
   });
 
   // =========================================================================
@@ -260,6 +307,13 @@ describe('MedicineDetailScreen - Kiểm Thử Màn Hình Chi Tiết Thuốc', ()
     it('Phải xử lý an toàn khi danh sách thuốc gợi ý là null hoặc rỗng', () => {
       expect(getRelatedMedicines(null, 'med-01', 'Cảm cúm')).toEqual([]);
       expect(getRelatedMedicines([], 'med-01', 'Cảm cúm')).toEqual([]);
+    });
+
+    it('Phải trả về ảnh placeholder dự phòng an toàn khi thuốc không có ảnh nào hoặc null', () => {
+      const noImageMed = { id: 'med-no-img', name: 'Thuốc không ảnh' };
+      const images = extractProductImages(noImageMed);
+      expect(images).toHaveLength(1);
+      expect(images[0]).toContain('unsplash.com');
     });
   });
 });

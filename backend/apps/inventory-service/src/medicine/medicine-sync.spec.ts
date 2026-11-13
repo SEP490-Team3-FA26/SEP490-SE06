@@ -171,6 +171,8 @@ describe('MedicineService - getMedicinesInfiniteScroll (Bài toán cuộn 2000+ 
       expect(item1.barcode).toBe('8935001234567');
       expect(item1.stock).toBe(150);
       expect(item1.units.length).toBe(2);
+      expect(Array.isArray(item1.images)).toBe(true);
+      expect(item1.images).toContain('https://cdn.pharmacy.vn/panadol.png');
       expect((item1 as any).thong_tin_chi_tiet).toBeUndefined();
     });
 

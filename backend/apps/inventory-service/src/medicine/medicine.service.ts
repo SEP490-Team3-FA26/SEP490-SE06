@@ -3240,10 +3240,10 @@ export class MedicineService implements OnModuleInit {
         ];
       }
 
-      // Truy vấn MongoDB với Strict Projection loại bỏ trường nặng nề
+      // Truy vấn MongoDB với Strict Projection loại bỏ trường nặng nề (giữ lại image & images cho hiển thị UI)
       let queryBuilder = this.medicineModel
         .find(filter)
-        .select('_id name barcode sku price stock category image units drug_classification prescription_status is_medicine updatedAt')
+        .select('_id name barcode sku price stock category image images units drug_classification prescription_status is_medicine updatedAt')
         .sort({ _id: -1 })
         .limit(limit);
 
@@ -3301,6 +3301,10 @@ export class MedicineService implements OnModuleInit {
           barcode: u.barcode || '',
         }));
 
+        const rawImages = Array.isArray(med.images) && med.images.length > 0
+          ? med.images
+          : (med.image ? [med.image] : []);
+
         return {
           id,
           _id: id,
@@ -3310,7 +3314,8 @@ export class MedicineService implements OnModuleInit {
           price: med.price || 0,
           stock: effectiveStock,
           category: med.category || '',
-          image: med.image || '',
+          image: med.image || (rawImages[0] || ''),
+          images: rawImages,
           drugClassification: med.drug_classification || 'COMMON_SUPPLEMENT',
           prescriptionStatus: med.prescription_status ?? 0,
           isMedicine: med.is_medicine ?? true,

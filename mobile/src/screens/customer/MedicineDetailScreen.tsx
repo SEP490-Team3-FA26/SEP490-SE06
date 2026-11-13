@@ -85,27 +85,38 @@ export const MedicineDetailScreen: React.FC<{
     if (medicine.image && typeof medicine.image === 'string' && medicine.image.trim().length > 0 && !list.includes(medicine.image.trim())) {
       list.unshift(medicine.image.trim());
     }
-    // Nếu chỉ có 1 ảnh từ database, nhân bản thành 2 slide để người dùng có thể vuốt qua lại xem cận cảnh
-    if (list.length === 1) {
-      list.push(list[0]);
-    }
     return list.length > 0 ? list : ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=800&auto=format&fit=crop&q=80'];
   }, [medicine]);
 
-  // Tải chi tiết thuốc nếu chỉ nhận được medicineId hoặc làm tươi thông tin
+  // Tải chi tiết thuốc từ API theo ID để nhận đầy đủ toàn bộ mảng images và thông tin dược học từ MongoDB
   const fetchMedicineDetail = useCallback(async () => {
     const id = medicineId || initialMed?.id;
     if (!id) return;
     try {
       setLoading(true);
-      const res = await ApiService.getMedicines({ search: initialMed?.name });
-      if (res && Array.isArray(res) && res.length > 0) {
-        const found = res.find((m: any) => m.id === id || m._id === id) || res[0];
-        setMedicine(found);
-        setSelectedUnit(found.unit || 'Hộp');
-        // Tìm các thuốc cùng chuyên mục để gợi ý
-        const related = res.filter((m: any) => m.id !== id && m.category === found.category).slice(0, 6);
-        setRelatedMedicines(related.length > 0 ? related : res.slice(1, 7));
+      // Ưu tiên gọi API chi tiết theo ID trực tiếp (/api/medicines/:id)
+      const fullMed = await ApiService.getMedicineById(id);
+      if (fullMed) {
+        setMedicine(fullMed);
+        setSelectedUnit(fullMed.unit || 'Hộp');
+      } else {
+        // Dự phòng tìm kiếm theo tên nếu không tìm thấy qua ID
+        const res = await ApiService.getMedicines({ search: initialMed?.name });
+        if (res && Array.isArray(res) && res.length > 0) {
+          const found = res.find((m: any) => m.id === id || m._id === id) || res[0];
+          setMedicine(found);
+          setSelectedUnit(found.unit || 'Hộp');
+        }
+      }
+
+      // Tải danh sách thuốc tương tự cùng chuyên mục để gợi ý
+      const cat = fullMed?.category || initialMed?.category;
+      if (cat) {
+        const relatedRes = await ApiService.getMedicines({ category: cat, limit: 7 });
+        if (Array.isArray(relatedRes) && relatedRes.length > 0) {
+          const related = relatedRes.filter((m: any) => (m.id || m._id) !== id).slice(0, 6);
+          setRelatedMedicines(related);
+        }
       }
     } catch (err) {
       console.warn('Lỗi tải chi tiết thuốc:', err);
