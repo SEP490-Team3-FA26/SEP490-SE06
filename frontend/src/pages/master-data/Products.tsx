@@ -6,6 +6,7 @@ import { Pagination } from "../../components/Pagination";
 import { AdminProductFilterSidebar } from "../../components/AdminProductFilterSidebar";
 import { CreateMedicineModal } from "../../components/CreateMedicineModal";
 import { EditMedicineModal } from "../../components/EditMedicineModal";
+import { NationalPharmaApisModal } from "../../components/common/NationalPharmaApisModal";
 
 export function Products() {
   const [products, setProducts] = useState<Medicine[]>([]);
@@ -17,6 +18,7 @@ export function Products() {
   // Modal and toast states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showNationalApisModal, setShowNationalApisModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Medicine | null>(null);
   const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" }[]>([]);
   
@@ -248,13 +250,24 @@ export function Products() {
           <h1 className="text-2xl font-bold text-slate-900">Danh mục Dược phẩm</h1>
           <p className="text-slate-500 mt-1">Quản lý SKU, thông tin cấp phép và đồng bộ CSDL Dược Quốc gia</p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-[#0057cd] hover:bg-[#004bb1] text-white px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm text-sm cursor-pointer"
-        >
-          <Plus size={18} />
-          <span>Thêm Dược phẩm (SKU)</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNationalApisModal(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-xs text-sm border border-slate-700 cursor-pointer"
+            title="Tra cứu 19 APIs Cơ Sở Dữ Liệu Dược Quốc Gia theo QĐ 232/QĐ-TTYQG"
+          >
+            <ShieldCheck size={18} className="text-emerald-400" />
+            <span className="hidden sm:inline">Tra cứu 19 APIs CSDL Dược QG</span>
+            <span className="sm:hidden">APIs CSDL Dược</span>
+          </button>
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-[#0057cd] hover:bg-[#004bb1] text-white px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm text-sm cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>Thêm Dược phẩm (SKU)</span>
+          </button>
+        </div>
       </div>
 
       {/* ─── 4 Core National Database Sync KPI Summary Cards ─── */}
@@ -557,6 +570,10 @@ export function Products() {
           showToast("Cập nhật dược phẩm thành công!", "success");
           fetchProducts();
         }}
+      />
+      <NationalPharmaApisModal
+        isOpen={showNationalApisModal}
+        onClose={() => setShowNationalApisModal(false)}
       />
     </div>
   );

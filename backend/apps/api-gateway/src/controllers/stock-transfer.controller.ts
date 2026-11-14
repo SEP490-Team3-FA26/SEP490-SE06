@@ -148,10 +148,14 @@ export class StockTransferController implements OnModuleInit {
   async listStockTransfers(
     @Query('status') status?: string,
     @Query('toBranchId') toBranchId?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
   ) {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.transfer.list', {
       status,
       toBranchId,
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
     });
   }
 

@@ -11,6 +11,8 @@ describe('UserService - getExportJobStatus', () => {
   const mockKafkaClient = {
     subscribeToResponseOf: jest.fn(),
     connect: jest.fn(),
+    emit: jest.fn(),
+    send: jest.fn().mockReturnValue({ pipe: jest.fn().mockReturnValue(require('rxjs').of(null)) }),
   };
 
   beforeEach(async () => {

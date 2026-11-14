@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Controller, Post, Patch, Get, Param, Body, Inject, OnModuleInit, ServiceUnavailableException, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Controller, Post, Patch, Get, Param, Body, Query, Inject, OnModuleInit, ServiceUnavailableException, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
@@ -124,8 +124,14 @@ export class GoodsReceiptController implements OnModuleInit {
   }
 
   @Get()
-  async listGoodsReceiptNotes() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.grn.list', {});
+  async listGoodsReceiptNotes(
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.grn.list', {
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+    });
   }
 
   @Get(':id')

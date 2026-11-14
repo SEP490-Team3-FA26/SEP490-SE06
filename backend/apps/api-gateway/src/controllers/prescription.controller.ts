@@ -15,6 +15,7 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  Query,
 } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
@@ -897,12 +898,18 @@ export class PrescriptionController implements OnModuleInit {
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
-  async listPrescriptions() {
+  async listPrescriptions(
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
     try {
       return await sendKafkaMessage(
         this.inventoryClient,
         "inventory.prescription.list",
-        {},
+        {
+          limit: limit ? Number(limit) : undefined,
+          page: page ? Number(page) : undefined,
+        },
       );
     } catch (error) {
       return [];

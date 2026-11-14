@@ -325,7 +325,8 @@ export class UserController implements OnModuleInit {
     if (
       user.role === "admin" ||
       user.role === "head_branch" ||
-      user.role === "director"
+      user.role === "director" ||
+      user.role === "moh_inspector"
     ) {
       // Allowed to view all, no restrictions
     } else if (user.role === "warehouse") {
@@ -371,7 +372,8 @@ export class UserController implements OnModuleInit {
     if (
       user.role === "admin" ||
       user.role === "head_branch" ||
-      user.role === "director"
+      user.role === "director" ||
+      user.role === "moh_inspector"
     ) {
       // Allowed
     } else if (user.role === "warehouse") {

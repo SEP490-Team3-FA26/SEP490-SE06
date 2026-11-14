@@ -31,25 +31,15 @@ export class AuthService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     try {
-      const directorEmail = 'director@vinapharmacy.com';
-      const existing = await this.userModel.findOne({ email: directorEmail });
-      if (!existing) {
-        const passwordHash = await bcrypt.hash('123456', 12);
-        await this.userModel.create({
-          fullName: 'Ban Giám Đốc Chuỗi (Director)',
-          email: directorEmail,
-          passwordHash,
-          role: UserRole.DIRECTOR,
-          isActive: true,
-          isEmailVerified: true,
-          isApproved: 'approved',
-          branchId: 'BR-001',
-          branchName: 'Chi Nhánh Trung Tâm',
-        });
-        console.log('✅ [AuthService] Đã tự động tạo tài khoản: director@vinapharmacy.com');
+      // Kiểm tra trạng thái sẵn sàng của dịch vụ xác thực Microservice
+      const userCount = await this.userModel.countDocuments();
+      if (userCount === 0) {
+        console.warn('⚠️ [AuthService] Chưa có tài khoản người dùng trong CSDL. Vui lòng chạy "npm run db:seed-dev-users" để khởi tạo.');
+      } else {
+        console.log(`✅ [AuthService] Dịch vụ xác thực sẵn sàng hoạt động với ${userCount} tài khoản người dùng.`);
       }
     } catch (err: any) {
-      console.warn('⚠️ [AuthService] Bỏ qua tạo tài khoản director:', err.message);
+      console.warn('⚠️ [AuthService] Bỏ qua kiểm tra người dùng lúc khởi động:', err.message);
     }
   }
 

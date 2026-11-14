@@ -584,7 +584,10 @@ export class OrdersServiceService implements OnModuleInit {
     this.logger.log(`Checking payment status for orderCode: ${orderCode}`);
     let order = await this.orderModel.findOne({ orderCode }).exec();
     if (!order) {
-      throw new RpcException({ message: `Không tìm thấy đơn hàng với mã: ${orderCode}` });
+      throw new RpcException({
+        message: `Không tìm thấy đơn hàng với mã: ${orderCode}`,
+        statusCode: 404,
+      });
     }
 
     if (order.paymentStatus === 'PAID' || order.paymentStatus === 'CANCELLED') {

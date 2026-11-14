@@ -312,9 +312,15 @@ export class PurchaseService {
     const filter: any = {};
     if (query.status) filter.status = query.status;
     if (query.branchId) filter.branchId = query.branchId;
+    // Giới hạn phân trang tránh quá tải Kafka message size (>1MB)
+    const limit = Math.min(Math.max(1, Number(query.limit) || 20), 100);
+    const skip = Math.max(0, (Number(query.page || 1) - 1) * limit);
     return this.prModel
       .find(filter)
       .sort({ isUrgent: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
       .exec();
   }
 
@@ -1499,7 +1505,16 @@ export class PurchaseService {
     if (query.status) {
       filter.status = query.status;
     }
-    return this.poModel.find(filter).sort({ createdAt: -1 }).exec();
+    // Giới hạn phân trang tối ưu Kafka payload
+    const limit = Math.min(Math.max(1, Number(query.limit) || 20), 100);
+    const skip = Math.max(0, (Number(query.page || 1) - 1) * limit);
+    return this.poModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async getPurchaseOrderById(id: string) {
@@ -1546,10 +1561,14 @@ export class PurchaseService {
     return null;
   }
 
-  async listGoodsReceiptNotes(): Promise<any> {
+  async listGoodsReceiptNotes(query: any = {}): Promise<any> {
+    const limit = Math.min(Math.max(1, Number(query?.limit) || 20), 100);
+    const skip = Math.max(0, (Number(query?.page || 1) - 1) * limit);
     const grns = await this.grnModel
       .find()
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean()
       .exec();
 
@@ -2260,7 +2279,9 @@ export class PurchaseService {
     const filter: any = {};
     if (query.status) filter.status = query.status;
     if (query.toBranchId) filter.toBranchId = query.toBranchId;
-    return this.transferModel.find(filter).sort({ createdAt: -1 }).exec();
+    // Giới hạn số lượng bản ghi trả về qua Kafka để tránh vượt quá hạn mức 1MB message size
+    const limit = Math.min(Math.max(1, Number(query.limit) || 50), 100);
+    return this.transferModel.find(filter).sort({ createdAt: -1 }).limit(limit).lean().exec();
   }
 
   /**

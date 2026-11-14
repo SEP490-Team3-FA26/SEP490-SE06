@@ -1,4 +1,4 @@
-  services:
+services:
     redis:
       image: redis:7-alpine
 
@@ -34,11 +34,11 @@
         KAFKA_MESSAGE_MAX_BYTES: 10485760
         KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
       healthcheck:
-        test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
-        interval: 15s
-        timeout: 15s
+        test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/29092' || exit 1"]
+        interval: 5s
+        timeout: 5s
         retries: 10
-        start_period: 60s
+        start_period: 15s
       networks:
         - wdp301-network
 
@@ -66,7 +66,7 @@
         #hot module reload
         - CHOKIDAR_USEPOLLING=true
         - WATCHPACK_POLLING=true
-      command: sh -c "npm install --legacy-peer-deps && echo '⏳ Waiting 10s for Kafka to fully stabilize...' && sleep 10 && npm run dev:all"
+      command: sh -c "npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund && echo '⏳ Waiting 5s for Kafka to fully stabilize...' && sleep 5 && npm run dev:all"
       depends_on:
         kafka:
           condition: service_healthy
@@ -93,13 +93,14 @@
         - CHOKIDAR_USEPOLLING=true
         - WATCHPACK_POLLING=true
         - VITE_USE_POLLING=true
-      command: sh -c "npm install --no-audit --no-fund --quiet && (npm install @esbuild/linux-x64 @rollup/rollup-linux-x64-musl lightningcss-linux-x64-musl @tailwindcss/oxide-linux-x64-musl --no-save --legacy-peer-deps || true) && npm run dev"
+      command: sh -c "npm install --prefer-offline --no-audit --no-fund --quiet && (if [ \"$$(uname -m)\" = \"x86_64\" ]; then npm install @esbuild/linux-x64-musl @rollup/rollup-linux-x64-musl --no-save --legacy-peer-deps 2>/dev/null || true; fi) && npm run dev"
       depends_on:
         - backend
       networks:
         - wdp301-network
 
     ai-service:
+      image: wdp301-ai-service:latest
       build:
         context: ./backend/apps/ai-service
         dockerfile: Dockerfile
@@ -135,10 +136,11 @@
       networks:
         - wdp301-network
 
-  networks:
-    wdp301-network:
-      driver: bridge
+networks:
+  wdp301-network:
+    name: wdp301-network
+    driver: bridge
 
-  volumes:
-    qdrant_data:
+volumes:
+  qdrant_data:
     

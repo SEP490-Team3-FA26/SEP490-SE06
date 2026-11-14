@@ -1,19 +1,14 @@
-# Invalidate cache 2
+# Thư viện AI Service - Đã tối ưu hóa dependency và tốc độ build
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 qdrant-client==1.8.0
-# Async audio transcription support is required by services/stt_service.py.
-# Pin the version so an old cached image cannot silently install an incompatible SDK.
 groq==0.13.1
 httpx==0.27.2
 python-dotenv==1.0.1
 pydantic==2.6.4
 supabase==2.4.5
 psycopg2-binary
-pymongo[srv]
+pymongo
 dnspython
 numpy>=1.26.0
-# Chỉ định tải bản PyTorch CPU để tối ưu dung lượng và tránh tải các thư viện NVIDIA CUDA (~4GB)
---extra-index-url https://download.pytorch.org/whl/cpu
-torch

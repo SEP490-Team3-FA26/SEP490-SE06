@@ -102,7 +102,7 @@ export class HrController implements OnModuleInit {
 
   // --- HR: WORK SHIFT ---
   @Get('shifts')
-  @Roles('branch', 'pharmacist', 'admin')
+  @Roles('branch', 'pharmacist', 'admin', 'director')
   @ApiOperation({ summary: 'Lấy danh sách ca làm việc của chi nhánh' })
   async listShifts(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.shift.list', { branchId: req.user.branchId });
@@ -238,9 +238,16 @@ export class HrController implements OnModuleInit {
   }
 
   @Get('leaves/branch')
-  @Roles('branch', 'admin')
+  @Roles('branch', 'admin', 'director')
   @ApiOperation({ summary: 'Lấy danh sách đơn xin nghỉ của toàn chi nhánh (Quản lý)' })
   async getBranchLeaves(@Request() req, @Query('status') status?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.leave.branch_list', { branchId: req.user.branchId, status });
+  }
+
+  @Get('leave-requests')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Alias lấy danh sách đơn xin nghỉ phép chi nhánh' })
+  async getLeaveRequestsAlias(@Request() req, @Query('status') status?: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.leave.branch_list', { branchId: req.user.branchId, status });
   }
 
@@ -581,6 +588,16 @@ export class HrController implements OnModuleInit {
   @Roles('branch', 'admin', 'director')
   @ApiOperation({ summary: 'Quản lý xem danh sách điểm danh hôm nay của chi nhánh' })
   async getBranchTodayAttendance(@Request() req, @Query('date') date?: string) {
+    return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
+      branchId: req.user.branchId,
+      date,
+    });
+  }
+
+  @Get('attendances')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Alias lấy danh sách điểm danh hôm nay của chi nhánh' })
+  async getAttendancesAlias(@Request() req, @Query('date') date?: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.branch_today', {
       branchId: req.user.branchId,
       date,
@@ -931,10 +948,45 @@ export class HrController implements OnModuleInit {
     }
   }
 
+  @Get('payroll/current')
+  @Roles('branch', 'admin', 'director')
+  @ApiOperation({ summary: 'Lấy bảng lương của tháng hiện tại' })
+  async getCurrentPayroll(@Request() req) {
+    try {
+      const now = new Date();
+      const targetBranch = req.user.role === 'branch' ? req.user.branchId : (req.user.branchId || 'BR-001');
+      const list: any = await sendKafkaMessage(this.kafkaClient, 'hr.payroll.list', {
+        branchId: targetBranch,
+        year: now.getFullYear(),
+      });
+      if (Array.isArray(list) && list.length > 0) {
+        const currentMonth = now.getMonth() + 1;
+        const found = list.find((p: any) => p.month === currentMonth) || list[0];
+        return found;
+      }
+      return {
+        status: 'PENDING_CALCULATION',
+        message: 'Kỳ lương tháng hiện tại chưa được chốt hoặc tính toán',
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+        items: [],
+      };
+    } catch (err: any) {
+      return {
+        status: 'PENDING_CALCULATION',
+        message: 'Chưa có dữ liệu bảng lương tháng hiện tại',
+        items: [],
+      };
+    }
+  }
+
   @Get('payroll/:id')
   @Roles('branch', 'admin', 'director')
   @ApiOperation({ summary: 'Xem chi tiết bảng lương' })
   async getPayrollDetail(@Request() req, @Param('id') id: string) {
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      throw new BadRequestException(`ID bảng lương "${id}" không hợp lệ (yêu cầu ObjectId 24 ký tự)`);
+    }
     return await sendKafkaMessage(this.kafkaClient, 'hr.payroll.detail', {
       payrollId: id,
       requesterBranchId: req.user.branchId,
