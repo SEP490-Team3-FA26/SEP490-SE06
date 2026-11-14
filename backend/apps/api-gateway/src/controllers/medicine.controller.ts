@@ -58,6 +58,7 @@ export class MedicineController implements OnModuleInit {
       "inventory.medicine.low_stock_report",
       "inventory.medicine.get_filters",
       "inventory.medicine.branch_list",
+      "inventory.medicine.branch_search",
       "inventory.medicine.create",
       "inventory.medicine.update",
       "inventory.medicine.handle_expiration_action",
@@ -491,6 +492,79 @@ export class MedicineController implements OnModuleInit {
     );
   }
 
+  // =========================================================================
+  // API CHUYÊN BIỆT: TÌM KIẾM DƯỢC PHẨM TẠI CHI NHÁNH (Dedicated Branch Search)
+  // GET /api/medicines/branch/:branchId/search?search=...
+  // =========================================================================
+  @Get("branch/:branchId/search")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "API chuyên biệt tìm kiếm dược phẩm theo chi nhánh (Bảo đảm chuẩn xác 100% tồn kho chi nhánh)",
+  })
+  @ApiQuery({ name: "search", required: true, type: String, description: "Từ khóa tìm kiếm (tên thuốc, hoạt chất, barcode, sku...)" })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "branchStockOnly", required: false, type: Boolean })
+  @ApiQuery({ name: "category", required: false, type: String })
+  @ApiQuery({ name: "classification", required: false, type: String })
+  @ApiQuery({ name: "minPrice", required: false, type: Number })
+  @ApiQuery({ name: "maxPrice", required: false, type: Number })
+  async searchBranchMedicines(
+    @Param("branchId") branchId: string,
+    @Query("search") search = "",
+    @Query("page") page = 1,
+    @Query("limit") limit = 10,
+    @Query("branchStockOnly") branchStockOnly?: boolean,
+    @Query("category") category = "",
+    @Query("classification") classification = "",
+    @Query("minPrice") minPrice?: number,
+    @Query("maxPrice") maxPrice?: number,
+  ) {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const trimmedSearch = (search || "").trim();
+
+    // Cache-Aside Redis cho tìm kiếm chi nhánh (TTL: 60s)
+    const cacheKey = `medicines:branch-search:${branchId}:${trimmedSearch}:${safePage}:${safeLimit}:${branchStockOnly || false}:${category}:${classification}:${minPrice || ""}:${maxPrice || ""}`;
+    if (this.cacheManager && trimmedSearch) {
+      try {
+        const cached = await this.cacheManager.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch (e) {
+        // Fallback gọi sang Kafka nếu lỗi cache
+      }
+    }
+
+    const result = await sendKafkaMessage(
+      this.inventoryClient,
+      "inventory.medicine.branch_search",
+      {
+        branchId,
+        search: trimmedSearch,
+        page: safePage,
+        limit: safeLimit,
+        branchStockOnly: branchStockOnly === true || String(branchStockOnly) === "true",
+        category,
+        classification,
+        minPrice: minPrice ? Number(minPrice) : undefined,
+        maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      },
+    );
+
+    if (this.cacheManager && trimmedSearch && result) {
+      try {
+        await this.cacheManager.set(cacheKey, result, 60000); // 60 giây
+      } catch (e) {
+        // Bỏ qua lỗi ghi cache
+      }
+    }
+
+    return result;
+  }
+
   @Get("branch/:branchId")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -772,6 +846,13 @@ export class MedicineController implements OnModuleInit {
       } catch (e) {}
     }
     return result;
+  }
+
+  @Get("categories")
+  @ApiOperation({ summary: "Lấy danh mục phân loại thuốc công khai" })
+  async getCategories() {
+    const filters: any = await this.getFilters();
+    return filters?.categories || [];
   }
 
   @Get(":id")

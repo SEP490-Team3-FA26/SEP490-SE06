@@ -18,8 +18,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build tất cả services (nest build sẽ output vào ./dist) và mock-csdlduoc
-RUN (npm run build:all || true) && (npm run build:mock-csdlduoc || true)
+# Build tất cả services (nest build sẽ output vào ./dist)
+RUN npm run build:all || true
 
 # ============================================================
 # Stage 3: Runner – chỉ chứa file JS đã compiled (ít RAM hơn nhiều)
@@ -35,7 +35,6 @@ RUN npm install --omit=dev --legacy-peer-deps
 # Copy source để ts-node không cần thiết – chỉ dùng dist
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/apps ./apps
-COPY --from=builder /app/mock-csdlduoc ./mock-csdlduoc
 COPY --from=builder /app/tsconfig*.json ./
 
 EXPOSE 4000

@@ -228,41 +228,43 @@ export function Login() {
       {/* Active Session Prompt */}
       {activeSessionUser && (
         <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-left flex flex-col gap-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#0057cd] text-white flex items-center justify-center font-black text-sm uppercase shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-[#0057cd] text-white flex items-center justify-center font-black text-sm uppercase shadow-sm shrink-0">
                 {activeSessionUser.role ? activeSessionUser.role.substring(0, 2).toUpperCase() : "US"}
               </div>
-              <div>
-                <p className="text-xs font-black text-slate-900 leading-tight">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-slate-900 leading-tight truncate" title={activeSessionUser.fullName || activeSessionUser.name || activeSessionUser.email}>
                   {activeSessionUser.fullName || activeSessionUser.name || activeSessionUser.email}
                 </p>
-                <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                  Đang đăng nhập vai trò: <strong className="text-[#0057cd] uppercase font-bold">{activeSessionUser.role || 'User'}</strong>
+                <p className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">
+                  Đang đăng nhập: <strong className="text-[#0057cd] uppercase font-bold">{activeSessionUser.role || 'User'}</strong>
                 </p>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => {
                 authService.clearSession();
                 setActiveSessionUser(null);
               }}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer shrink-0 whitespace-nowrap"
             >
               Đổi tài khoản
             </button>
           </div>
           <div className="flex gap-2 mt-1">
             <button
+              type="button"
               onClick={() => navigate(getDestinationUrl(activeSessionUser.role || 'admin'))}
-              className="flex-1 py-2.5 bg-[#0057cd] hover:bg-[#0a58ca] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              className="flex-1 py-2.5 px-3 bg-[#0057cd] hover:bg-[#0a58ca] text-white rounded-xl text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer whitespace-nowrap"
             >
-              <LayoutDashboard size={14} />
-              <span>Tiếp tục vào Không gian làm việc →</span>
+              <LayoutDashboard size={14} className="shrink-0" />
+              <span>Vào không gian làm việc →</span>
             </button>
             <Link
               to="/"
-              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center"
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center shrink-0"
               title="Về trang chủ"
             >
               <StoreIcon size={14} />

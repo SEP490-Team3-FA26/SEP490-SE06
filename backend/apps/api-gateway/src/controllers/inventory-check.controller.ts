@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -37,8 +37,16 @@ export class InventoryCheckController implements OnModuleInit {
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách biên bản kiểm kê kho' })
-  async listChecks() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.list', {});
+  async listChecks(
+    @Query('branchId') branchId?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.list', {
+      branchId,
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+    });
   }
 
   @Get(':id')

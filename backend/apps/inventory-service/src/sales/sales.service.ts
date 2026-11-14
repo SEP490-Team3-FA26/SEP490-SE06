@@ -117,10 +117,11 @@ export class SalesService implements OnModuleInit {
     };
   }
 
-  async listPrescriptions() {
+  async listPrescriptions(query: any = {}) {
     try {
-      this.logger.log('Listing all prescriptions from database');
-      const prescriptions = await this.prescriptionModel.find().sort({ createdAt: -1 }).exec();
+      this.logger.log('Listing prescriptions with limit from database');
+      const limit = Math.min(Math.max(1, Number(query?.limit) || 20), 100);
+      const prescriptions = await this.prescriptionModel.find().sort({ createdAt: -1 }).limit(limit).lean().exec();
       return (prescriptions || []).map(p => ({
         id: p._id.toString(),
         prescriptionCode: p.prescriptionCode,

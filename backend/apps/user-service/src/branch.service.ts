@@ -1,7 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { RpcException } from '@nestjs/microservices';
+import { ClientKafka, RpcException } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { User, UserDocument } from '../../auth-service/src/auth/user.schema';
 import { MedicineBatch } from '../../inventory-service/src/medicine/schemas/medicine-batch.schema';
@@ -15,18 +17,30 @@ export class BranchService implements OnModuleInit {
     private readonly branchModel: Model<BranchDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @Optional()
     @InjectModel(MedicineBatch.name)
-    private readonly batchModel: Model<MedicineBatch>,
+    private readonly batchModel?: Model<MedicineBatch>,
+    @Optional()
+    @Inject('INVENTORY_SERVICE')
+    private readonly inventoryClient?: ClientKafka,
   ) { }
 
   async onModuleInit() {
-    // Không gán tọa độ mặc định; Quản lý chi nhánh phải tự cấu hình vị trí thực tế của cơ sở
+    // Đăng ký nhận phản hồi từ Kafka topic thống kê lô thuốc của inventory-service
+    if (this.inventoryClient) {
+      try {
+        this.inventoryClient.subscribeToResponseOf('inventory.batch.stats_by_branch');
+        await this.inventoryClient.connect();
+      } catch (err: any) {
+        this.logger.warn(`[BranchService] Không thể kết nối Kafka Inventory client lúc khởi tạo: ${err.message}`);
+      }
+    }
   }
 
   async findAll(): Promise<any[]> {
     let branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
 
-    // Tính toán dữ liệu nhân sự & tồn kho thực tế từ DB cho từng chi nhánh
+    // Tính toán dữ liệu nhân sự & tồn kho thực tế cho từng chi nhánh
     const enrichedBranches = await Promise.all(
       branches.map(async (branch) => {
         const code = branch.branchCode;
@@ -37,25 +51,50 @@ export class BranchService implements OnModuleInit {
           isApproved: { $ne: 'rejected' },
         }).exec();
 
-        // 2. Tính tổng số tồn kho thực tế từ MedicineBatch
-        const stockAggregate = await this.batchModel.aggregate([
-          { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
-          { $group: { _id: null, total: { $sum: '$stock' } } },
-        ]).exec();
+        // 2. Lấy thống kê tồn kho thực tế và lô sắp hết hạn qua Kafka RPC từ Inventory Service (Database-per-Service)
+        let realTotalStock = 0;
+        let expiringCount = 0;
 
-        const realTotalStock = stockAggregate.length > 0 ? stockAggregate[0].total : 0;
+        if (this.inventoryClient) {
+          try {
+            const statsRes: any = await lastValueFrom(
+              this.inventoryClient.send('inventory.batch.stats_by_branch', { branchCode: code }).pipe(
+                timeout(2500)
+              )
+            );
+            if (statsRes) {
+              realTotalStock = statsRes.totalStock || 0;
+              expiringCount = statsRes.expiringCount || 0;
+            }
+          } catch (kafkaErr: any) {
+            this.logger.warn(`[BranchService] Kafka RPC inventory.batch.stats_by_branch lỗi cho chi nhánh ${code}: ${kafkaErr.message}`);
+          }
+        }
 
-        // 3. Đếm số lô thuốc hết hạn hoặc sắp hết hạn (< 30 ngày)
-        const now = new Date();
-        const thirtyDaysLater = new Date();
-        thirtyDaysLater.setDate(now.getDate() + 30);
+        // 3. Fallback: Nếu có batchModel cục bộ (môi trường migration hoặc dev chung DB)
+        if (realTotalStock === 0 && expiringCount === 0 && this.batchModel) {
+          try {
+            const stockAggregate = await this.batchModel.aggregate([
+              { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
+              { $group: { _id: null, total: { $sum: '$stock' } } },
+            ]).exec();
+            if (stockAggregate.length > 0) {
+              realTotalStock = stockAggregate[0].total;
+            }
 
-        const expiringCount = await this.batchModel.countDocuments({
-          branchId: code,
-          status: 'ACTIVE',
-          stock: { $gt: 0 },
-          expDate: { $lte: thirtyDaysLater },
-        }).exec();
+            const thirtyDaysLater = new Date();
+            thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+
+            expiringCount = await this.batchModel.countDocuments({
+              branchId: code,
+              status: 'ACTIVE',
+              stock: { $gt: 0 },
+              expDate: { $lte: thirtyDaysLater },
+            }).exec();
+          } catch (dbErr) {
+            // Bỏ qua lỗi fallback DB
+          }
+        }
 
         return {
           ...branch,

@@ -27,6 +27,9 @@ import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/sc
           client: {
             brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
           },
+          consumer: {
+            groupId: 'inventory-sales-group',
+          },
           producer: { allowAutoTopicCreation: true },
         },
       },
