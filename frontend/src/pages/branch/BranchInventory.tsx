@@ -89,14 +89,20 @@ export function BranchInventory() {
   const fetchBranchInventory = async () => {
     setLoading(true);
     try {
-      const result = await medicineService.getBranchMedicines(branchId, {
+      const queryParams = {
         search: debouncedSearch || undefined,
         page,
         limit,
         category: selectedCategory || undefined,
         classification: selectedClassification || undefined,
         branchStockOnly: true
-      });
+      };
+
+      // Nếu người dùng có nhập từ khóa tìm kiếm, gọi API chuyên biệt searchBranchMedicines
+      const result = debouncedSearch && debouncedSearch.trim() !== ''
+        ? await medicineService.searchBranchMedicines(branchId, queryParams)
+        : await medicineService.getBranchMedicines(branchId, queryParams);
+
       setInventory(result.data || []);
       setTotal(result.pagination?.total || 0);
     } catch (error) {

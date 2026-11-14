@@ -19,6 +19,10 @@ Tài liệu này là **"công thức nấu ăn" (Recipe Book)** tối cao và to
 > 6. **Cấm sử dụng thông báo của Google & OS (No Google / OS / Browser Notifications):** Tuyệt đối **không** được sử dụng thông báo của Google (Google Notifications, FCM) hay thông báo của hệ điều hành / trình duyệt (`Notification.requestPermission()`, Web Notification API, native OS push). Mọi thông báo trong hệ thống **bắt buộc** phải sử dụng thông báo nội bộ trong ứng dụng (In-app Notifications qua Socket.IO, Toast, Dropdown thông báo).
 > 7. **Điểm dừng bắt buộc & Tuyệt đối cấm tự động Push code (Stop at git status / Manual Push Only):** Agent tuyệt đối **không** được tự ý chạy lệnh `git push` dưới bất kỳ hình thức nào (bao gồm cả `git push` thông thường và force-push `git push --force`). Sau khi hoàn thành code, kẹp test và kiểm tra chất lượng đạt 100%, Agent **bắt buộc chỉ dừng lại ở lệnh `git status`**. Quyền quyết định kiểm tra lần cuối và đẩy code lên GitHub hoàn toàn thuộc về lập trình viên trong đội ngũ thực hiện bằng tay (Manual Push).
 > 8. **Tuyệt đối nghiêm cấm Force-Push (Zero Force-Push Policy):** Tuyệt đối **không** được thực hiện force-push (`git push --force`, `git push -f`, `git push --force-with-lease`) trên bất kỳ nhánh nào. Mọi sửa đổi, cập nhật, refactor hoặc hotfix sau khi đã push lên remote bắt buộc phải tạo commit bổ sung mới thông thường (`git commit -m`), bảo toàn 100% lịch sử Git và tránh xung đột mã nguồn của cả đội ngũ.
+> 9. **Quy tắc Bắt Buộc Phân Trang & Chặn Tràn Tải Kafka 1MB (Mandatory Pagination & Kafka 1MB Ceiling):** Tuyệt đối **CẤM** viết các hàm query danh sách dạng `findAll()`, `.find().exec()` quét sạch toàn bộ collection mà không có `.limit()` và `.lean()`. Mọi API `Read All` danh sách (PR, PO, GRN, Chuyển kho, Thuốc, Đơn hàng...) bắt buộc phải hỗ trợ phân trang (`page`, `limit` mặc định 20, trần tối đa 100). Đảm bảo gói tin JSON phản hồi qua Kafka broker luôn < 1MB, triệt tiêu 100% nguy cơ broker drop message gây lỗi `HTTP 504 Gateway Timeout`.
+> 10. **Quy tắc Bắt Buộc Khai Báo Index Sắp Xếp (Mandatory Sort Index Policy):** Mọi trường dùng để `.sort()` trong MongoDB (như `{ createdAt: -1 }`, `{ status: 1 }`, `{ timestamp: -1 }`) bắt buộc phải được đánh Index trong Mongoose Schema (`@Prop({ index: true })` hoặc `schema.index(...)`). Tuyệt đối **CẤM** gọi lệnh `createIndex` runtime trực tiếp trong luồng xử lý request.
+> 11. **Quy tắc Thứ Tự Định Tuyến & Kiểm Định ObjectId (Route Ordering & ObjectId Guard):** Toàn bộ các route tĩnh (`@Get('categories')`, `@Get('payroll/current')`, `@Get('filters')`) **BẮT BUỘC PHẢI KHAI BÁO TRƯỚC** các route có tham số động (`@Get(':id')`). Route `@Get(':id')` bắt buộc phải có Regex validation kiểm tra ObjectId 24 ký tự (`!/^[0-9a-fA-F]{24}$/.test(id)`) và ném `BadRequestException` (HTTP 400), tuyệt đối không để lọt chuỗi sai định dạng vào Mongoose `findById` gây crash `CastError` (HTTP 500).
+> 12. **Quy tắc Chuẩn Hóa Mã Lỗi RpcException (Standardized RpcException Payload):** Khi microservice ném lỗi nghiệp vụ qua Kafka bằng `new RpcException(...)`, **BẮT BUỘC PHẢI ĐÍNH KÈM `statusCode`** (ví dụ: `statusCode: 404` khi không tìm thấy, `statusCode: 400` khi dữ liệu sai, `statusCode: 409` khi conflict dữ liệu), tuyệt đối không chỉ ném `{ message }` làm Gateway fallback thành HTTP 500.
 
 ---
 
@@ -203,12 +207,18 @@ export class ProductController implements OnModuleInit {
   }
 
   // ==========================================
-  // READ ALL - Đồng bộ
+  // READ ALL - Đồng bộ (Bắt buộc phân trang chống tràn tải Kafka)
   // ==========================================
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách sản phẩm' })
-  async getAllProducts() {
-    return await sendKafkaMessage(this.kafkaClient, 'product.get.all', {});
+  @ApiOperation({ summary: 'Lấy danh sách sản phẩm (Bắt buộc phân trang)' })
+  async getAllProducts(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return await sendKafkaMessage(this.kafkaClient, 'product.get.all', {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
   }
 
   // ==========================================
@@ -289,8 +299,8 @@ export class ProductMsController {
   }
 
   @MessagePattern('product.get.all')
-  async getAllProducts() {
-    return this.productService.findAll();
+  async getAllProducts(@Payload() query: any) {
+    return this.productService.findAll(query);
   }
 }
 ```
@@ -324,8 +334,19 @@ export class ProductMsService {
     return product;
   }
 
-  async findAll(): Promise<Product[]> {
-    return this.productModel.find().exec();
+  // ==========================================
+  // READ ALL - Phân trang bắt buộc & .lean() để bảo vệ Kafka Payload < 1MB
+  // ==========================================
+  async findAll(query: any = {}): Promise<Product[]> {
+    const limit = Math.min(Math.max(1, Number(query?.limit) || 20), 100);
+    const skip = Math.max(0, (Number(query?.page || 1) - 1) * limit);
+    return this.productModel
+      .find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async update(id: string, data: any): Promise<Product> {

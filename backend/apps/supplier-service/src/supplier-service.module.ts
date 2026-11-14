@@ -14,7 +14,7 @@ import { SupplierCreditTransaction, SupplierCreditTransactionSchema } from './sc
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
+        uri: configService.get<string>('MONGODB_SUPPLIER_URI') || configService.get<string>('MONGODB_URI'),
       }),
       inject: [ConfigService],
     }),
