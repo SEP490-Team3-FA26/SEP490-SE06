@@ -96,7 +96,13 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_LOG4J_ROOT_LOGLEVEL: 'ERROR'
-      KAFKA_HEAP_OPTS: '-Xmx256m -Xms128m'
+      # Tối ưu RAM và kích hoạt ZGC (Z Garbage Collector) dọn rác ngầm song song, độ trễ dừng < 1ms
+      KAFKA_HEAP_OPTS: '-Xmx512m -Xms512m'
+      KAFKA_JVM_PERFORMANCE_OPTS: '-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ConcGCThreads=1'
+      # Tối ưu dọn dẹp topic và log retention (giữ tối đa 24 giờ thay vì 7 ngày)
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_CLEANUP_POLICY: 'delete'
+      KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 10s
@@ -106,7 +112,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768m
+          memory: 1024m
     networks: [wdp301-network]
 
   qdrant:
