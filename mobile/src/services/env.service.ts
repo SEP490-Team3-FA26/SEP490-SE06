@@ -1,7 +1,15 @@
 // env.service.ts - Environment Configuration for React Native
 // Ưu tiên đọc từ EXPO_PUBLIC_* env vars (.env) → auto-detect IP từ Metro → fallback localhost
 import { NativeModules, Platform } from 'react-native';
-import Constants from 'expo-constants';
+
+// Fallback an toàn cho expo-constants khi chạy trong test runner hoặc môi trường không cài trực tiếp
+let Constants: any = {};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  Constants = require('expo-constants')?.default || require('expo-constants') || {};
+} catch {
+  Constants = {};
+}
 
 class EnvServiceClass {
   private detectedHostIp: string = '';
@@ -24,7 +32,7 @@ class EnvServiceClass {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     try {
       // 2. Đọc từ Metro scriptURL (hoạt động trên Expo Go thiết bị thật)
@@ -37,7 +45,7 @@ class EnvServiceClass {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 3. Không detect được → để trống, getApiBaseUrl/getAiBaseUrl sẽ dùng .env
     this.detectedHostIp = '';

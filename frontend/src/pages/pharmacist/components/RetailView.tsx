@@ -2345,7 +2345,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       })}
                     </div>
                   </div>
-                ) : allergyCheckResult && (!allergyCheckResult.hasConflict || allergyCheckResult.safe) ? (
+                ) : allergyCheckResult && (!allergyCheckResult.hasConflict || allergyCheckResult.severity === 'SAFE') ? (
                   <div className="flex items-center justify-between p-2.5 bg-sky-50/80 border border-sky-200 rounded-xl text-sky-800 text-xs font-semibold">
                     <div className="flex items-center gap-2">
                       <ShieldCheck size={16} className="text-sky-600 shrink-0" />
@@ -2443,12 +2443,24 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               💊 Hộp lẻ dở: {openedUnits} {baseUnitName}
                             </span>
                           )}
-                          {it.fefoBatchNo && (
-                            <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 flex items-center gap-1">
-                              <Zap size={11} className="text-sky-600" />
-                              Lô FEFO: {it.fefoBatchNo} {it.fefoExpDate ? `(HSD: ${new Date(it.fefoExpDate).toLocaleDateString('vi-VN')})` : ''}
-                            </span>
-                          )}
+                          {it.fefoBatchNo && (() => {
+                            const diffDays = it.fefoExpDate ? Math.ceil((new Date(it.fefoExpDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                            const badgeClass = diffDays !== null && diffDays <= 30
+                              ? "text-rose-800 bg-rose-50 border-rose-200"
+                              : diffDays !== null && diffDays <= 90
+                              ? "text-amber-800 bg-amber-50 border-amber-200"
+                              : "text-sky-800 bg-sky-50 border-sky-200";
+                            const iconClass = diffDays !== null && diffDays <= 90 ? "text-amber-600" : "text-sky-600";
+                            return (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${badgeClass}`}>
+                                <Zap size={11} className={iconClass} />
+                                Lô FEFO: {it.fefoBatchNo} {it.fefoExpDate ? `(HSD: ${new Date(it.fefoExpDate).toLocaleDateString('vi-VN')}${diffDays !== null ? ` · còn ${diffDays} ngày` : ''})` : ''}
+                                {diffDays !== null && diffDays <= 180 && (
+                                  <span className="text-[9px] font-black underline uppercase ml-0.5">Cận hạn</span>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
 

@@ -1,5 +1,6 @@
 import { InventoryCheckController } from '../../../apps/api-gateway/src/controllers/inventory-check.controller';
 import { ClientKafka } from '@nestjs/microservices';
+import { BadRequestException } from '@nestjs/common';
 import { of } from 'rxjs';
 
 /**
@@ -68,6 +69,41 @@ describe('InventoryCheckController - Serialization & Plain Object Protection', (
       expect(res.checkCode).toBe('IC-20261102-0004');
       expect(res.status).toBe('DRAFT');
     });
+
+    it('TC-IC-NORM-03: Admin hoặc Director truyền branchId qua query param được Gateway định tuyến chính xác về chi nhánh tương ứng', async () => {
+      (mockInventoryClient.send as jest.Mock).mockReturnValue(of([]));
+
+      await controller.listChecks(
+        { user: { role: 'admin', sub: 'admin-01', email: 'admin@abc.com' } },
+        'BR-002',
+      );
+
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.check.list', {
+        branchId: 'BR-002',
+      });
+    });
+
+    it('TC-IC-NORM-04: Cập nhật biên bản kiểm kê ở trạng thái nháp (DRAFT) chuyển tiếp chính xác sang Kafka inventory.check.update', async () => {
+      const updateData = {
+        items: [{ medicineId: 'med-1', batchNo: 'B01', actualStock: 5, reason: 'Hao hụt' }],
+        notes: 'Cập nhật lại số đếm',
+      };
+      (mockInventoryClient.send as jest.Mock).mockReturnValue(of({ success: true }));
+
+      await controller.updateCheck(
+        'check-123',
+        updateData,
+        { user: { role: 'warehouse', sub: 'wh-01', email: 'wh@abc.com', fullName: 'Thủ kho A' } },
+      );
+
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.check.update', {
+        id: 'check-123',
+        items: updateData.items,
+        notes: updateData.notes,
+        branchId: 'CENTRAL_WH',
+        performedBy: 'Thủ kho A',
+      });
+    });
   });
 
   // =========================================================================
@@ -95,6 +131,19 @@ describe('InventoryCheckController - Serialization & Plain Object Protection', (
       const res = await controller.getCheckById('check-empty-str');
       expect(res).toBe('');
     });
+
+    it('TC-IC-BOUND-03: Admin hoặc Director không truyền queryBranchId sẽ mặc định lấy kho tổng CENTRAL_WH', async () => {
+      (mockInventoryClient.send as jest.Mock).mockReturnValue(of([]));
+
+      await controller.listChecks(
+        { user: { role: 'director', sub: 'dir-01', email: 'director@abc.com' } },
+        '   ',
+      );
+
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.check.list', {
+        branchId: 'CENTRAL_WH',
+      });
+    });
   });
 
   // =========================================================================
@@ -107,6 +156,14 @@ describe('InventoryCheckController - Serialization & Plain Object Protection', (
 
       const res = await controller.getCheckById('check-err');
       expect(res).toBe(rawText);
+    });
+
+    it('TC-IC-ABNORM-02: Tài khoản role branch nhưng chưa được gán branchId hợp lệ sẽ ném BadRequestException', async () => {
+      await expect(
+        controller.listChecks({
+          user: { role: 'branch', sub: 'b-01', email: 'staff@abc.com', branchId: '' },
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

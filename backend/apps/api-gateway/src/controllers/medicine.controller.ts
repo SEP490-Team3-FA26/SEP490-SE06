@@ -6,6 +6,7 @@ import {
   Query,
   UseInterceptors,
   Param,
+  Req,
   Body,
   Patch,
   Inject,
@@ -189,13 +190,22 @@ export class MedicineController implements OnModuleInit {
 
   // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
   @Post(["expiration-action", "handle-expiration"])
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin", "director", "warehouse")
+  @AuditLogAction({
+    actionCode: 'INVENTORY_EXPIRATION_ACTION',
+    actionName: 'Xử lý lô cận hạn hoặc hết hạn',
+    module: 'Inventory',
+    eventType: 'UPDATE',
+    entityType: 'MedicineBatch',
+  })
   @ApiBearerAuth()
   @ApiOperation({
     summary:
       "Xử lý đề xuất xử lý thuốc sắp hết hạn (Xuất hủy, Trả NCC, Giảm giá)",
   })
   async handleExpirationAction(
+    @Req() req: { user: { fullName?: string; email: string } },
     @Body()
     body: {
       batchId: string;
@@ -209,7 +219,7 @@ export class MedicineController implements OnModuleInit {
     const res = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.handle_expiration_action",
-      body,
+      { ...body, branchId: 'CENTRAL_WH', performedBy: req.user.fullName || req.user.email },
     );
 
     // Xóa cache khi có thao tác xuất hủy/giảm giá/trả NCC

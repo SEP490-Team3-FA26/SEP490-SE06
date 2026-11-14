@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional, OnModuleInit, OnApplicationShutdown } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
 import { ClientKafka } from '@nestjs/microservices';
@@ -74,11 +74,18 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     private readonly inventoryClient: ClientKafka,
     @Inject('AUTH_SERVICE')
     private readonly authClient: ClientKafka,
+    @Optional()
+    @Inject('ORDER_SERVICE')
+    private readonly orderClient?: ClientKafka,
   ) { }
 
   async onModuleInit() {
     this.inventoryClient.subscribeToResponseOf('inventory.medicine.get_by_id');
     this.inventoryClient.subscribeToResponseOf('inventory.medicine.get_by_ids');
+    this.inventoryClient.subscribeToResponseOf('inventory.po.summary_by_branch');
+    if (this.orderClient) {
+      this.orderClient.subscribeToResponseOf('orders.summary_by_branch');
+    }
 
     // Start periodic bulk flush timer (every 150ms)
     this.flushInterval = setInterval(() => {
@@ -1984,6 +1991,295 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       .find({ customerPhone }, { orderCode: 1, rating: 1, comment: 1, createdAt: 1 })
       .lean()
       .exec();
+  }
+
+  // =========================================================================
+  // BÁO CÁO HIỆU SUẤT NHÂN VIÊN BÁN HÀNG & CHẤT LƯỢNG PHỤC VỤ (CSAT & PERFORMANCE)
+  // =========================================================================
+
+  /**
+   * Báo cáo hiệu suất nhân viên bán hàng:
+   * - Top nhân viên thường xuyên nhận được 5 sao (Top 5-star Sellers)
+   * - Danh sách nhân viên thường bị 1 sao, 2 sao (At-risk Staff)
+   * - Tổng hợp các lý do/tags phàn nàn phổ biến nhất
+   */
+  async getStaffPerformanceReport(query?: {
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<any> {
+    const match: any = {};
+    if (query?.branchId && query.branchId !== 'all') {
+      match.branchId = query.branchId;
+    }
+    if (query?.startDate || query?.endDate) {
+      match.createdAt = {};
+      if (query.startDate) match.createdAt.$gte = new Date(query.startDate);
+      if (query.endDate) match.createdAt.$lte = new Date(query.endDate);
+    }
+
+    const staffStats = await this.feedbackModel.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            pharmacistId: { $ifNull: ['$pharmacistId', '$pharmacistName'] },
+            pharmacistName: { $ifNull: ['$pharmacistName', 'Dược sĩ tại quầy'] },
+            branchId: '$branchId',
+            branchName: '$branchName',
+          },
+          totalFeedbacks: { $sum: 1 },
+          avgRating: { $avg: '$rating' },
+          fiveStarCount: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+          fourStarCount: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+          threeStarCount: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+          twoStarCount: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+          oneStarCount: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
+          negativeCount: { $sum: { $cond: [{ $lte: ['$rating', 2] }, 1, 0] } },
+          tagsList: { $push: '$tags' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          pharmacistId: '$_id.pharmacistId',
+          pharmacistName: '$_id.pharmacistName',
+          branchId: '$_id.branchId',
+          branchName: '$_id.branchName',
+          totalFeedbacks: 1,
+          avgRating: { $round: ['$avgRating', 1] },
+          fiveStarCount: 1,
+          fourStarCount: 1,
+          threeStarCount: 1,
+          twoStarCount: 1,
+          oneStarCount: 1,
+          negativeCount: 1,
+          fiveStarRatio: {
+            $round: [
+              { $multiply: [{ $divide: ['$fiveStarCount', { $max: [1, '$totalFeedbacks'] }] }, 100] },
+              1,
+            ],
+          },
+          negativeRatio: {
+            $round: [
+              { $multiply: [{ $divide: ['$negativeCount', { $max: [1, '$totalFeedbacks'] }] }, 100] },
+              1,
+            ],
+          },
+          tagsList: 1,
+        },
+      },
+    ]);
+
+    // Trích xuất các tags phổ biến cho từng nhân viên
+    const processedStaff = (staffStats || []).map((s: any) => {
+      const tagCounts: Record<string, number> = {};
+      (s.tagsList || []).flat().forEach((t: string) => {
+        if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+      });
+      const topTags = Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tag, count]) => ({ tag, count }));
+
+      const { tagsList, ...rest } = s;
+      return {
+        ...rest,
+        topTags,
+      };
+    });
+
+    // 1. Top người bán hàng thường xuyên được 5 sao (sắp xếp theo số lượt 5* và tỷ lệ 5*)
+    const topFiveStarStaff = [...processedStaff]
+      .filter((s: any) => s.fiveStarCount > 0)
+      .sort((a: any, b: any) => b.fiveStarCount - a.fiveStarCount || b.avgRating - a.avgRating);
+
+    // 2. Nhân viên bán hàng thường bị 1* 2* (sắp xếp theo số lượng tiêu cực và tỷ lệ tiêu cực)
+    const atRiskStaff = [...processedStaff]
+      .filter((s: any) => s.negativeCount > 0)
+      .sort((a: any, b: any) => b.negativeCount - a.negativeCount || b.negativeRatio - a.negativeRatio);
+
+    return {
+      success: true,
+      totalStaffEvaluated: processedStaff.length,
+      topFiveStarStaff,
+      atRiskStaff,
+      allStaff: processedStaff.sort((a: any, b: any) => b.totalFeedbacks - a.totalFeedbacks),
+    };
+  }
+
+  /**
+   * Báo cáo hiệu suất từng chi nhánh:
+   * - Đánh giá chất lượng phục vụ tốt/xấu
+   * - Điểm CSAT, tỷ lệ hài lòng, tỷ lệ khiếu nại, tỷ lệ giải quyết SLA
+   * - Bổ sung dữ liệu mua hàng (PO/GRN) và bán hàng theo chi nhánh
+   */
+  async getBranchPerformanceReport(query?: {
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<any> {
+    const match: any = {};
+    if (query?.branchId && query.branchId !== 'all') {
+      match.branchId = query.branchId;
+    }
+    if (query?.startDate || query?.endDate) {
+      match.createdAt = {};
+      if (query.startDate) match.createdAt.$gte = new Date(query.startDate);
+      if (query.endDate) match.createdAt.$lte = new Date(query.endDate);
+    }
+
+    // 1. Tổng hợp CSAT phản hồi theo chi nhánh
+    const feedbackByBranch = await this.feedbackModel.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$branchId',
+          branchName: { $first: '$branchName' },
+          totalFeedbacks: { $sum: 1 },
+          avgRating: { $avg: '$rating' },
+          fiveStarCount: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+          fourStarCount: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+          threeStarCount: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+          negativeCount: { $sum: { $cond: [{ $lte: ['$rating', 2] }, 1, 0] } },
+          resolvedCount: { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED'] }, 1, 0] } },
+        },
+      },
+    ]);
+
+    // 2. Lấy dữ liệu mua hàng (Purchase Orders) theo chi nhánh qua Kafka (Event-Driven Microservices, Zero Cross-DB Access)
+    let purchaseByBranch: Record<string, { totalPoCount: number; totalPurchaseValue: number }> = {};
+    try {
+      const poRes = await lastValueFrom(
+        this.inventoryClient.send('inventory.po.summary_by_branch', {}).pipe(
+          require('rxjs').timeout(3000),
+        ),
+      );
+      if (poRes && typeof poRes === 'object') {
+        purchaseByBranch = poRes as any;
+      }
+    } catch (e: any) {
+      this.logger.warn(`Không thể lấy dữ liệu mua hàng qua Kafka: ${e.message}`);
+    }
+
+    // 3. Lấy dữ liệu bán hàng (Orders) theo chi nhánh qua Kafka (Event-Driven Microservices, Zero Cross-DB Access)
+    let salesByBranch: Record<string, { totalOrders: number; totalSalesRevenue: number }> = {};
+    try {
+      if (this.orderClient) {
+        const salesRes = await lastValueFrom(
+          this.orderClient.send('orders.summary_by_branch', {}).pipe(
+            require('rxjs').timeout(3000),
+          ),
+        );
+        if (salesRes && typeof salesRes === 'object') {
+          salesByBranch = salesRes as any;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`Không thể lấy dữ liệu bán hàng qua Kafka: ${e.message}`);
+    }
+
+    // Lấy danh sách toàn bộ chi nhánh để không bỏ sót chi nhánh chưa có đánh giá
+    const branches = await this.branchModel.find().lean().exec();
+    const branchMap = new Map<string, any>(branches.map((b: any) => [b.branchCode || b._id.toString(), b]));
+
+    // Hợp nhất dữ liệu thành bảng báo cáo hiệu suất chi nhánh
+    const allBranchCodes = new Set<string>([
+      ...branches.map((b: any) => b.branchCode || b._id.toString()),
+      ...feedbackByBranch.map((f: any) => f._id),
+    ]);
+
+    const feedbackMap = new Map<string, any>(feedbackByBranch.map((f: any) => [f._id, f]));
+
+    const performanceList = Array.from(allBranchCodes).map((code) => {
+      const fb = feedbackMap.get(code);
+      const br = branchMap.get(code);
+      const po = purchaseByBranch[code] || { totalPoCount: 0, totalPurchaseValue: 0 };
+      const sl = salesByBranch[code] || { totalOrders: 0, totalSalesRevenue: 0 };
+
+      const totalFeedbacks = fb?.totalFeedbacks || 0;
+      const avgRating = totalFeedbacks > 0 ? Math.round((fb?.avgRating || 5) * 10) / 10 : 5.0;
+      const fiveStarCount = fb?.fiveStarCount || 0;
+      const fourStarCount = fb?.fourStarCount || 0;
+      const negativeCount = fb?.negativeCount || 0;
+      const resolvedCount = fb?.resolvedCount || 0;
+
+      const positiveRatio = totalFeedbacks > 0
+        ? Math.round(((fiveStarCount + fourStarCount) / totalFeedbacks) * 1000) / 10
+        : 100;
+      const negativeRatio = totalFeedbacks > 0
+        ? Math.round((negativeCount / totalFeedbacks) * 1000) / 10
+        : 0;
+      const resolutionRate = negativeCount > 0
+        ? Math.round((resolvedCount / negativeCount) * 100)
+        : 100;
+
+      // Xếp hạng chất lượng dịch vụ:
+      let serviceQuality = 'GOOD';
+      let serviceQualityLabel = 'Tốt';
+      let serviceBadgeColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+
+      if (totalFeedbacks > 0) {
+        if (avgRating >= 4.7 && positiveRatio >= 90) {
+          serviceQuality = 'EXCELLENT';
+          serviceQualityLabel = 'Xuất sắc ⭐';
+          serviceBadgeColor = 'text-amber-700 bg-amber-50 border-amber-200';
+        } else if (avgRating >= 4.0 && positiveRatio >= 75) {
+          serviceQuality = 'GOOD';
+          serviceQualityLabel = 'Tốt';
+          serviceBadgeColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        } else if (avgRating >= 3.0) {
+          serviceQuality = 'AVERAGE';
+          serviceQualityLabel = 'Trung bình';
+          serviceBadgeColor = 'text-blue-700 bg-blue-50 border-blue-200';
+        } else {
+          serviceQuality = 'POOR';
+          serviceQualityLabel = 'Cần chấn chỉnh ⚠️';
+          serviceBadgeColor = 'text-rose-700 bg-rose-50 border-rose-200';
+        }
+      }
+
+      return {
+        branchId: code,
+        branchName: br?.name || fb?.branchName || `Chi nhánh ${code}`,
+        manager: br?.manager || 'Chưa gán',
+        totalFeedbacks,
+        avgRating,
+        fiveStarCount,
+        negativeCount,
+        positiveRatio,
+        negativeRatio,
+        resolutionRate,
+        serviceQuality,
+        serviceQualityLabel,
+        serviceBadgeColor,
+        // Dữ liệu mua hàng & bán hàng
+        procurement: {
+          totalPoCount: po.totalPoCount,
+          totalPurchaseValue: po.totalPurchaseValue,
+        },
+        sales: {
+          totalOrders: sl.totalOrders,
+          totalSalesRevenue: sl.totalSalesRevenue,
+        },
+      };
+    });
+
+    // Lọc theo query branchId nếu có
+    const filteredList = query?.branchId && query.branchId !== 'all'
+      ? performanceList.filter((b) => b.branchId === query.branchId)
+      : performanceList;
+
+    return {
+      success: true,
+      chainAverageRating: filteredList.length > 0
+        ? Math.round((filteredList.reduce((sum, b) => sum + b.avgRating, 0) / filteredList.length) * 10) / 10
+        : 5.0,
+      totalBranches: filteredList.length,
+      excellentBranchesCount: filteredList.filter((b) => b.serviceQuality === 'EXCELLENT').length,
+      poorBranchesCount: filteredList.filter((b) => b.serviceQuality === 'POOR').length,
+      branches: filteredList.sort((a, b) => b.avgRating - a.avgRating || b.totalFeedbacks - a.totalFeedbacks),
+    };
   }
 
   // =========================================================================

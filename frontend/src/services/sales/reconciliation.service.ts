@@ -20,6 +20,11 @@ export interface PaymentReconciliationRecord {
     | 'MANUALLY_RESOLVED';
   bankTransactionId?: string;
   bankCode?: string;
+  gateway?: string;
+  difference?: number;
+  creditedToLoyaltyPoints?: number;
+  overrideReason?: string;
+  createdAt?: string;
   reconciledAt: string;
   resolutionNotes?: string;
   resolvedBy?: string;

@@ -164,7 +164,7 @@ export default function AppNavigator() {
             <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
           )}
 
-          {isWarehouse && (
+          {(isWarehouse || isBranch || isAdmin) && (
             <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
           )}
 

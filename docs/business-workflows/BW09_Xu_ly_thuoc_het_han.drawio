@@ -1,0 +1,163 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="Electron" agent="Antigravity IDE" scale="1" border="0">
+  <diagram id="bw-08-expiry-mgmt" name="Quy trình Xử lý Thuốc Cận Date &amp; Hết Hạn">
+    <mxGraphModel dx="760" dy="509" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1250" pageHeight="1700" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="leg_start" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="36" width="36" x="40" y="25" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_start_t" parent="1" style="text;html=1;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=13;" value="Bắt đầu" vertex="1">
+          <mxGeometry height="30" width="70" x="85" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_end" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="36" width="36" x="40" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_end_t" parent="1" style="text;html=1;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=13;" value="Kết thúc" vertex="1">
+          <mxGeometry height="30" width="70" x="85" y="73" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_gw" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;fontSize=20;fontStyle=1;" value="X" vertex="1">
+          <mxGeometry height="36" width="36" x="220" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_gw_t" parent="1" style="text;html=1;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=13;" value="Exclusive&#10;Gateway" vertex="1">
+          <mxGeometry height="35" width="80" x="265" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_manual" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="hành động thực hiện&#10;bên ngoài hệ thống" vertex="1">
+          <mxGeometry height="42" width="140" x="430" y="37" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_system" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;" value="hành động thực hiện&#10;trên hệ thống" vertex="1">
+          <mxGeometry height="42" width="140" x="590" y="37" as="geometry" />
+        </mxCell>
+        <mxCell id="pool" parent="1" style="shape=swimlane;childLayout=stackLayout;resizeParent=1;resizeParentMax=0;startSize=32;fontSize=15;fontStyle=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" value="Quy trình Xử lý Thuốc Cận Hạn &amp; Hết Hạn Sử Dụng (Near-Expiry &amp; Expired Drug Management)" vertex="1">
+          <mxGeometry height="1088" width="1180" x="40" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_sys" parent="pool" style="swimlane;startSize=36;fontSize=14;fontStyle=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;" value="Hệ thống Kho &amp; ERP&#10;(Inventory &amp; Expiry Service)" vertex="1">
+          <mxGeometry height="1056" width="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="node_start" parent="lane_sys" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=0;" value="Start" vertex="1">
+          <mxGeometry height="45" width="45" x="127" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" parent="lane_sys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="1. Rà soát hạn dùng theo chi nhánh và ID lô" vertex="1">
+          <mxGeometry height="65" width="230" x="35" y="115" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" parent="lane_sys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="2. Báo cáo lô cận hạn trong 90 ngày và lô đã hết hạn" vertex="1">
+          <mxGeometry height="65" width="230" x="35" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="t4c" parent="lane_sys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="4c. Cách ly lô chờ hủy. POS loại lô hết hạn hoặc đã cách ly." vertex="1">
+          <mxGeometry height="65" width="230" x="34.5" y="658" as="geometry" />
+        </mxCell>
+        <mxCell id="t7c" parent="lane_sys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="7c. Sau chứng thư, lập phiếu xuất hủy, ghi giảm tồn, hao hụt và audit" vertex="1">
+          <mxGeometry height="65" width="230" x="35" y="837" as="geometry" />
+        </mxCell>
+        <mxCell id="end_disposal" parent="lane_sys" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=0;" value="End" vertex="1">
+          <mxGeometry height="45" width="45" x="127" y="951" as="geometry" />
+        </mxCell>
+        <mxCell id="e_start_1" edge="1" parent="lane_sys" source="node_start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="t1" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_1_2" edge="1" parent="lane_sys" source="t1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="t2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_7c_end" edge="1" parent="lane_sys" source="t7c" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="end_disposal" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2_msg" parent="lane_sys" style="points=[[0.145,0.145,0],[0.5,0,0],[0.855,0.145,0],[1,0.5,0],[0.855,0.855,0],[0.5,1,0],[0.145,0.855,0],[0,0.5,0]];shape=mxgraph.bpmn.event;html=1;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;verticalAlign=top;align=center;perimeter=ellipsePerimeter;outlineConnect=0;aspect=fixed;outline=standard;symbol=message;fontSize=11;fontColor=#333333;" value="danh sách cảnh báo lô" vertex="1">
+          <mxGeometry height="28" width="28" x="249" y="259" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_mgr" parent="pool" style="swimlane;startSize=36;fontSize=14;fontStyle=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;" value="Quản lý Kho / Cơ sở&#10;(Warehouse / Branch Manager)" vertex="1">
+          <mxGeometry height="1056" width="290" x="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" parent="lane_mgr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=0;" value="3. Kiểm tra tồn thực tế, bao bì và chọn phương án xử lý" vertex="1">
+          <mxGeometry height="65" width="230" x="30" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="gw_decision" parent="lane_mgr" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;fontSize=22;fontStyle=1;" value="X" vertex="1">
+          <mxGeometry height="42" width="42" x="124" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="t4a" parent="lane_mgr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="4a. Quản lý duyệt giá giảm cho lô cận hạn đủ điều kiện" vertex="1">
+          <mxGeometry height="65" width="230" x="30" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="t5c" parent="lane_mgr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=0;" value="5c. Hội đồng kiểm kê, niêm phong và bàn giao lô" vertex="1">
+          <mxGeometry height="65" width="230" x="30" y="658" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3_gw" edge="1" parent="lane_mgr" source="t3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gw_decision" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_gw_4a" edge="1" parent="lane_mgr" source="gw_decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=11;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="t4a" value="Duyệt giảm giá lô cận hạn">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="3" y="-5" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lane_pos" parent="pool" style="swimlane;startSize=36;fontSize=14;fontStyle=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;" value="Kênh Bán lẻ &amp; Dược sĩ POS&#10;(POS &amp; Retail Channel)" vertex="1">
+          <mxGeometry height="1056" width="290" x="590" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="t5a" parent="lane_pos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" value="5a. POS phân bổ FEFO và áp giá theo lô. Loại lô hết hạn hoặc cách ly. Cảnh báo cận hạn trong 180 ngày." vertex="1">
+          <mxGeometry height="90" width="230" x="30" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="t6a" parent="lane_pos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=0;" value="6a. Dược sĩ tư vấn theo HSD và xuất hóa đơn" vertex="1">
+          <mxGeometry height="65" width="230" x="30" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="e_5a_6a" edge="1" parent="lane_pos" source="t5a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="t6a" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_partner" parent="pool" style="swimlane;startSize=36;fontSize=14;fontStyle=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;" value="Xử lý Rác y tế&#10;(Disposal Partner)" vertex="1">
+          <mxGeometry height="1056" width="300" x="880" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="t6c" parent="lane_partner" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=0;" value="6c. Đơn vị xử lý tiêu hủy và cấp chứng thư" vertex="1">
+          <mxGeometry height="65" width="230" x="32" y="727" as="geometry" />
+        </mxCell>
+        <mxCell id="QKymchRvbYX7eF7VzMyS-1" parent="lane_partner" style="points=[[0.145,0.145,0],[0.5,0,0],[0.855,0.145,0],[1,0.5,0],[0.855,0.855,0],[0.5,1,0],[0.145,0.855,0],[0,0.5,0]];shape=mxgraph.bpmn.event;html=1;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;verticalAlign=top;align=center;perimeter=ellipsePerimeter;outlineConnect=0;aspect=fixed;outline=standard;symbol=message;fontSize=11;fontColor=#333333;" value="&lt;span style=&quot;color: rgb(0, 0, 0); font-size: 12px;&quot;&gt;chứng thư hủy y tế&lt;/span&gt;" vertex="1">
+          <mxGeometry height="28" width="28" x="241" y="778" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2_3" edge="1" parent="pool" source="t2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="t3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4a_5a" edge="1" parent="pool" source="t4a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="t5a" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_gw_4c" edge="1" parent="pool" source="gw_decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=11;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="t4c" value="Đề xuất xuất hủy">
+          <mxGeometry relative="1" x="-0.7809" y="-9" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="157.6" y="363" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_4c_5c" edge="1" parent="pool" source="t4c" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="t5c" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_5c_6c" edge="1" parent="pool" source="t5c" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="t6c" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_6c_7c" edge="1" parent="pool" source="t6c" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;dashed=1;exitX=0.513;exitY=1.003;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;" target="t7c" value="">
+          <mxGeometry relative="1" x="-0.8908" y="5" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_6a_end" edge="1" parent="pool" source="t6a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#000000;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="end_disposal" value="">
+          <mxGeometry relative="1" x="-0.9776" as="geometry">
+            <mxPoint x="734.4999999999998" y="607" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="return" parent="lane_mgr" value="4b. Xử lý trả nhà cung cấp theo lô đã chọn" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" vertex="1">
+          <mxGeometry x="30" y="525" width="230" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="sale_note" parent="lane_pos" value="Lô còn hạn, ACTIVE và đủ tồn có thể bán, kể cả đúng ngày thứ 15." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=0;" vertex="1">
+          <mxGeometry x="30" y="266" width="230" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="return_end" parent="lane_mgr" value="End" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=0;" vertex="1">
+          <mxGeometry x="120" y="610" width="45" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="decision_return" parent="pool" source="gw_decision" target="return" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" value="Trả NCC">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="return_finish" parent="pool" source="return" target="return_end" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="active_pos" parent="pool" source="sale_note" target="t5a" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" value="Bán theo giá hiện hành">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

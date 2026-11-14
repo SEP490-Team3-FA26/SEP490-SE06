@@ -1236,6 +1236,121 @@ export class ApiService {
     }
   }
 
+  // ==========================================
+  // BIÊN BẢN KIỂM KÊ KHO (INVENTORY CHECKS - BW07)
+  // ==========================================
+  public static async getInventoryChecks(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return Array.isArray(json) ? json : json.data || [];
+      }
+    } catch (e) {
+      console.warn('[getInventoryChecks] API error:', e);
+    }
+    return [];
+  }
+
+  public static async getInventoryCheckById(id: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+    } catch (e) {
+      console.warn('[getInventoryCheckById] API error:', e);
+    }
+    return null;
+  }
+
+  public static async createInventoryCheck(data: {
+    items: any[];
+    notes?: string;
+    status?: string;
+  }): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể tạo biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi tạo biên bản kiểm kê' };
+    }
+  }
+
+  public static async updateInventoryCheck(
+    id: string,
+    data: {
+      items?: any[];
+      notes?: string;
+      performedBy?: string;
+    }
+  ): Promise<{ success: boolean; message?: string; data?: any }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...this.authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể cập nhật biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi cập nhật biên bản kiểm kê' };
+    }
+  }
+
+  public static async completeInventoryCheck(id: string): Promise<{ success: boolean; message?: string; data?: any }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/${id}/complete`, {
+        method: 'POST',
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { success: true, data: json.data || json };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Không thể hoàn tất biên bản kiểm kê' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Lỗi mạng khi hoàn tất kiểm kê' };
+    }
+  }
+
+  public static async getInventoryCheckBatches(): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/inventory-checks/batches`, {
+        headers: this.authHeaders,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return Array.isArray(json) ? json : json.data || [];
+      }
+    } catch (e) {
+      console.warn('[getInventoryCheckBatches] API error:', e);
+    }
+    return [];
+  }
+
   public static async traceLot(batchNo: string): Promise<any> {
     try {
       const res = await fetch(
@@ -2199,39 +2314,33 @@ export class ApiService {
   // --- PURCHASE ORDERS (PO) & REQUISITIONS (PR) ---
   public static async getPurchaseOrders(): Promise<any[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/purchase-orders`, {
-        headers: this.authHeaders,
-      });
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${this.baseUrl}/api/purchase-orders`, { headers });
       if (res.ok) {
         const decoded = await res.json();
         return Array.isArray(decoded) ? decoded : decoded?.data || [];
       }
     } catch (e) {
-      console.warn('Failed to fetch purchase orders:', e);
+      console.warn('Lỗi khi tải danh sách đơn đặt hàng PO:', e);
     }
-    return [
-      {
-        id: 'PO-2026-881',
-        supplier: 'Công Ty CP Dược Hậu Giang',
-        branch: 'Kho Tổng Trung Tâm',
-        amount: '185,000,000 ₫',
-        date: '2026-08-31',
-        items: 'Amoxicillin 500mg (x500), Panadol Extra (x1000), Decolgen (x400)',
-        status: 'PENDING',
-      },
-      {
-        id: 'PO-2026-882',
-        supplier: 'Sanofi-Aventis Việt Nam',
-        branch: 'Chi Nhánh Quận 1',
-        amount: '72,500,000 ₫',
-        date: '2026-08-30',
-        items: 'Strepsils Cool (x300), Efferalgan 500mg (x800)',
-        status: 'PENDING',
-      },
-    ];
+    // Tuân thủ chính sách Zero Mock Data: không trả về dữ liệu ảo trong production
+    return [];
   }
 
-  // Lấy chi tiết PO từ API Gateway của môi trường đang cấu hình.
+  // Lấy chi tiết PO từ API Gateway của môi trường đang cấu hình (hỗ trợ cả PO-A064C2 và Web URL).
   public static async getPurchaseOrderById(id: string): Promise<any> {
     try {
       let token = this.currentToken;
@@ -2248,7 +2357,15 @@ export class ApiService {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const cleanId = encodeURIComponent(String(id).trim());
+      let rawId = String(id).trim();
+      if (rawId.includes('poId=')) {
+        const match = rawId.match(/poId=([a-zA-Z0-9_-]+)/);
+        if (match) rawId = match[1];
+      } else if (rawId.includes('grnId=')) {
+        const match = rawId.match(/grnId=([a-zA-Z0-9_-]+)/);
+        if (match) rawId = match[1];
+      }
+      const cleanId = encodeURIComponent(rawId);
 
       const res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers });
       if (res.ok) {
@@ -2257,6 +2374,38 @@ export class ApiService {
       }
     } catch (e) {
       console.warn('Lỗi khi tải chi tiết đơn PO:', e);
+    }
+    return null;
+  }
+
+  // Lưu kết quả kiểm đếm đơn PO từ Mobile lên Redis Server & đồng bộ WebSocket cho Web
+  public static async savePoInspection(poId: string, payload: any): Promise<any> {
+    try {
+      let token = this.currentToken;
+      if (!token) {
+        token = (await AsyncStorage.getItem('auth_token')) || '';
+        if (token) this.currentToken = token;
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const cleanId = encodeURIComponent(String(poId).trim());
+      const res = await fetch(`${this.baseUrl}/api/goods-receipts/po-inspections/${cleanId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Lỗi khi đồng bộ kết quả kiểm đếm PO lên máy chủ:', e);
     }
     return null;
   }
