@@ -76,8 +76,13 @@ function processLivePharmacistBarcode({
     return { success: false, reason: 'OUT_OF_STOCK', medicine: foundMed, cart };
   }
 
-  // 7. Cập nhật giỏ hàng bán hàng
-  const existingIdx = cart.findIndex((it) => it.id === foundMed._id || it._id === foundMed._id);
+  // 7. Cập nhật giỏ hàng bán hàng (Khớp cả ID lẫn Barcode chống trùng lặp dòng)
+  const medIdStr = String(foundMed._id || foundMed.id || '');
+  const existingIdx = cart.findIndex((it) => {
+    const itId = String(it.id || it._id || '');
+    const itBarcode = String(it.barcode || '');
+    return (itId && itId === medIdStr) || (itBarcode && cleanBarcode && itBarcode === cleanBarcode);
+  });
 
   if (existingIdx !== -1) {
     const existing = cart[existingIdx];
@@ -96,7 +101,9 @@ function processLivePharmacistBarcode({
   } else {
     const newItem = {
       ...foundMed,
-      id: foundMed._id,
+      id: medIdStr,
+      _id: medIdStr,
+      barcode: foundMed.barcode || cleanBarcode,
       quantity: 1,
       price: foundMed.price || 50000,
       unit: foundMed.unit || 'Hộp',
@@ -188,6 +195,66 @@ console.log('--- 1. [Normal Values] Luồng nghiệp vụ chuẩn ---');
   assert.strictEqual(res.customer.phone, '0987654321');
   assert.strictEqual(res.customer.name, 'Nguyễn Văn Khách');
   console.log('  ✔ TC-LIVE-NORM-03: Nhận diện mã QR Sổ Sức Khỏe Số nạp hồ sơ khách hàng (ĐẠT)');
+}
+
+// TC-LIVE-NORM-04: Quét liên tiếp 4 lần bảo đảm 100% không nhân bản dòng trong giỏ hàng POS
+{
+  let dynamicCart = [];
+
+  // Lần 1: Quét thuốc A (Panadol)
+  let r1 = processLivePharmacistBarcode({
+    barcode: '8935006530010',
+    cart: dynamicCart,
+    catalog: mockCatalog,
+    branchStock: mockStock,
+  });
+  dynamicCart = r1.cart;
+  assert.strictEqual(dynamicCart.length, 1);
+  assert.strictEqual(dynamicCart[0].id, 'med-01');
+  assert.strictEqual(dynamicCart[0].quantity, 1);
+
+  // Lần 2: Quét tiếp thuốc A (Panadol) -> Không tạo dòng mới, chỉ tăng quantity thành 2
+  let r2 = processLivePharmacistBarcode({
+    barcode: '8935006530010',
+    cart: dynamicCart,
+    catalog: mockCatalog,
+    branchStock: mockStock,
+    lastScanTime: 1000,
+    lastScanCode: '8935006530010',
+    currentTime: 3000,
+  });
+  dynamicCart = r2.cart;
+  assert.strictEqual(dynamicCart.length, 1, 'Lần 2 quét trùng thuốc A: Giỏ hàng phải giữ nguyên 1 dòng');
+  assert.strictEqual(dynamicCart[0].quantity, 2, 'Lần 2: Số lượng thuốc A phải là 2');
+
+  // Lần 3: Quét thuốc B (Berberin) -> Thêm dòng thứ 2
+  let r3 = processLivePharmacistBarcode({
+    barcode: '8935006530022',
+    cart: dynamicCart,
+    catalog: mockCatalog,
+    branchStock: mockStock,
+    lastScanTime: 3000,
+    lastScanCode: '8935006530010',
+    currentTime: 4000,
+  });
+  dynamicCart = r3.cart;
+  assert.strictEqual(dynamicCart.length, 2, 'Lần 3 quét thuốc B: Giỏ hàng phải có 2 dòng');
+  assert.strictEqual(dynamicCart.find(it => it.id === 'med-02').quantity, 1);
+
+  // Lần 4: Quét lại thuốc A (Panadol) -> Tăng quantity thuốc A lên 3, giỏ hàng vẫn đúng 2 dòng
+  let r4 = processLivePharmacistBarcode({
+    barcode: '8935006530010',
+    cart: dynamicCart,
+    catalog: mockCatalog,
+    branchStock: mockStock,
+    lastScanTime: 4000,
+    lastScanCode: '8935006530022',
+    currentTime: 5000,
+  });
+  dynamicCart = r4.cart;
+  assert.strictEqual(dynamicCart.length, 2, 'Lần 4 quét lại thuốc A: Giỏ hàng vẫn giữ nguyên 2 dòng');
+  assert.strictEqual(dynamicCart.find(it => it.id === 'med-01').quantity, 3, 'Lần 4: Thuốc A tăng lên 3');
+  console.log('  ✔ TC-LIVE-NORM-04: Quét xen kẽ nhiều thuốc giống/khác nhau gom đúng số lượng, không tạo dòng mới (ĐẠT)');
 }
 
 // -----------------------------------------------------------------------------
@@ -314,3 +381,4 @@ console.log('\n--- 3. [Abnormal Values] Dữ liệu dị thường & ngoại l�
 }
 
 console.log('\n🎉 Toàn bộ 10/10 bài kiểm thử Live Barcode Scanner POS Dược Sĩ ĐỀU ĐẠT CHUẨN 100%!');
+

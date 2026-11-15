@@ -71,6 +71,11 @@ export function LiveBarcodeScannerModal({
   const lastAttemptTimeRef = useRef<number>(0);
   const frameCounterRef = useRef<number>(0);
   const isPausedRef = useRef<boolean>(false);
+  const onBarcodeScannedRef = useRef(onBarcodeScanned);
+
+  useEffect(() => {
+    onBarcodeScannedRef.current = onBarcodeScanned;
+  }, [onBarcodeScanned]);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -210,7 +215,9 @@ export function LiveBarcodeScannerModal({
 
     // Gọi callback nạp thuốc vào giỏ hàng POS
     try {
-      await onBarcodeScanned(cleanCode);
+      if (onBarcodeScannedRef.current) {
+        await onBarcodeScannedRef.current(cleanCode);
+      }
     } catch (err) {
       console.error("Lỗi khi nạp thuốc từ barcode vào giỏ hàng:", err);
     }
@@ -752,3 +759,4 @@ export function LiveBarcodeScannerModal({
   );
 }
 export default LiveBarcodeScannerModal;
+
