@@ -114,8 +114,12 @@ export const rfqService = {
     return response.data;
   },
 
-  // Chi tiết RFQ và ma trận báo giá
+  // Chi tiết RFQ và ma trận báo giá (chặn request lỗi nếu ID rỗng hoặc undefined)
   async getRfqById(id: string): Promise<RequestForQuotationData> {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      console.warn('⚠️ [rfqService] Bỏ qua gọi getRfqById vì ID không hợp lệ:', id);
+      return null as any;
+    }
     const response = await api.get(API_ENDPOINTS.RFQ.DETAIL(id));
     return response.data;
   },
@@ -128,29 +132,44 @@ export const rfqService = {
 
   // Gửi RFQ đồng loạt qua email/portal đến các NCC
   async sendRfq(id: string) {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      throw new Error('ID RFQ không hợp lệ');
+    }
     const response = await api.post(`${API_ENDPOINTS.RFQ.DETAIL(id)}/send`);
     return response.data;
   },
 
   // Nhập bảng chào giá của NCC
   async submitQuotation(id: string, payload: SubmitQuotePayload) {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      throw new Error('ID RFQ không hợp lệ');
+    }
     const response = await api.post(`${API_ENDPOINTS.RFQ.DETAIL(id)}/quotations`, payload);
     return response.data;
   },
 
   // Chọn thầu và tự động sinh PO
   async awardRfq(id: string, awardPayload: { quotationId: string; supplierId: string; reason?: string }) {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      throw new Error('ID RFQ không hợp lệ');
+    }
     const response = await api.post(API_ENDPOINTS.RFQ.AWARD(id), awardPayload);
     return response.data;
   },
 
   // CỔNG BÁO GIÁ NCC (MAGIC LINK KHÔNG CẦN TÀI KHOẢN)
   async getRfqByToken(token: string) {
+    if (!token || token === 'undefined' || token === 'null' || (typeof token === 'string' && !token.trim())) {
+      return null;
+    }
     const response = await api.get(API_ENDPOINTS.RFQ.PORTAL_GET_BY_TOKEN(token));
     return response.data;
   },
 
   async submitQuoteByToken(token: string, payload: any) {
+    if (!token || token === 'undefined' || token === 'null' || (typeof token === 'string' && !token.trim())) {
+      throw new Error('Token báo giá không hợp lệ');
+    }
     const response = await api.post(API_ENDPOINTS.RFQ.PORTAL_SUBMIT_QUOTE(token), payload);
     return response.data;
   },

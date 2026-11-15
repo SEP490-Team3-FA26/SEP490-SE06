@@ -9,9 +9,11 @@ interface Branch {
    name: string;
    address: string;
    image: string;
-   status: 'active' | 'maintenance';
+   status: 'preparing' | 'active' | 'maintenance';
    manager: string;
    contact: string;
+   gppNumber?: string;
+   gppExpiryDate?: string;
    stats: {
       employees: number;
       totalStock: number;
@@ -279,6 +281,25 @@ function BranchDetailModal({ branch, onClose, onDelete }: { branch: Branch, onCl
                </div>
 
                <div className="flex items-center gap-2">
+                  {branch.status === 'preparing' && (
+                     <button
+                        onClick={async () => {
+                           if (!branch._id) return;
+                           if (window.confirm(`Kích hoạt chi nhánh "${branch.name}" chính thức đi vào hoạt động?`)) {
+                              try {
+                                 await branchService.activateBranch(branch._id);
+                                 alert("Kích hoạt chi nhánh thành công!");
+                                 window.location.reload();
+                              } catch (err: any) {
+                                 alert(err?.response?.data?.message || err?.message || "Lỗi khi kích hoạt chi nhánh");
+                              }
+                           }
+                        }}
+                        className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                     >
+                        <CheckCircle2 size={14} /> Kích hoạt mở bán
+                     </button>
+                  )}
                   <button
                      onClick={() => {
                         if (branch._id && window.confirm("Bạn có chắc chắn muốn xóa chi nhánh này?")) {
@@ -429,7 +450,9 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
    const [manager, setManager] = useState("");
    const [managerId, setManagerId] = useState("");
    const [contact, setContact] = useState("");
-   const [status, setStatus] = useState<"active" | "maintenance">("active");
+   const [status, setStatus] = useState<"preparing" | "active" | "maintenance">("preparing");
+   const [gppNumber, setGppNumber] = useState("");
+   const [gppExpiryDate, setGppExpiryDate] = useState("");
    const [image, setImage] = useState("");
    const [unassignedManagers, setUnassignedManagers] = useState<Employee[]>([]);
 
@@ -452,6 +475,8 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
          managerId,
          contact,
          status,
+         gppNumber: gppNumber.trim() || undefined,
+         gppExpiryDate: gppExpiryDate || undefined,
          image: image.trim() || undefined,
       });
    };
@@ -532,12 +557,34 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số Giấy Chứng Nhận GPP</label>
+                     <input
+                        type="text"
+                        value={gppNumber}
+                        onChange={(e) => setGppNumber(e.target.value)}
+                        placeholder="VD: GPP-HN-2026-088"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                     />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Ngày Hết Hạn GPP</label>
+                     <input
+                        type="date"
+                        value={gppExpiryDate}
+                        onChange={(e) => setGppExpiryDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Trạng thái</label>
                      <select
                         value={status}
                         onChange={(e) => setStatus(e.target.value as any)}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
                      >
+                        <option value="preparing">Đang chuẩn bị</option>
                         <option value="active">Hoạt động</option>
                         <option value="maintenance">Bảo trì</option>
                      </select>
@@ -579,7 +626,9 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
    const [address, setAddress] = useState(branch.address);
    const [manager, setManager] = useState(branch.manager);
    const [contact, setContact] = useState(branch.contact);
-   const [status, setStatus] = useState<"active" | "maintenance">(branch.status);
+   const [status, setStatus] = useState<"active" | "maintenance" | "preparing">(branch.status);
+   const [gppNumber, setGppNumber] = useState(branch.gppNumber || "");
+   const [gppExpiryDate, setGppExpiryDate] = useState(branch.gppExpiryDate || "");
    const [image, setImage] = useState(branch.image);
 
    const handleSubmit = (e: React.FormEvent) => {
@@ -595,6 +644,8 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
             manager,
             contact,
             status,
+            gppNumber: gppNumber.trim() || undefined,
+            gppExpiryDate: gppExpiryDate || undefined,
             image,
          });
       }
@@ -655,12 +706,34 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số Giấy Chứng Nhận GPP</label>
+                     <input
+                        type="text"
+                        value={gppNumber}
+                        onChange={(e) => setGppNumber(e.target.value)}
+                        placeholder="VD: GPP-HN-2026-088"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                     />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Ngày Hết Hạn GPP</label>
+                     <input
+                        type="date"
+                        value={gppExpiryDate}
+                        onChange={(e) => setGppExpiryDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Trạng thái</label>
                      <select
                         value={status}
                         onChange={(e) => setStatus(e.target.value as any)}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
                      >
+                        <option value="preparing">Đang chuẩn bị</option>
                         <option value="active">Hoạt động</option>
                         <option value="maintenance">Bảo trì</option>
                      </select>

@@ -14,6 +14,7 @@ export function BranchLayout() {
     { name: "Duyệt Đơn Xin Nghỉ", href: "/branch/leave-approvals", icon: <UserCheck size={20} /> },
     { name: "Lịch sử Điểm danh", href: "/branch/attendance-history", icon: <ClipboardCheck size={20} /> },
     { name: "Kho hàng chi nhánh", href: "/branch/inventory", icon: <Package size={20} /> },
+    { name: "Biên bản kiểm kê", href: "/branch/inventory/checks", icon: <ClipboardList size={20} /> },
     { name: "Chuyển kho liên chi nhánh", href: "/branch/transfers", icon: <ArrowRightLeft size={20} /> },
     { name: "Nhận hàng về kho chi nhánh", href: "/branch/receive-transfers", icon: <PackageCheck size={20} /> },
     { name: "Yêu cầu nhập thuốc", href: "/branch/requisitions", icon: <ClipboardList size={20} /> },

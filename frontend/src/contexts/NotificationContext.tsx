@@ -229,7 +229,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [socket, isSocketConnected]);
 
-  const addNotification = useCallback((notification: Omit<Notification, 'read'> & { read?: boolean }) => {
+  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'read' | 'timestamp'> & { id?: string; read?: boolean; timestamp?: string }) => {
     const newNotification: Notification = {
       ...notification,
       id: notification.id || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

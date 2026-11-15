@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { ClientKafka, RpcException } from "@nestjs/microservices";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, ClientSession, isValidObjectId } from "mongoose";
+import { Model, ClientSession, isValidObjectId, Types } from "mongoose";
 import { PurchaseRequisition } from "./schemas/purchase-requisition.schema";
 import { PurchaseOrder } from "./schemas/purchase-order.schema";
 import { GoodsReceiptNote } from "./schemas/goods-receipt-note.schema";
@@ -1504,43 +1504,87 @@ export class PurchaseService {
 
   async getPurchaseOrderById(id: string) {
     if (!id) return null;
-    const cleanId = String(id).replace('#', '').trim();
+    let cleanId = String(id).trim();
+
+    // 1. Tự động bóc tách ID nếu quét phải đường link Web (URL deep link)
+    if (cleanId.includes('poId=')) {
+      const match = cleanId.match(/poId=([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    } else if (cleanId.includes('grnId=')) {
+      const match = cleanId.match(/grnId=([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    }
+
+    cleanId = cleanId.replace(/^[#:\s]+/, '').trim();
     if (!cleanId) return null;
 
-    // 1. Tìm theo ObjectId hợp lệ
+    // Chuẩn hóa loại bỏ tiền tố PO (ví dụ: PO-A064C2 -> A064C2)
+    const rawWithoutPo = cleanId.replace(/^PO[-_:\s]*/i, '').trim();
+
+    // 2. Tìm theo ObjectId hợp lệ (cả cleanId và rawWithoutPo)
     if (isValidObjectId(cleanId)) {
       try {
         const po = await this.poModel.findById(cleanId).lean().exec();
         if (po) return po;
       } catch (_) {}
     }
+    if (rawWithoutPo && rawWithoutPo !== cleanId && isValidObjectId(rawWithoutPo)) {
+      try {
+        const po = await this.poModel.findById(rawWithoutPo).lean().exec();
+        if (po) return po;
+      } catch (_) {}
+    }
 
-    // 2. Tìm theo poCode
+    // 3. Tìm theo poCode khớp chính xác hoặc không phân biệt hoa thường
     try {
+      const escapedClean = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedRaw = rawWithoutPo ? rawWithoutPo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+      const codeRegex = escapedRaw
+        ? `^(${escapedClean}|PO-${escapedRaw}|${escapedRaw})$`
+        : `^${escapedClean}$`;
+
       const poByCode = await this.poModel.findOne({
         $or: [
+          { poCode: { $regex: codeRegex, $options: 'i' } },
           { poCode: cleanId },
           { poCode: `PO-${cleanId}` },
           { poCode: `#${cleanId}` },
-        ]
-      }).lean().exec();
+          ...(rawWithoutPo ? [{ poCode: rawWithoutPo }, { poCode: `PO-${rawWithoutPo}` }] : []),
+        ],
+      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+
       if (poByCode) return poByCode;
     } catch (_) {}
 
-    // 3. Tra cứu hậu tố QR ngay trên MongoDB, kể cả với PO cũ.
-    if (cleanId.length >= 6) {
-      const escapedId = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const suffix = escapedId + '$';
-      return this.poModel.findOne({
-        $or: [
-          { poCode: { $regex: suffix, $options: 'i' } },
-          {
-            $expr: {
-              $regexMatch: { input: { $toString: '$_id' }, regex: suffix, options: 'i' },
+    // 4. Tra cứu hậu tố QR ngay trên MongoDB, hỗ trợ cả mã hex _id rút gọn 6 ký tự hoặc hậu tố poCode
+    const targetSuffix = (rawWithoutPo && rawWithoutPo.length >= 4) ? rawWithoutPo : (cleanId.length >= 4 ? cleanId : '');
+    if (targetSuffix) {
+      const escapedTarget = targetSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions: any[] = [
+        { poCode: { $regex: `${escapedTarget}$`, $options: 'i' } },
+        { poCode: { $regex: cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', $options: 'i' } },
+      ];
+
+      // Nếu targetSuffix là chuỗi hex hợp lệ, tra cứu hậu tố trên _id của MongoDB
+      if (/^[0-9a-fA-F]+$/.test(targetSuffix)) {
+        orConditions.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: '$_id' },
+              regex: `${targetSuffix}$`,
+              options: 'i',
             },
           },
-        ],
-      }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+        });
+      }
+
+      try {
+        const poBySuffix = await this.poModel.findOne({
+          $or: orConditions,
+        }).sort({ createdAt: -1, _id: -1 }).lean().exec();
+
+        if (poBySuffix) return poBySuffix;
+      } catch (_) {}
     }
 
     return null;
@@ -2127,7 +2171,6 @@ export class PurchaseService {
                 { _id: branchInvItem._id },
                 {
                   $inc: { stock: receivedQuantity },
-                  $set: { status: "ACTIVE" },
                 },
                 { new: true, session },
               )
@@ -3204,7 +3247,7 @@ export class PurchaseService {
       if (query.branchId && query.branchId !== 'all') {
         filter.branchId = query.branchId;
       }
-      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).exec();
+      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).lean().exec();
     } catch (error) {
       throw new RpcException({ message: error.message || 'Lỗi lấy danh sách RFQ' });
     }
@@ -3212,9 +3255,13 @@ export class PurchaseService {
 
   async getRfqById(id: string) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).lean().exec();
       if (!rfq) {
-        throw new RpcException({ message: `Không tìm thấy RFQ với ID: ${id}` });
+        throw new RpcException({ message: `Không tìm thấy RFQ với ID hoặc Mã: ${id}`, statusCode: 404 });
       }
       return rfq;
     } catch (error) {
@@ -3224,7 +3271,11 @@ export class PurchaseService {
 
   async sendRfq(id: string) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3322,7 +3373,11 @@ export class PurchaseService {
 
   async submitSupplierQuotation(id: string, quotationDto: any) {
     try {
-      const rfq = await this.rfqModel.findById(id).exec();
+      if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+        throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+      }
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3392,10 +3447,14 @@ export class PurchaseService {
   }
 
   async awardRfq(id: string, awardDto: { quotationId: string; supplierId: string; reason?: string; createdBy?: string }) {
+    if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
+      throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
+    }
     const session = await this.rfqModel.db.startSession();
     session.startTransaction();
     try {
-      const rfq = await this.rfqModel.findById(id).session(session).exec();
+      const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
+      const rfq = await this.rfqModel.findOne(filter).session(session).exec();
       if (!rfq) {
         throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
       }
@@ -3454,6 +3513,33 @@ export class PurchaseService {
       throw new RpcException({ message: error.message || 'Lỗi khi chọn thầu RFQ' });
     } finally {
       session.endSession();
+    }
+  }
+
+  // Tổng hợp dữ liệu mua hàng (PO) theo chi nhánh phục vụ báo cáo hiệu suất (Tuân thủ Microservices Bounded Context)
+  async getPoSummaryByBranch(): Promise<Record<string, { totalPoCount: number; totalPurchaseValue: number }>> {
+    try {
+      const poAgg = await this.poModel.aggregate([
+        {
+          $group: {
+            _id: { $ifNull: ['$branchId', 'CENTRAL_WH'] },
+            totalPoCount: { $sum: 1 },
+            totalPurchaseValue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          },
+        },
+      ]).exec();
+
+      const result: Record<string, { totalPoCount: number; totalPurchaseValue: number }> = {};
+      (poAgg || []).forEach((p: any) => {
+        result[p._id] = {
+          totalPoCount: p.totalPoCount || 0,
+          totalPurchaseValue: p.totalPurchaseValue || 0,
+        };
+      });
+      return result;
+    } catch (err: any) {
+      this.logger.error(`[getPoSummaryByBranch] Lỗi tổng hợp PO: ${err.message}`);
+      return {};
     }
   }
 }

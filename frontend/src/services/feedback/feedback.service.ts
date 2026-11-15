@@ -92,6 +92,18 @@ export const feedbackService = {
     return response.data;
   },
 
+  // Báo cáo hiệu suất nhân viên bán hàng: Top 5* & Cảnh báo 1-2*
+  async getStaffPerformance(params?: { branchId?: string; startDate?: string; endDate?: string }) {
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.STAFF_PERFORMANCE, { params });
+    return response.data;
+  },
+
+  // Báo cáo hiệu suất từng chi nhánh & chất lượng phục vụ (kèm dữ liệu mua bán)
+  async getBranchPerformance(params?: { branchId?: string; startDate?: string; endDate?: string }) {
+    const response = await api.get(API_ENDPOINTS.FEEDBACKS.BRANCH_PERFORMANCE, { params });
+    return response.data;
+  },
+
   async getFeedbacksByCustomer(phone: string) {
     const response = await api.get(API_ENDPOINTS.FEEDBACKS.BY_CUSTOMER(phone));
     return response.data;

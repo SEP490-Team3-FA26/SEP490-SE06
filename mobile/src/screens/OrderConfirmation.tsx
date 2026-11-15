@@ -276,6 +276,34 @@ export const OrderConfirmation: React.FC<{
           </View>
         </View>
 
+        {/* Subtle Non-Intrusive Feedback Card (Zero-Intrusion) */}
+        {isPaid && (
+          <View style={styles.passiveFeedbackCard}>
+            <View style={styles.passiveFeedbackLeft}>
+              <Ionicons name="sparkles" size={18} color="#0284C7" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.passiveFeedbackTitle}>Đóng góp ý kiến (Tùy chọn)</Text>
+                <Text style={styles.passiveFeedbackSub}>
+                  Chia sẻ trải nghiệm dịch vụ để nhận +1.000 điểm thưởng thành viên
+                </Text>
+              </View>
+            </View>
+            <AnimatedTouchable
+              onPress={() => {
+                navigation.navigate('ProductReviewScreen', {
+                  orderCode,
+                  orderId,
+                  patientName,
+                  patientPhone,
+                });
+              }}
+              style={styles.passiveFeedbackBtn}
+            >
+              <Text style={styles.passiveFeedbackBtnText}>Đánh giá</Text>
+            </AnimatedTouchable>
+          </View>
+        )}
+
         {/* Action Buttons */}
         <View style={styles.actionSection}>
           {isPending && paymentMethod === 'QR_PAY' && (
@@ -529,5 +557,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#64748B',
+  },
+  passiveFeedbackCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0F9FF',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  passiveFeedbackLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  passiveFeedbackTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#0369A1',
+  },
+  passiveFeedbackSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  passiveFeedbackBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  passiveFeedbackBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

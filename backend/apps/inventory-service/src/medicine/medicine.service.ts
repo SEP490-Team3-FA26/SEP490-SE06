@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Medicine } from './schemas/medicine.schema';
 import { MedicineBatch } from './schemas/medicine-batch.schema';
 import { MedicineLocation } from './schemas/medicine-location.schema';
@@ -11,6 +11,13 @@ import { InventoryCheck } from './schemas/inventory-check.schema';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
 import { NationalPharmaService } from '../national-pharma/national-pharma.service';
 import { MedicineMapper } from './medicine.mapper';
+
+interface StockCheckInput {
+  branchId: string;
+  performedBy: string;
+  notes?: string;
+  items: { batchId?: string; medicineId: string; batchNo: string; actualStock: number; reason?: string }[];
+}
 
 @Injectable()
 export class MedicineService implements OnModuleInit {
@@ -925,6 +932,7 @@ export class MedicineService implements OnModuleInit {
             expDate: expDate.toISOString().split('T')[0],
             stock: b.stock,
             status: status,
+            batchStatus: b.status,
             price: med ? med.price : 0,
             branchId: b.branchId || 'CENTRAL_WH',
             location: b.location || null,
@@ -941,6 +949,7 @@ export class MedicineService implements OnModuleInit {
 
   async handleExpirationAction(data: {
     batchId?: string;
+    branchId?: string;
     medicineId?: string;
     batchNo?: string;
     action: 'DISPOSE' | 'RETURN_SUPPLIER' | 'DISCOUNT';
@@ -953,18 +962,19 @@ export class MedicineService implements OnModuleInit {
       const { batchId, action, quantity, notes, discountPrice, performedBy, medicineId, batchNo } = data;
       this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo}`);
 
-      // Tìm lô thuốc linh hoạt: theo batchId ObjectId hoặc theo medicineId + batchNo
-      let batch: any = null;
-      if (batchId && Types.ObjectId.isValid(batchId)) {
-        batch = await this.batchModel.findById(batchId).exec();
+      if (batchId ? !Types.ObjectId.isValid(batchId) : !medicineId || !batchNo) {
+        throw new RpcException({ message: 'Cần chọn ID lô hoặc mã thuốc và số lô', statusCode: 400 });
       }
-      if (!batch && medicineId && batchNo) {
-        batch = await this.batchModel.findOne({ medicineId, batchNo }).exec();
-      }
-      if (!batch && batchNo) {
-        batch = await this.batchModel.findOne({ batchNo }).exec();
+      const batchFilter = {
+        ...this.inventoryCheckBranchFilter(data.branchId),
+        ...(batchId ? { _id: batchId } : { medicineId, batchNo }),
+      };
+      const batches = await this.batchModel.find(batchFilter).limit(2).exec();
+      if (batches.length > 1) {
+        throw new RpcException({ message: 'Số lô bị trùng trong kho. Vui lòng chọn theo ID lô.', statusCode: 409 });
       }
 
+      const batch = batches[0];
       if (!batch) {
         throw new RpcException('Không tìm thấy lô thuốc này trong kho');
       }
@@ -983,7 +993,7 @@ export class MedicineService implements OnModuleInit {
         const stockBefore = batch.stock;
         batch.stock -= actualDeduct;
         if (batch.stock === 0) {
-          batch.status = 'EXPIRED';
+          batch.status = 'DISPOSED';
         }
         await batch.save();
 
@@ -992,6 +1002,8 @@ export class MedicineService implements OnModuleInit {
           medicineId: batch.medicineId,
           medicineName: medicine.name,
           batchNo: batch.batchNo,
+          batchId: batch._id ? batch._id.toString() : batchId,
+          branchId: batch.branchId || 'CENTRAL_WH',
           quantityChange: -actualDeduct,
           stockBefore,
           stockAfter: batch.stock,
@@ -1032,7 +1044,7 @@ export class MedicineService implements OnModuleInit {
         const stockBefore = batch.stock;
         batch.stock -= actualDeduct;
         if (batch.stock === 0) {
-          batch.status = 'EXPIRED';
+          batch.status = 'DISPOSED';
         }
         await batch.save();
 
@@ -1041,6 +1053,8 @@ export class MedicineService implements OnModuleInit {
           medicineId: batch.medicineId,
           medicineName: medicine.name,
           batchNo: batch.batchNo,
+          batchId: batch._id ? batch._id.toString() : batchId,
+          branchId: batch.branchId || 'CENTRAL_WH',
           quantityChange: -actualDeduct,
           stockBefore,
           stockAfter: batch.stock,
@@ -1073,19 +1087,38 @@ export class MedicineService implements OnModuleInit {
         };
 
       } else if (action === 'DISCOUNT') {
-        if (!discountPrice || discountPrice <= 0) {
-          throw new RpcException('Giá khuyến mãi không hợp lệ');
+        const today = new Date();
+        if (batch.status !== 'ACTIVE' || new Date(batch.expDate) <= today) {
+          throw new RpcException('Không thể áp dụng khuyến mãi cho lô thuốc đã hết hạn hoặc không ở trạng thái ACTIVE');
+        }
+        const now = new Date();
+        const limit = new Date(now);
+        limit.setDate(limit.getDate() + 90);
+        if (batch.status !== 'ACTIVE' || batch.stock <= 0 || !batch.expDate ||
+            batch.expDate <= now || batch.expDate > limit) {
+          throw new RpcException({ message: 'Chỉ được giảm giá lô cận hạn còn đủ điều kiện bán', statusCode: 400 });
+        }
+        if (!Number.isSafeInteger(discountPrice) || discountPrice <= 0 || discountPrice >= medicine.price) {
+          throw new RpcException({ message: 'Giá khuyến mãi phải thấp hơn giá hiện tại và lớn hơn 0', statusCode: 400 });
         }
 
-        const oldPrice = medicine.price;
-        medicine.price = discountPrice;
-        await medicine.save();
+        const oldPrice = batch.expiryDiscountPrice ?? medicine.price;
+        const updated = await this.batchModel.findOneAndUpdate(
+          { _id: batch._id, status: 'ACTIVE', expDate: { $gt: now, $lte: limit }, stock: { $gt: 0 } },
+          { $set: { expiryDiscountPrice: discountPrice } },
+          { new: true },
+        ).exec();
+        if (!updated) {
+          throw new RpcException({ message: 'Lô đã thay đổi trạng thái hoặc tồn kho', statusCode: 409 });
+        }
 
         const txn = new this.txnModel({
           type: 'ADJUSTMENT',
           medicineId: batch.medicineId,
           medicineName: medicine.name,
           batchNo: batch.batchNo,
+          batchId: batch._id ? batch._id.toString() : batchId,
+          branchId: batch.branchId || 'CENTRAL_WH',
           quantityChange: 0,
           stockBefore: batch.stock,
           stockAfter: batch.stock,
@@ -1097,13 +1130,14 @@ export class MedicineService implements OnModuleInit {
 
         return {
           success: true,
-          message: `Đã áp dụng giảm giá thành công cho thuốc ${medicine.name}: ${oldPrice?.toLocaleString('vi-VN')}đ -> ${discountPrice?.toLocaleString('vi-VN')}đ`,
-          data: medicine
+          message: `Đã áp dụng giảm giá cho lô ${batch.batchNo} của ${medicine.name}.`,
+          data: updated
         };
       } else {
         throw new RpcException('Hành động không hợp lệ');
       }
     } catch (err) {
+      if (err instanceof RpcException) throw err;
       throw new RpcException(err.message || 'Lỗi xử lý đề xuất hết hạn');
     }
   }
@@ -1163,161 +1197,336 @@ export class MedicineService implements OnModuleInit {
     }
   }
 
-  async createInventoryCheck(data: any) {
-    this.logger.log(`Creating inventory check protocol. Status: ${data.status}`);
+  private inventoryCheckBranchFilter(branchId = 'CENTRAL_WH') {
+    return { branchId: branchId === 'CENTRAL_WH' ? { $in: ['CENTRAL_WH', null, ''] } : branchId };
+  }
 
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const count = await this.checkModel.countDocuments({
-      createdAt: {
-        $gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-        $lt: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1),
-      },
-    });
-    const checkCode = `IC-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+  async listInventoryCheckBatches(branchId: string) {
+    const filter = this.inventoryCheckBranchFilter(branchId);
+    const batchFilter = { ...filter, status: { $ne: 'DISPOSED' } };
+    const fields = 'medicineId batchNo stock expDate status';
+    const batches = branchId === 'CENTRAL_WH'
+      ? await this.batchModel.find(batchFilter).select(fields).lean().exec()
+      : await this.branchInvModel.find(batchFilter).select(fields).lean().exec();
+    const medicineIds = [...new Set(batches.map(batch => batch.medicineId))];
+    const medicines = await this.medicineModel.find({ _id: { $in: medicineIds } })
+      .select('name unit image images category price registration_number barcode').sort({ name: 1 }).lean().exec();
+    const grouped = new Map<string, (typeof batches[number])[]>();
+    for (const batch of batches) {
+      const list = grouped.get(batch.medicineId) ?? [];
+      list.push(batch);
+      grouped.set(batch.medicineId, list);
+    }
+    return medicines.map(medicine => ({
+      id: medicine._id.toString(),
+      name: medicine.name,
+      unit: medicine.unit,
+      image: (medicine as any).image || ((medicine as any).images && (medicine as any).images[0]) || '',
+      category: (medicine as any).category || '',
+      price: (medicine as any).price || 0,
+      registrationNumber: (medicine as any).registration_number || '',
+      barcode: (medicine as any).barcode || '',
+      batches: (grouped.get(medicine._id.toString()) ?? []).map(batch => ({
+        id: batch._id.toString(),
+        batchNo: batch.batchNo,
+        stock: batch.stock,
+        expDate: batch.expDate,
+        status: batch.status,
+      })),
+    }));
+  }
 
-    // Verify and enrich items with system stock and calculate difference
-    const enrichedItems = [];
+  private async resolveInventoryCheckBatch(
+    branchId: string,
+    item: { batchId?: string; medicineId: string; batchNo: string },
+    session?: ClientSession,
+  ) {
+    if (item.batchId && !Types.ObjectId.isValid(item.batchId)) {
+      throw new RpcException({ message: 'ID lô kiểm kê không hợp lệ', statusCode: 400 });
+    }
+    const filter = {
+      ...this.inventoryCheckBranchFilter(branchId),
+      medicineId: item.medicineId,
+      batchNo: item.batchNo,
+      ...(item.batchId ? { _id: item.batchId } : {}),
+    };
+    const matches = branchId === 'CENTRAL_WH'
+      ? await this.batchModel.find(filter).limit(2).session(session ?? null).exec()
+      : await this.branchInvModel.find(filter).limit(2).session(session ?? null).exec();
+    if (matches.length !== 1) {
+      throw new RpcException({
+        message: matches.length
+          ? `Số lô "${item.batchNo}" bị trùng. Vui lòng chọn lại lô theo ID.`
+          : `Không tìm thấy lô "${item.batchNo}" trong kho kiểm kê.`,
+        statusCode: 409,
+      });
+    }
+    return matches[0];
+  }
+
+  async createInventoryCheck(data: StockCheckInput) {
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new RpcException({ message: 'Biên bản phải có ít nhất một lô kiểm kê', statusCode: 400 });
+    }
+
+    const branchId = data.branchId || 'CENTRAL_WH';
+    const seen = new Set<string>();
+    const items = [];
     for (const item of data.items) {
-      const batch = await this.batchModel.findOne({
-        medicineId: item.medicineId,
-        batchNo: item.batchNo,
-      }).exec();
-
-      if (!batch) {
-        throw new RpcException({ message: `Không tìm thấy lô "${item.batchNo}" của thuốc có ID: ${item.medicineId}` });
+      const rawReason = item?.reason ?? (item as any)?.discrepancyReason;
+      if (!item || !Types.ObjectId.isValid(item.medicineId) || typeof item.batchNo !== 'string' ||
+          !item.batchNo.trim() || !Number.isSafeInteger(item.actualStock) || item.actualStock < 0 ||
+          (rawReason != null && typeof rawReason !== 'string')) {
+        throw new RpcException({ message: 'Thông tin lô hoặc số lượng kiểm kê không hợp lệ', statusCode: 400 });
       }
+      const batch = await this.resolveInventoryCheckBatch(branchId, item);
+      const batchId = batch._id.toString();
+      if (seen.has(batchId) || batch.status === 'DISPOSED') {
+        throw new RpcException({ message: 'Lô đã bị hủy hoặc bị trùng trong biên bản', statusCode: 400 });
+      }
+      seen.add(batchId);
 
-      const medicine = await this.medicineModel.findById(item.medicineId).exec();
-      const systemStock = batch.stock;
-      const actualStock = Number(item.actualStock);
-      const difference = actualStock - systemStock;
-
-      enrichedItems.push({
+      const difference = item.actualStock - batch.stock;
+      const reason = (typeof rawReason === 'string' ? rawReason : '').trim();
+      if (difference !== 0 && !reason) {
+        throw new RpcException({ message: `Cần ghi lý do chênh lệch cho lô ${batch.batchNo}`, statusCode: 400 });
+      }
+      const medicine = await this.medicineModel.findById(item.medicineId).select('name').lean().exec();
+      items.push({
+        batchId,
+        batchNo: batch.batchNo,
+        expDate: batch.expDate,
         medicineId: item.medicineId,
-        medicineName: medicine ? medicine.name : 'Thuốc không xác định',
-        batchNo: item.batchNo,
-        systemStock,
-        actualStock,
+        medicineName: medicine?.name || 'Thuốc không xác định',
+        systemStock: batch.stock,
+        actualStock: item.actualStock,
         difference,
-        reason: item.reason || '',
+        reason,
       });
     }
 
-    const check = new this.checkModel({
-      checkCode,
-      status: data.status || 'DRAFT',
-      items: enrichedItems,
-      performedBy: data.performedBy || 'Thủ kho',
-      notes: data.notes || '',
+    const id = new Types.ObjectId();
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const check = await this.checkModel.create({
+      _id: id,
+      checkCode: `IC-${dateStr}-${id.toHexString().slice(-12).toUpperCase()}`,
+      branchId,
+      status: 'DRAFT',
+      items,
+      performedBy: data.performedBy,
+      notes: typeof data.notes === 'string' ? data.notes.trim() : '',
     });
+    return { success: true, message: `Đã lưu nháp biên bản kiểm kê ${check.checkCode}.`, data: check.toObject() };
+  }
 
-    await check.save();
-
-    if (check.status === 'COMPLETED') {
-      await this.applyStockAdjustments(check);
+  // Cập nhật biên bản kiểm kê kho ở trạng thái nháp (DRAFT) mà không tạo rác bản ghi mới
+  async updateInventoryCheck(data: { id: string; branchId?: string; items?: any[]; notes?: string; performedBy?: string }) {
+    if (!data?.id || !Types.ObjectId.isValid(data.id)) {
+      throw new RpcException({ message: 'ID biên bản không hợp lệ', statusCode: 400 });
+    }
+    const branchId = data.branchId || 'CENTRAL_WH';
+    const check = await this.checkModel.findOne({ _id: data.id, ...this.inventoryCheckBranchFilter(branchId) }).exec();
+    if (!check) {
+      throw new RpcException({ message: 'Không tìm thấy biên bản trong kho kiểm kê', statusCode: 404 });
+    }
+    if (check.status !== 'DRAFT') {
+      throw new RpcException({ message: 'Chỉ có thể cập nhật biên bản kiểm kê ở trạng thái nháp (DRAFT)', statusCode: 409 });
     }
 
-    return {
-      success: true,
-      message: check.status === 'COMPLETED'
-        ? `Đã tạo và hoàn tất biên bản kiểm kê ${checkCode}, tồn kho đã được điều chỉnh.`
-        : `Đã lưu nháp biên bản kiểm kê ${checkCode}.`,
-      data: (check.toObject ? check.toObject() : check),
-    };
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      const seen = new Set<string>();
+      const updatedItems = [];
+      for (const item of data.items) {
+        const rawReason = item?.reason ?? (item as any)?.discrepancyReason;
+        if (!item || !Types.ObjectId.isValid(item.medicineId) || typeof item.batchNo !== 'string' ||
+            !item.batchNo.trim() || !Number.isSafeInteger(item.actualStock) || item.actualStock < 0 ||
+            (rawReason != null && typeof rawReason !== 'string')) {
+          throw new RpcException({ message: 'Thông tin lô hoặc số lượng kiểm kê không hợp lệ', statusCode: 400 });
+        }
+        const batch = await this.resolveInventoryCheckBatch(branchId, item);
+        const batchId = batch._id.toString();
+        if (seen.has(batchId) || batch.status === 'DISPOSED') {
+          throw new RpcException({ message: 'Lô đã bị hủy hoặc bị trùng trong biên bản', statusCode: 400 });
+        }
+        seen.add(batchId);
+
+        const difference = item.actualStock - batch.stock;
+        const reason = (typeof rawReason === 'string' ? rawReason : '').trim();
+        if (difference !== 0 && !reason) {
+          throw new RpcException({ message: `Cần ghi lý do chênh lệch cho lô ${batch.batchNo}`, statusCode: 400 });
+        }
+        const medicine = await this.medicineModel.findById(item.medicineId).select('name').lean().exec();
+        updatedItems.push({
+          batchId,
+          batchNo: batch.batchNo,
+          expDate: batch.expDate,
+          medicineId: item.medicineId,
+          medicineName: medicine?.name || 'Thuốc không xác định',
+          systemStock: batch.stock,
+          actualStock: item.actualStock,
+          difference,
+          reason,
+        });
+      }
+      check.items = updatedItems as any;
+    }
+
+    if (typeof data.notes === 'string') {
+      check.notes = data.notes.trim();
+    }
+    if (data.performedBy) {
+      check.performedBy = data.performedBy;
+    }
+
+    await check.save();
+    return { success: true, message: `Đã cập nhật biên bản kiểm kê ${check.checkCode}.`, data: check.toObject() };
   }
 
-  async listInventoryChecks() {
-    return this.checkModel.find().sort({ createdAt: -1 }).lean().exec();
+  async listInventoryChecks(branchId?: string) {
+    return this.checkModel.find(this.inventoryCheckBranchFilter(branchId)).sort({ createdAt: -1 }).lean().exec();
   }
 
-  async getInventoryCheckById(id: string) {
-    const check = await this.checkModel.findById(id).lean().exec();
+  async getInventoryCheckById(id: string, branchId?: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new RpcException({ message: 'ID biên bản không hợp lệ', statusCode: 400 });
+    }
+    const check = await this.checkModel.findOne({ _id: id, ...this.inventoryCheckBranchFilter(branchId) }).lean().exec();
     if (!check) {
-      throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
+      throw new RpcException({ message: 'Không tìm thấy biên bản trong kho kiểm kê', statusCode: 404 });
     }
     return check;
   }
 
-  async completeInventoryCheck(id: string) {
-    const check = await this.checkModel.findOneAndUpdate(
-      { _id: id, status: { $ne: 'COMPLETED' } },
-      { $set: { status: 'COMPLETED' } },
-      { new: true },
-    ).exec();
-    if (!check) {
-      const existing = await this.checkModel.findById(id).select('status').lean().exec();
-      if (!existing) {
-        throw new RpcException({ message: `Không tìm thấy biên bản kiểm kê: ${id}` });
-      }
-      throw new RpcException({ message: 'Biên bản kiểm kê này đã được hoàn tất trước đó' });
+  private async executeCompleteInventoryCheck(id: string, branchId = 'CENTRAL_WH', approvedBy?: string, session?: ClientSession) {
+    const query = this.checkModel.findOne({
+      _id: id, ...this.inventoryCheckBranchFilter(branchId),
+    });
+    if (session) query.session(session);
+    const current = await query.exec();
+    if (!current) {
+      throw new RpcException({ message: 'Không tìm thấy biên bản trong kho kiểm kê', statusCode: 404 });
+    }
+    if (current.status !== 'DRAFT' || !current.items.length) {
+      throw new RpcException({ message: 'Biên bản không còn ở trạng thái nháp hợp lệ', statusCode: 409 });
     }
 
-    await this.applyStockAdjustments(check);
+    const seen = new Set<string>();
+    for (const item of current.items) {
+      const batch = await this.resolveInventoryCheckBatch(branchId, item, session);
+      const batchId = batch._id.toString();
+      const rawReason = item?.reason ?? (item as any)?.discrepancyReason;
+      if (seen.has(batchId) || !Number.isSafeInteger(item.actualStock) || item.actualStock < 0 ||
+          (item.actualStock !== item.systemStock && !rawReason?.trim())) {
+        throw new RpcException({ message: 'Dữ liệu bản nháp không hợp lệ. Vui lòng lập lại biên bản.', statusCode: 409 });
+      }
+      if (batch.stock !== item.systemStock || batch.status === 'DISPOSED') {
+        throw new RpcException({ message: `Tồn lô ${batch.batchNo} đã thay đổi. Vui lòng kiểm kê lại.`, statusCode: 409 });
+      }
+      seen.add(batchId);
+      if (item.actualStock === item.systemStock) continue;
 
-    // Tự động liên thông CSDL Dược Quốc gia (BPMN 2 - Stock-Taking Hook theo QĐ 232)
+      batch.stock = item.actualStock;
+      if (batch.status === 'ACTIVE' && batch.expDate < new Date()) batch.status = 'EXPIRED';
+      if (session) {
+        await batch.save({ session });
+      } else {
+        await batch.save();
+      }
+      const txn = new this.txnModel({
+        type: 'ADJUSTMENT',
+        medicineId: item.medicineId,
+        medicineName: item.medicineName,
+        batchNo: item.batchNo,
+        batchId,
+        branchId,
+        quantityChange: item.actualStock - item.systemStock,
+        stockBefore: item.systemStock,
+        stockAfter: item.actualStock,
+        referenceId: current._id.toString(),
+        referenceType: 'INVENTORY_CHECK',
+        performedBy: approvedBy || current.performedBy,
+        notes: `Điều chỉnh theo biên bản ${current.checkCode}. Lý do: ${rawReason?.trim() || ''}`,
+      });
+      if (session) {
+        await txn.save({ session });
+      } else {
+        await txn.save();
+      }
+    }
+
+    const medicineIds = new Set(current.items.map(item => item.medicineId));
+    for (const medicineId of medicineIds) {
+      await this.syncStockAfterCheck(medicineId, branchId, session);
+    }
+    current.status = 'COMPLETED';
+    current.approvedBy = approvedBy;
+    current.approvedAt = new Date();
+    current.nationalSyncStatus = 'PENDING';
+    return session ? current.save({ session }) : current.save();
+  }
+
+  async completeInventoryCheck(id: string, branchId = 'CENTRAL_WH', approvedBy?: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new RpcException({ message: 'ID biên bản không hợp lệ', statusCode: 400 });
+    }
+    let check: any;
     try {
-      const gppSync = await this.nationalPharmaService.syncStockTaking(check, check.branchId);
-      (check as any).nationalFacilityCode = gppSync.facilityCode;
-      (check as any).nationalSyncCode = gppSync.syncCode;
-      (check as any).nationalSyncStatus = gppSync.syncStatus;
-      (check as any).nationalSyncedAt = gppSync.syncedAt;
-      (check as any).nationalSyncMessage = gppSync.message;
-      await check.save();
-      this.logger.log(`[CSDL Dược Stock Taking] ${gppSync.message}`);
-    } catch (gppErr: any) {
-      this.logger.warn(`[CSDL Dược Stock Taking Warning] ${gppErr.message}`);
+      check = await this.checkModel.db.transaction(async session => {
+        return this.executeCompleteInventoryCheck(id, branchId, approvedBy, session);
+      });
+    } catch (txError: any) {
+      const msg = txError?.message || '';
+      if (msg.includes('replica set') || msg.includes('Transactions are not supported') || msg.includes('Transaction numbers are only allowed')) {
+        this.logger.warn(`MongoDB standalone mode: ${msg}. Thực thi cân bằng kho không transaction.`);
+        check = await this.executeCompleteInventoryCheck(id, branchId, approvedBy);
+      } else {
+        throw txError;
+      }
+    }
+
+    try {
+      const sync = await this.nationalPharmaService.syncStockTaking(check, branchId);
+      const fields = {
+        nationalFacilityCode: sync.facilityCode,
+        nationalSyncCode: sync.syncCode,
+        nationalSyncStatus: sync.syncStatus,
+        nationalSyncedAt: sync.syncedAt,
+        nationalSyncMessage: sync.message,
+      };
+      await this.checkModel.updateOne({ _id: check._id }, { $set: fields }).exec();
+      check.set(fields);
+    } catch (error: any) {
+      this.logger.warn(`Không thể đồng bộ biên bản ${check.checkCode}: ${error.message}`);
     }
 
     return {
       success: true,
-      message: `Đã hoàn tất biên bản kiểm kê ${check.checkCode}, tồn kho đã được điều chỉnh.`,
-      data: (check.toObject ? check.toObject() : check),
+      message: `Đã hoàn tất biên bản kiểm kê ${check.checkCode}.`,
+      data: check.toObject ? check.toObject() : check,
     };
   }
 
-  private async applyStockAdjustments(check: any) {
-    this.logger.log(`Applying stock adjustments for check: ${check.checkCode}`);
-    for (const item of check.items) {
-      const batch = await this.batchModel.findOne({
-        medicineId: item.medicineId,
-        batchNo: item.batchNo,
-      }).exec();
-
-      if (batch) {
-        const stockBefore = batch.stock;
-        batch.stock = item.actualStock;
-        batch.status = batch.expDate < new Date() ? 'EXPIRED' : 'ACTIVE';
-        await batch.save();
-
-        if (item.difference !== 0) {
-          const log = new this.txnModel({
-            type: 'ADJUSTMENT',
-            medicineId: item.medicineId,
-            medicineName: item.medicineName,
-            batchNo: item.batchNo,
-            quantityChange: item.difference,
-            stockBefore,
-            stockAfter: item.actualStock,
-            referenceId: check._id.toString(),
-            referenceType: 'INVENTORY_CHECK',
-            performedBy: check.performedBy || 'Thủ kho',
-            notes: `Điều chỉnh kiểm kê theo biên bản ${check.checkCode}. Lý do: ${item.reason || 'Không có'}`,
-          });
-          await log.save();
-        }
-      }
+  private async syncStockAfterCheck(medicineId: string, branchId: string, session?: ClientSession) {
+    if (branchId === 'CENTRAL_WH') {
+      const q = this.batchModel.find({ medicineId, status: 'ACTIVE', stock: { $gt: 0 } }).select('stock');
+      if (session) q.session(session);
+      const batches = await q.lean().exec();
+      const stock = batches.reduce((sum, batch) => sum + batch.stock, 0);
+      await this.medicineModel.updateOne({ _id: medicineId }, {
+        $set: { stock, status: stock > 0 ? 'In Stock' : 'Out of Stock' },
+      }, session ? { session } : {}).exec();
+      return;
     }
 
-    // Đồng bộ tồn kho cho bảng medicines
-    const uniqueMedicineIds = [...new Set(check.items.map((item: any) => item.medicineId))];
-    for (const medId of uniqueMedicineIds) {
-      const activeBatches = await this.batchModel.find({ medicineId: medId, status: 'ACTIVE', stock: { $gt: 0 } }).exec();
-      const totalStock = activeBatches.reduce((sum, b) => sum + b.stock, 0);
-      await this.medicineModel.findByIdAndUpdate(medId, {
-        $set: { stock: totalStock, status: totalStock > 0 ? 'In Stock' : 'Out of Stock' }
-      }).exec();
-    }
+    const q = this.branchInvModel.find({
+      branchId, medicineId, status: 'ACTIVE', stock: { $gt: 0 },
+    }).select('stock');
+    if (session) q.session(session);
+    const batches = await q.lean().exec();
+    const totalStock = batches.reduce((sum, batch) => sum + batch.stock, 0);
+    await this.balanceModel.updateOne({ branchId, medicineId }, {
+      $set: { totalStock, status: totalStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK', lastSyncedAt: new Date() },
+    }, session ? { session, upsert: true } : { upsert: true }).exec();
   }
 
   async getLowStockReport(branchId?: string) {
@@ -3048,11 +3257,32 @@ export class MedicineService implements OnModuleInit {
       const { batchId, reason } = payload;
       this.logger.log(`[quarantineBatch] Khóa lô batchId=${batchId}, reason=${reason}`);
 
-      const batch = await this.batchModel.findByIdAndUpdate(
-        batchId,
-        { $set: { status: 'QUARANTINED' } },
-        { new: true }
-      ).exec();
+      const batch = await this.batchModel.db.transaction(async session => {
+        const centralFilter = this.inventoryCheckBranchFilter();
+        const central = await this.batchModel.findOneAndUpdate(
+          { _id: batchId, ...centralFilter },
+          { $set: { status: 'QUARANTINED' } },
+          { new: true, session },
+        ).exec();
+        if (central) {
+          await this.syncStockAfterCheck(central.medicineId, 'CENTRAL_WH', session);
+          return central;
+        }
+        const legacy = await this.batchModel.findById(batchId).session(session).exec();
+        const branchBatch = await this.branchInvModel.findOneAndUpdate(
+          legacy ? { branchId: legacy.branchId, medicineId: legacy.medicineId, batchNo: legacy.batchNo }
+            : { _id: batchId },
+          { $set: { status: 'QUARANTINED' } },
+          { new: true, session },
+        ).exec();
+        if (!branchBatch && !legacy) return null;
+        const affected = branchBatch ?? legacy;
+        await this.batchModel.updateMany({
+          branchId: affected.branchId, medicineId: affected.medicineId, batchNo: affected.batchNo,
+        }, { $set: { status: 'QUARANTINED' } }, { session }).exec();
+        if (branchBatch) await this.syncStockAfterCheck(branchBatch.medicineId, branchBatch.branchId, session);
+        return affected;
+      });
 
       if (!batch) throw new RpcException(`Không tìm thấy lô ${batchId}`);
 

@@ -20,7 +20,7 @@ jest.mock('react-native', () => ({
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: {},
-}));
+}), { virtual: true });
 
 jest.mock('react-native-toast-message', () => ({
   __esModule: true,

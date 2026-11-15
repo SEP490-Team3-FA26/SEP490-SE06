@@ -39,6 +39,7 @@ export class BranchController implements OnModuleInit {
       'user.branch.update',
       'user.branch.update_location',
       'user.branch.delete',
+      'user.branch.activate',
     ]);
   }
 
@@ -85,6 +86,23 @@ export class BranchController implements OnModuleInit {
   })
   async createBranch(@Body() data: any) {
     return await sendKafkaMessage(this.userClient, 'user.branch.create', data);
+  }
+
+  @Patch(':id/activate')
+  @Roles('admin', 'director')
+  @ApiOperation({ summary: 'Kích hoạt mở chi nhánh sau khi đủ điều kiện GPP và quản lý' })
+  @AuditLogAction({
+    actionCode: 'BRANCH_ACTIVATE',
+    actionName: 'Kích hoạt mở chi nhánh',
+    module: 'Branch',
+    eventType: 'UPDATE',
+    entityType: 'Branch',
+  })
+  async activateBranch(@Param('id') id: string, @Req() req: any) {
+    return await sendKafkaMessage(this.userClient, 'user.branch.activate', {
+      id,
+      activatedBy: req.user?.fullName || req.user?.email || 'Admin',
+    });
   }
 
   @Patch('my-branch/location')

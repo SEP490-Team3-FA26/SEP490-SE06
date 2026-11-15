@@ -20,7 +20,7 @@ jest.mock('node-cron', () => ({
       stop: jest.fn(),
     };
   }),
-}));
+}), { virtual: true });
 
 /**
  * Bộ kiểm thử đơn vị cho NewsletterCronService

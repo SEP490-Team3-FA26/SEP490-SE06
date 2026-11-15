@@ -173,7 +173,7 @@ export function DashboardHome() {
               color: "bg-amber-500 text-white",
               bgCard: "hover:border-amber-300",
               badge: "Kiểm kê",
-              link: "/warehouse/inventory/checks"
+              link: "/branch/inventory/checks"
             },
             {
               id: "stock-transfer",

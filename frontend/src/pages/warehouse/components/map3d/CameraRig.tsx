@@ -50,7 +50,7 @@ export function CameraRig({ view }: { view: View }) {
         one: 1, // Chạm 1 ngón xoay 360 độ trên màn hình cảm ứng
         two: 8, // Chạm 2 ngón zoom vào/ra
         three: 2, // Chạm 3 ngón di chuyển
-      }}
+      } as any}
       // Giới hạn góc nhìn: Không cho camera chúi xuống dưới gầm sàn kho
       maxPolarAngle={Math.PI / 2.05}
       minPolarAngle={Math.PI / 12}

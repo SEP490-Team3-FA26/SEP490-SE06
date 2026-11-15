@@ -267,6 +267,7 @@ export class SalesService implements OnModuleInit {
           branchId: data.branchId,
           medicineId: { $in: medIds },
           status: 'ACTIVE',
+          expDate: { $gte: today },
           stock: { $gt: 0 }
         }).sort({ expDate: 1 }).exec();
 
@@ -292,6 +293,7 @@ export class SalesService implements OnModuleInit {
           medicineId: { $in: medIds },
           ...branchCondition,
           status: 'ACTIVE',
+          expDate: { $gte: today },
           stock: { $gt: 0 }
         }).sort({ expDate: 1 }).exec();
       }
@@ -347,7 +349,7 @@ export class SalesService implements OnModuleInit {
         // both consuming the same last units of a batch.
         const inventoryModel: any = isBranchInventoryUsed ? this.branchInvModel : this.batchModel;
         const updatedBatch = await inventoryModel.findOneAndUpdate(
-          { _id: batch._id, status: 'ACTIVE', stock: { $gte: deductQty } },
+          { _id: batch._id, status: 'ACTIVE', expDate: { $gte: today }, stock: { $gte: deductQty } },
           { $inc: { stock: -deductQty } },
           { new: true },
         ).exec();
@@ -357,9 +359,11 @@ export class SalesService implements OnModuleInit {
         remainingQty -= deductQty;
 
         allocatedBatches.push({
+          batchId: batch._id.toString(),
           batchNo: batch.batchNo,
           quantity: deductQty,
-          importPrice: batch.importPrice || 0
+          importPrice: batch.importPrice || 0,
+          expiryDiscountPrice: batch.expiryDiscountPrice as number | undefined,
         });
 
         transactionLogs.push({
@@ -367,6 +371,8 @@ export class SalesService implements OnModuleInit {
           medicineId: medIdStr,
           medicineName: medicine.name,
           batchNo: batch.batchNo,
+          batchId: batch._id.toString(),
+          branchId: data.branchId || 'CENTRAL_WH',
           quantityChange: -deductQty,
           stockBefore,
           stockAfter: stockBefore - deductQty,
@@ -443,6 +449,7 @@ export class SalesService implements OnModuleInit {
       // Resolve giá theo chi nhánh và đơn vị đã chọn (Nếu là sản phẩm quà tặng khuyến mãi UC-75 thì giá = 0đ)
       const isGift = Boolean(item.isGiftItem || item.price === 0);
       let resolvedPrice = 0;
+      let lineAmount = 0;
       if (!isGift) {
         const branchReferencePrice = await this.pricingService.resolvePrice(
           data.branchId,
@@ -451,8 +458,24 @@ export class SalesService implements OnModuleInit {
           requestedQuantity,
         );
         resolvedPrice = resolveUnitPrice(medicine, selectedUnit, branchReferencePrice);
+        const unitWithoutExplicitPrice = { ...selectedUnit, price: undefined };
+        const rawAmounts = allocatedBatches.map(batch => {
+          const discount = batch.expiryDiscountPrice;
+          const price = data.type !== 'WHOLESALE' && Number.isFinite(discount) && discount > 0
+            ? Math.min(resolvedPrice, resolveUnitPrice(medicine, unitWithoutExplicitPrice, discount))
+            : resolvedPrice;
+          return price * batch.quantity / exchangeValue;
+        });
+        let rawTotal = 0;
+        for (const [index, amount] of rawAmounts.entries()) {
+          const previous = Math.round(rawTotal);
+          rawTotal += amount;
+          Object.assign(allocatedBatches[index], { saleAmount: Math.round(rawTotal) - previous });
+        }
+        lineAmount = Math.round(rawTotal);
+        resolvedPrice = lineAmount / requestedQuantity;
       }
-      totalAmount += resolvedPrice * requestedQuantity;
+      totalAmount += lineAmount;
 
       const dosePerTime = Number(item.dosePerTime) > 0 ? Number(item.dosePerTime) : 1;
       const timesPerDay = Number(item.timesPerDay) > 0 ? Number(item.timesPerDay) : 2;
@@ -613,13 +636,18 @@ export class SalesService implements OnModuleInit {
       const quantityToRevert = Math.abs(txn.quantityChange);
 
       // Revert batch stock
-      const batchFilter: any = { batchNo: txn.batchNo, medicineId: txn.medicineId };
-      if (stockModel === this.branchInvModel) batchFilter.branchId = order.branchId;
+      const batchFilter = {
+        medicineId: txn.medicineId,
+        batchNo: txn.batchNo,
+        branchId: order.branchId && order.branchId !== 'CENTRAL_WH'
+          ? order.branchId : { $in: ['CENTRAL_WH', null, ''] },
+        ...(txn.batchId ? { _id: txn.batchId } : {}),
+      };
       const batch = await stockModel.findOne(batchFilter).exec();
       if (batch) {
         const stockBefore = batch.stock;
         batch.stock += quantityToRevert;
-        batch.status = batch.expDate < new Date() ? 'EXPIRED' : 'ACTIVE';
+        if (batch.status === 'ACTIVE' && batch.expDate < new Date()) batch.status = 'EXPIRED';
         await batch.save();
 
         // Create revert log
@@ -903,6 +931,7 @@ export class SalesService implements OnModuleInit {
       const batchFilter: any = {
         medicineId,
         status: 'ACTIVE',
+        expDate: { $gte: today },
         stock: { $gt: 0 }
       };
       if (stockModel === this.branchInvModel) batchFilter.branchId = salesOrder.branchId;

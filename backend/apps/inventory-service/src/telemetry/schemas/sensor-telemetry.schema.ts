@@ -15,7 +15,7 @@ export class SensorTelemetry extends Document {
   @Prop({ type: Number, required: true, index: true })
   timestamp: number; // Unix epoch tính bằng giây
 
-  @Prop({ type: Date, required: true, index: true })
+  @Prop({ type: Date, required: true })
   measuredAt: Date;
 
   @Prop({ type: Number, default: 0 })

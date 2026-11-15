@@ -2753,5 +2753,32 @@ export class OrdersServiceService implements OnModuleInit {
       throw new RpcException(error.message || 'Lỗi tổng hợp KPI Dược sĩ');
     }
   }
+
+  // Tổng hợp dữ liệu bán hàng (Orders) theo chi nhánh phục vụ báo cáo hiệu suất (Event-Driven Microservices)
+  async getSalesSummaryByBranch(): Promise<Record<string, { totalOrders: number; totalSalesRevenue: number }>> {
+    try {
+      const salesAgg = await this.orderModel.aggregate([
+        {
+          $group: {
+            _id: { $ifNull: ['$branchId', 'BR-001'] },
+            totalOrders: { $sum: 1 },
+            totalSalesRevenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          },
+        },
+      ]).exec();
+
+      const result: Record<string, { totalOrders: number; totalSalesRevenue: number }> = {};
+      (salesAgg || []).forEach((s: any) => {
+        result[s._id] = {
+          totalOrders: s.totalOrders || 0,
+          totalSalesRevenue: s.totalSalesRevenue || 0,
+        };
+      });
+      return result;
+    } catch (err: any) {
+      this.logger.error(`[getSalesSummaryByBranch] Lỗi tổng hợp bán hàng: ${err.message}`);
+      return {};
+    }
+  }
 }
 

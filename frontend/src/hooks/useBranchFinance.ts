@@ -170,7 +170,7 @@ export function useBranchFinance(options?: UseBranchFinanceOptions) {
           (o: any) => toLocalDateStr(o.createdAt) === selectedDate
         );
         if (!hasOrdersToday && activeDates.length > 0 && !options?.initialDate) {
-          setSelectedDate(activeDates[0]);
+          setSelectedDate(String(activeDates[0]));
         }
       } else {
         setOrders([]);

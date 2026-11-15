@@ -1,29 +1,58 @@
-import { Controller, Get, Post, Param, Body, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Param, Body, Query, Inject, OnModuleInit, Optional, Req, UseGuards } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+
+interface InventoryCheckRequest {
+  user: { role: string; branchId?: string; sub: string; fullName?: string; email: string };
+}
 
 @ApiTags('📋 Inventory Checks')
 @Controller('api/inventory-checks')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'director', 'warehouse', 'branch', 'head_branch')
 export class InventoryCheckController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
+    @Optional() @Inject(CACHE_MANAGER) private readonly cache?: Cache,
   ) {}
 
   async onModuleInit() {
     await subscribeToKafkaTopics(this.inventoryClient, [
       'inventory.check.create',
+      'inventory.check.update',
       'inventory.check.list',
       'inventory.check.get_by_id',
       'inventory.check.complete',
+      'inventory.check.batches',
     ]);
   }
 
+  // Xác định chi nhánh kiểm kê: Admin và Director có thể truyền branchId để giám sát toàn chuỗi
+  private branchFor(req?: InventoryCheckRequest, queryBranchId?: string) {
+    const role = (req?.user?.role || '').toLowerCase();
+    if (role === 'admin' || role === 'director') {
+      if (queryBranchId && typeof queryBranchId === 'string' && queryBranchId.trim()) {
+        return queryBranchId.trim();
+      }
+      return 'CENTRAL_WH';
+    }
+    if (role !== 'branch' && role !== 'head_branch') return 'CENTRAL_WH';
+    const branchId = req?.user?.branchId;
+    if (!branchId || branchId === 'CENTRAL_WH') {
+      throw new BadRequestException('Tài khoản chưa được gán chi nhánh kiểm kê');
+    }
+    return branchId;
+  }
+
   @Post()
-  @ApiOperation({ summary: 'Tạo biên bản kiểm kê kho mới (Draft hoặc Completed)' })
+  @ApiOperation({ summary: 'Lưu biên bản kiểm kê kho ở trạng thái nháp' })
   @AuditLogAction({
     actionCode: 'INVENTORY_CHECK_CREATE',
     actionName: 'Tạo biên bản kiểm kê kho',
@@ -31,20 +60,52 @@ export class InventoryCheckController implements OnModuleInit {
     eventType: 'CREATE',
     entityType: 'InventoryCheck',
   })
-  async createCheck(@Body() data: any) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.create', data);
+  async createCheck(@Body() data: any, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    if (data?.status && data.status !== 'DRAFT') {
+      throw new BadRequestException('Lưu nháp và mở biên bản để phê duyệt');
+    }
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.create', {
+      items: data?.items,
+      notes: data?.notes,
+      branchId: this.branchFor(req, data?.branchId || branchIdQuery),
+      performedBy: req.user.fullName || req.user.email,
+    });
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Cập nhật biên bản kiểm kê kho ở trạng thái nháp' })
+  @AuditLogAction({
+    actionCode: 'INVENTORY_CHECK_UPDATE',
+    actionName: 'Cập nhật biên bản kiểm kê kho',
+    module: 'Inventory',
+    eventType: 'UPDATE',
+    entityType: 'InventoryCheck',
+  })
+  async updateCheck(@Param('id') id: string, @Body() data: any, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.update', {
+      id,
+      items: data?.items,
+      notes: data?.notes,
+      branchId: this.branchFor(req, data?.branchId || branchIdQuery),
+      performedBy: req.user.fullName || req.user.email,
+    });
   }
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách biên bản kiểm kê kho' })
-  async listChecks() {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.list', {});
+  async listChecks(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.list', { branchId: this.branchFor(req, branchIdQuery) });
+  }
+
+  @Get('batches')
+  async listBatches(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    return sendKafkaMessage(this.inventoryClient, 'inventory.check.batches', { branchId: this.branchFor(req, branchIdQuery) });
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Chi tiết biên bản kiểm kê kho' })
-  async getCheckById(@Param('id') id: string) {
-    const res = await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id });
+  async getCheckById(@Param('id') id: string, @Req() req?: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    const res = await sendKafkaMessage(this.inventoryClient, 'inventory.check.get_by_id', { id, branchId: this.branchFor(req, branchIdQuery) });
     if (typeof res === 'string') {
       try {
         return JSON.parse(res);
@@ -64,7 +125,16 @@ export class InventoryCheckController implements OnModuleInit {
     eventType: 'APPROVE',
     entityType: 'InventoryCheck',
   })
-  async completeCheck(@Param('id') id: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.complete', { id });
+  async completeCheck(@Param('id') id: string, @Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
+    const branchId = this.branchFor(req, branchIdQuery);
+    const result = await sendKafkaMessage(this.inventoryClient, 'inventory.check.complete', {
+      id, branchId, approvedBy: req.user.sub,
+    });
+    if (this.cache) {
+      await Promise.allSettled(['all', branchId].flatMap(scope =>
+        ['dropdown', 'stats', 'expiration_report'].map(name => this.cache!.del(`medicines:${name}:${scope}`)),
+      ));
+    }
+    return result;
   }
 }

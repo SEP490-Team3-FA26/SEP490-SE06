@@ -1482,7 +1482,7 @@ export function SupplyChainDashboard() {
 
             {/* Left: Detected Anomalies Feed */}
             <div className="scd-panel">
-              <div className="scd-panel-header" style={{ borderBottom: '1px solid #f1f5f9', pb: 12, marginBottom: 16 }}>
+              <div className="scd-panel-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 12, marginBottom: 16 }}>
                 <div className="scd-panel-title">
                   <AlertCircle size={18} color="#ef4444" />
                   <span>Bất thường được phát hiện</span>
