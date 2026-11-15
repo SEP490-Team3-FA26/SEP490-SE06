@@ -111,6 +111,25 @@ import { NewsletterCronService } from './newsletter-cron.service';
         }),
         inject: [ConfigService],
       },
+      {
+        name: 'ORDER_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (config: ConfigService) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'user-to-order-client',
+              brokers: (config.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(','),
+              connectionTimeout: 10000,
+              retry: { initialRetryTime: 1000, retries: 10 },
+              logLevel: 0,
+            },
+            consumer: { groupId: 'user-to-order-group' },
+            producer: { allowAutoTopicCreation: true },
+          },
+        }),
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [UserServiceController],

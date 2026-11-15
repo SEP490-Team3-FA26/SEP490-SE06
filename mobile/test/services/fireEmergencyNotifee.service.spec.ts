@@ -47,7 +47,7 @@ jest.mock('react-native-notify-kit', () => ({
     getInitialNotification: mockGetInitialNotification,
     getDisplayedNotifications: mockGetDisplayedNotifications,
   },
-}));
+}), { virtual: true });
 
 import {
   FireEmergencyNotifeeService,

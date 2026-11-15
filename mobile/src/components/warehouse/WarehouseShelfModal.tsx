@@ -20,6 +20,10 @@ interface WarehouseShelfModalProps {
   rack: string;
   shelf: number;
   onSelectMedicine?: (medicine: any) => void;
+  onStartInventoryCheck?: (
+    selectedMedicines: any[],
+    location: { zone: string; rack: string; shelf: number }
+  ) => void;
 }
 
 export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
@@ -29,9 +33,11 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
   rack,
   shelf,
   onSelectMedicine,
+  onStartInventoryCheck,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [shelfData, setShelfData] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (visible && zone && rack && shelf) {
@@ -44,6 +50,10 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
       setLoading(true);
       const res = await ApiService.getShelfDetail(zone, rack, shelf);
       setShelfData(res);
+      const list = res?.batches || [];
+      // Mặc định chọn tất cả các thuốc trên tầng kệ này để thuận tiện kiểm kê
+      const allIds = list.map((m: any, idx: number) => String(m.id || m.medicineId || m._id || m.sku || `med_${idx}`));
+      setSelectedIds(allIds);
     } catch (e) {
       console.warn('Error loading shelf detail:', e);
     } finally {
@@ -52,6 +62,31 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
   };
 
   const batches = shelfData?.batches || [];
+
+  const toggleSelectMedicine = (medId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(medId) ? prev.filter((id) => id !== medId) : [...prev, medId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const allIds = batches.map((m: any, idx: number) => String(m.id || m.medicineId || m._id || m.sku || `med_${idx}`));
+    if (selectedIds.length === allIds.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(allIds);
+    }
+  };
+
+  const handleStartCheck = () => {
+    if (!onStartInventoryCheck) return;
+    const selectedList = batches.filter((m: any, idx: number) => {
+      const medId = String(m.id || m.medicineId || m._id || m.sku || `med_${idx}`);
+      return selectedIds.includes(medId);
+    });
+    onStartInventoryCheck(selectedList, { zone, rack, shelf });
+    onClose();
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -87,50 +122,103 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
               <Text style={styles.emptyText}>Tầng kệ này hiện đang trống hoặc chưa xếp hàng.</Text>
             </View>
           ) : (
-            <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
-              {batches.map((item: any, idx: number) => {
-                const batchList = Array.isArray(item.batches) ? item.batches : [];
-                return (
-                  <View key={`shelf-med-${idx}`} style={styles.itemCard}>
-                    <View style={styles.itemHeader}>
-                      <Text style={styles.medName}>{item.name}</Text>
-                      <View style={styles.catBadge}>
-                        <Text style={styles.catBadgeText}>{item.category || 'Thuốc'}</Text>
-                      </View>
-                    </View>
+            <>
+              {/* Selection Toolbar */}
+              <View style={styles.selectionToolbar}>
+                <TouchableOpacity onPress={toggleSelectAll} style={styles.toggleAllBtn}>
+                  <Ionicons
+                    name={selectedIds.length === batches.length ? 'checkbox' : 'square-outline'}
+                    size={16}
+                    color="#38BDF8"
+                  />
+                  <Text style={styles.toggleAllText}>
+                    {selectedIds.length === batches.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.selectedCountText}>
+                  Đã chọn: {selectedIds.length}/{batches.length} thuốc
+                </Text>
+              </View>
 
-                    <View style={styles.metaGrid}>
-                      <View style={styles.metaCol}>
-                        <Text style={styles.metaLabel}>Mã SKU:</Text>
-                        <Text style={styles.metaVal}>{item.sku || 'N/A'}</Text>
-                      </View>
-                      <View style={styles.metaCol}>
-                        <Text style={styles.metaLabel}>Barcode GS1:</Text>
-                        <Text style={[styles.metaVal, { color: '#0284C7' }]}>{item.barcode || 'Chưa gán'}</Text>
-                      </View>
-                    </View>
+              <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+                {batches.map((item: any, idx: number) => {
+                  const medId = String(item.id || item.medicineId || item._id || item.sku || `med_${idx}`);
+                  const isSelected = selectedIds.includes(medId);
+                  const batchList = Array.isArray(item.batches) ? item.batches : [];
 
-                    {/* Batches inside this shelf */}
-                    <Text style={styles.batchSectionTitle}>Các Lô Thuốc Lưu Tại Kệ:</Text>
-                    {batchList.map((b: any, bIdx: number) => (
-                      <View key={`b-${bIdx}`} style={styles.batchPill}>
-                        <View>
-                          <Text style={styles.batchNo}>Số Lô: {b.batchNo}</Text>
-                          <Text style={styles.expDate}>
-                            HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                  return (
+                    <TouchableOpacity
+                      key={`shelf-med-${idx}`}
+                      activeOpacity={0.85}
+                      onPress={() => toggleSelectMedicine(medId)}
+                      style={[styles.itemCard, isSelected && styles.itemCardSelected]}
+                    >
+                      <View style={styles.itemHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                          <Ionicons
+                            name={isSelected ? 'checkbox' : 'square-outline'}
+                            size={18}
+                            color={isSelected ? '#38BDF8' : '#64748B'}
+                          />
+                          <Text style={styles.medName} numberOfLines={1}>
+                            {item.name}
                           </Text>
                         </View>
-                        <View style={styles.stockBadge}>
-                          <Text style={styles.stockText}>
-                            {b.stock} {item.unit || 'Hộp'}
-                          </Text>
+                        <View style={styles.catBadge}>
+                          <Text style={styles.catBadgeText}>{item.category || 'Thuốc'}</Text>
                         </View>
                       </View>
-                    ))}
-                  </View>
-                );
-              })}
-            </ScrollView>
+
+                      <View style={styles.metaGrid}>
+                        <View style={styles.metaCol}>
+                          <Text style={styles.metaLabel}>Mã SKU:</Text>
+                          <Text style={styles.metaVal}>{item.sku || 'N/A'}</Text>
+                        </View>
+                        <View style={styles.metaCol}>
+                          <Text style={styles.metaLabel}>Barcode GS1:</Text>
+                          <Text style={[styles.metaVal, { color: '#38BDF8' }]}>{item.barcode || 'Chưa gán'}</Text>
+                        </View>
+                      </View>
+
+                      {/* Batches inside this shelf */}
+                      <Text style={styles.batchSectionTitle}>Các Lô Thuốc Lưu Tại Kệ:</Text>
+                      {batchList.map((b: any, bIdx: number) => (
+                        <View key={`b-${bIdx}`} style={styles.batchPill}>
+                          <View>
+                            <Text style={styles.batchNo}>Số Lô: {b.batchNo}</Text>
+                            <Text style={styles.expDate}>
+                              HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                            </Text>
+                          </View>
+                          <View style={styles.stockBadge}>
+                            <Text style={styles.stockText}>
+                              {b.stock} {item.unit || 'Hộp'}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Action Buttons */}
+          {batches.length > 0 && onStartInventoryCheck && (
+            <TouchableOpacity
+              disabled={selectedIds.length === 0}
+              onPress={handleStartCheck}
+              style={[
+                styles.startCheckBtn,
+                selectedIds.length === 0 && { opacity: 0.5, backgroundColor: '#475569' },
+              ]}
+            >
+              <Ionicons name="clipboard-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.startCheckBtnText}>
+                Kiểm Kê Tầng/Kệ Này ({selectedIds.length} thuốc)
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Footer button */}
@@ -219,6 +307,32 @@ const styles = StyleSheet.create({
   listScroll: {
     maxHeight: 380,
   },
+  selectionToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  toggleAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  toggleAllText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  selectedCountText: {
+    color: '#94A3B8',
+    fontSize: 11,
+  },
   itemCard: {
     backgroundColor: '#1E293B',
     borderRadius: 14,
@@ -226,6 +340,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#334155',
+  },
+  itemCardSelected: {
+    borderColor: '#0284C7',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
   },
   itemHeader: {
     flexDirection: 'row',
@@ -308,6 +427,26 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  startCheckBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0284C7',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 12,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  startCheckBtnText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   footerBtn: {
     backgroundColor: '#334155',

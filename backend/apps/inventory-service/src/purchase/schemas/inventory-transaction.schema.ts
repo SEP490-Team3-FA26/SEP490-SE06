@@ -15,6 +15,12 @@ export class InventoryTransaction extends Document {
   @Prop({ type: String })
   batchNo: string;
 
+  @Prop({ type: String })
+  batchId?: string;
+
+  @Prop({ type: String, index: true })
+  branchId?: string;
+
   @Prop({ type: Number, required: true })
   quantityChange: number; // Dương = nhập, Âm = xuất/hủy
 

@@ -304,4 +304,15 @@ export class OrdersServiceController {
       throw new RpcException(error.message || 'Lỗi tạo báo cáo KPI Dược sĩ');
     }
   }
+
+  // Tổng hợp dữ liệu bán hàng (Orders) theo chi nhánh (Event-Driven Microservices)
+  @MessagePattern('orders.summary_by_branch')
+  async getSalesSummaryByBranch() {
+    try {
+      return await this.ordersServiceService.getSalesSummaryByBranch();
+    } catch (error: any) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi tổng hợp bán hàng theo chi nhánh');
+    }
+  }
 }

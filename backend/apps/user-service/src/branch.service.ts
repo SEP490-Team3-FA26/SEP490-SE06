@@ -126,15 +126,55 @@ export class BranchService {
 
   async create(data: any): Promise<Branch> {
     const count = await this.branchModel.countDocuments().exec();
-    // Auto-generate code if not provided
+    // Tự động sinh mã chi nhánh an toàn, chống va chạm mã khi tạo đồng thời hoặc sau khi xóa chi nhánh
     if (!data.branchCode) {
-      data.branchCode = `BR-${String(count + 1).padStart(3, '0')}`;
+      let nextIndex = count + 1;
+      let candidate = `BR-${String(nextIndex).padStart(3, '0')}`;
+      while (await this.branchModel.findOne({ branchCode: candidate }).exec()) {
+        nextIndex++;
+        candidate = `BR-${String(nextIndex).padStart(3, '0')}`;
+      }
+      data.branchCode = candidate;
+    }
+    if (!data.status) {
+      data.status = 'preparing';
     }
     if (!data.image) {
       data.image = 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60';
     }
     const newBranch = new this.branchModel(data);
     return newBranch.save();
+  }
+
+  async activateBranch(idOrCode: string, activatedBy?: string): Promise<any> {
+    const branch = await this.findById(idOrCode);
+    if (!branch) {
+      throw new RpcException(`Chi nhánh ${idOrCode} không tồn tại`);
+    }
+    if (branch.status === 'active') {
+      return { success: true, message: 'Chi nhánh đã hoạt động', data: branch };
+    }
+    if (!branch.manager) {
+      throw new RpcException('Chi nhánh chưa được phân công Quản lý');
+    }
+    if (!branch.gppNumber) {
+      throw new RpcException('Chi nhánh chưa có thông tin Giấy chứng nhận đạt chuẩn GPP hợp lệ');
+    }
+    if (branch.gppExpiryDate && new Date(branch.gppExpiryDate).getTime() < Date.now()) {
+      throw new RpcException('Giấy chứng nhận GPP của chi nhánh đã hết hiệu lực');
+    }
+    const updated = await this.branchModel.findByIdAndUpdate(
+      branch._id,
+      {
+        $set: {
+          status: 'active',
+          activatedAt: new Date(),
+          activatedBy: activatedBy || 'Admin',
+        },
+      },
+      { new: true }
+    ).lean().exec();
+    return { success: true, message: `Đã kích hoạt thành công chi nhánh ${branch.branchCode}`, data: updated };
   }
 
   async findById(id: string): Promise<any> {

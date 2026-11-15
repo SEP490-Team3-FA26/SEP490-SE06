@@ -155,8 +155,8 @@ export function RFQManagement() {
       loadData();
 
       // Nếu đang xem chi tiết RFQ hoặc mở ma trận so sánh
-      if (selectedRfq) {
-        const currentId = selectedRfq._id || selectedRfq.id;
+      const currentId = selectedRfq?._id || selectedRfq?.id;
+      if (currentId && currentId !== 'undefined') {
         try {
           const fresh = await rfqService.getRfqById(currentId);
           if (fresh) {
@@ -180,12 +180,12 @@ export function RFQManagement() {
 
   // Polling nhẹ tự động làm tươi dữ liệu mỗi 3.5s khi đang mở Modal Ma Trận để đảm bảo 100% realtime
   useEffect(() => {
-    if (!showMatrixModal || !selectedRfq) return;
+    const currentId = selectedRfq?._id || selectedRfq?.id;
+    if (!showMatrixModal || !currentId || currentId === 'undefined') return;
     const interval = setInterval(async () => {
       try {
-        const currentId = selectedRfq._id || selectedRfq.id;
         const fresh = await rfqService.getRfqById(currentId);
-        if (fresh && JSON.stringify(fresh.quotations) !== JSON.stringify(selectedRfq.quotations)) {
+        if (fresh && JSON.stringify(fresh.quotations) !== JSON.stringify(selectedRfq?.quotations)) {
           setSelectedRfq(fresh);
           loadData();
         }
@@ -1269,7 +1269,7 @@ export function RFQManagement() {
                 </h3>
                 <p className="text-xs text-slate-300">{selectedRfq.title}</p>
               </div>
-              <button onClick={() => setShowMatrixModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
+              <button onClick={() => { setShowMatrixModal(false); setSelectedRfq(null); }} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -1560,7 +1560,7 @@ export function RFQManagement() {
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl my-auto flex flex-col max-h-[90vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
               <h3 className="font-bold text-sm">Ghi Nhận Báo Giá NCC - {selectedRfq.rfqCode}</h3>
-              <button onClick={() => setShowAddQuoteModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
+              <button onClick={() => { setShowAddQuoteModal(false); setSelectedRfq(null); }} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
             </div>

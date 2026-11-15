@@ -34,11 +34,11 @@ services:
         KAFKA_MESSAGE_MAX_BYTES: 10485760
         KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
       healthcheck:
-        test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/29092' || exit 1"]
-        interval: 5s
-        timeout: 5s
+        test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+        interval: 10s
+        timeout: 10s
         retries: 10
-        start_period: 15s
+        start_period: 30s
       networks:
         - wdp301-network
 
