@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit, Inject, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ClientsModule, Transport, ClientKafka } from '@nestjs/microservices';
 import { User, UserSchema } from '../../auth-service/src/auth/user.schema';
 import { UserServiceController } from './user-service.controller';
 import { UserService } from './user-service.service';
@@ -127,6 +127,21 @@ import { NewsletterCronService } from './newsletter-cron.service';
   ],
   exports: [ShiftHandoverService],
 })
-export class UserServiceModule {}
+export class UserServiceModule implements OnModuleInit {
+  private readonly logger = new Logger(UserServiceModule.name);
+
+  constructor(
+    @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
+  ) {}
+
+  async onModuleInit() {
+    try {
+      this.inventoryClient.subscribeToResponseOf('inventory.batch.stats_by_branch');
+      await this.inventoryClient.connect();
+    } catch (err: any) {
+      this.logger.warn(`[UserServiceModule] Không thể kết nối Kafka Inventory client lúc khởi tạo: ${err.message}`);
+    }
+  }
+}
 
 

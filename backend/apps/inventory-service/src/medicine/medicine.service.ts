@@ -436,6 +436,23 @@ export class MedicineService implements OnModuleInit {
   }
 
   /**
+   * Chuẩn hóa branchId thành mã định danh chính xác duy nhất (Canonical Branch Code)
+   * Giúp câu truy vấn database khớp tuyệt đối { branchId: code }, tận dụng B-Tree Index (IXSCAN),
+   * triệt tiêu hoàn toàn nguy cơ quét toàn bảng (COLLSCAN) và lỗ hổng ReDoS.
+   */
+  private normalizeBranchCode(branchId?: string | null): string {
+    if (!branchId) return 'CENTRAL_WH';
+    const trimmed = String(branchId).trim();
+    if (trimmed.toUpperCase() === 'CENTRAL_WH' || trimmed === 'KHO_TONG') return 'CENTRAL_WH';
+    const matchNum = trimmed.match(/\d+/);
+    if (matchNum) {
+      const num = parseInt(matchNum[0], 10);
+      return `BR-${String(num).padStart(3, '0')}`;
+    }
+    return trimmed.toUpperCase();
+  }
+
+  /**
    * API CHUYÊN BIỆT: TÌM KIẾM DƯỢC PHẨM TẠI CHI NHÁNH (DEDICATED BRANCH SEARCH)
    * Đảm bảo tính toán 100% chuẩn xác tồn kho chi nhánh, tuyệt đối cấm rò rỉ tồn tổng.
    * Áp dụng Hybrid Search: Barcode/SKU O(1) -> AI Vector (Qdrant) -> Fallback Mongoose Regex,
@@ -516,104 +533,46 @@ export class MedicineService implements OnModuleInit {
       totalCount = candidateMeds.length;
     }
 
-    // 2.2. Nếu không phải barcode/sku hoặc fast-path không thấy, thử gọi AI Service
+    // 2.2. Tìm kiếm qua Mongoose Multi-word Regex bản địa hiệu năng cao
     if (candidateMeds.length === 0) {
-      let useFallback = false;
-      try {
-        let aiUrl = `http://ai-service:8000/api/ai/medicines?search=${encodeURIComponent(rawSearch)}&page=${page}&limit=${limit}`;
-        if (query.category) aiUrl += `&category=${encodeURIComponent(query.category)}`;
-        if (query.classification) aiUrl += `&classification=${encodeURIComponent(query.classification)}`;
+      const words = rawSearch.split(/[\s\-]+/).filter(Boolean);
+      const safePattern =
+        words.length > 0
+          ? words.map((w) => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
+          : rawSearch.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-        const aiResponse = await fetch(aiUrl, {
-          headers: {
-            'X-Internal-Token':
-              process.env.JWT_SECRET || 'wdp301-super-secret-key-change-in-production',
-          },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+      const filterQuery: any = {
+        $or: [
+          { name: { $regex: safePattern, $options: 'i' } },
+          { active_ingredient: { $regex: safePattern, $options: 'i' } },
+          { sku: { $regex: safePattern, $options: 'i' } },
+          { barcode: { $regex: safePattern, $options: 'i' } },
+        ],
+      };
 
-        if (aiResponse.ok) {
-          const aiJson = await aiResponse.json();
-          const aiItems = aiJson.data || [];
-          if (aiItems.length > 0) {
-            const rawIds = aiItems
-              .map((m: any) => (m._id || m.id || '').toString())
-              .filter(Boolean);
-            const dbCandidates = await this.medicineModel
-              .find({ _id: { $in: rawIds } })
-              .lean()
-              .exec();
-            const dbMap = new Map(dbCandidates.map((m) => [m._id.toString(), m]));
-
-            let matched = aiItems
-              .map((m: any) => dbMap.get((m._id || m.id || '').toString()))
-              .filter(Boolean);
-
-            if (branchAllowedIds && branchAllowedIds.length > 0) {
-              const allowedSet = new Set(branchAllowedIds.map(String));
-              matched = matched.filter((m) => allowedSet.has(m._id.toString()));
-            }
-
-            if (matched.length > 0) {
-              candidateMeds = matched;
-              totalCount = aiJson.total || matched.length;
-            } else {
-              useFallback = true;
-            }
-          } else {
-            useFallback = true;
-          }
-        } else {
-          useFallback = true;
-        }
-      } catch (e) {
-        useFallback = true;
+      const andConditions: any[] = [];
+      if (query.category) andConditions.push({ category: query.category });
+      if (query.classification) andConditions.push({ drug_classification: query.classification });
+      if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+        const pCond: any = {};
+        if (query.minPrice !== undefined) pCond.$gte = query.minPrice;
+        if (query.maxPrice !== undefined) pCond.$lte = query.maxPrice;
+        andConditions.push({ price: pCond });
+      }
+      if (branchAllowedIds && branchAllowedIds.length > 0) {
+        andConditions.push({ _id: { $in: branchAllowedIds } });
       }
 
-      // 2.3. Fallback Mongoose Multi-word Regex
-      if (useFallback || candidateMeds.length === 0) {
-        const words = rawSearch.split(/[\s\-]+/).filter(Boolean);
-        const safePattern =
-          words.length > 0
-            ? words.map((w) => w.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')).join('.*')
-            : rawSearch.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
-
-        const filterQuery: any = {
-          $or: [
-            { name: { $regex: safePattern, $options: 'i' } },
-            { active_ingredient: { $regex: safePattern, $options: 'i' } },
-            { sku: { $regex: safePattern, $options: 'i' } },
-            { barcode: { $regex: safePattern, $options: 'i' } },
-          ],
-        };
-
-        const andConditions: any[] = [];
-        if (query.category) andConditions.push({ category: query.category });
-        if (query.classification) andConditions.push({ drug_classification: query.classification });
-        if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-          const pCond: any = {};
-          if (query.minPrice !== undefined) pCond.$gte = query.minPrice;
-          if (query.maxPrice !== undefined) pCond.$lte = query.maxPrice;
-          andConditions.push({ price: pCond });
-        }
-        if (branchAllowedIds && branchAllowedIds.length > 0) {
-          andConditions.push({ _id: { $in: branchAllowedIds } });
-        }
-
-        if (andConditions.length > 0) {
-          filterQuery.$and = andConditions;
-        }
-
-        const [dbList, count] = await Promise.all([
-          this.medicineModel.find(filterQuery).skip(skip).limit(limit).lean().exec(),
-          this.medicineModel.countDocuments(filterQuery).exec(),
-        ]);
-        candidateMeds = dbList;
-        totalCount = count;
+      if (andConditions.length > 0) {
+        filterQuery.$and = andConditions;
       }
+
+      const [dbList, count] = await Promise.all([
+        this.medicineModel.find(filterQuery).skip(skip).limit(limit).lean().exec(),
+        this.medicineModel.countDocuments(filterQuery).exec(),
+      ]);
+      candidateMeds = dbList;
+      totalCount = count;
     }
 
     if (candidateMeds.length === 0) {
@@ -631,15 +590,11 @@ export class MedicineService implements OnModuleInit {
     // BƯỚC 3: NẠP TỒN KHO CHI NHÁNH CHÍNH XÁC 100% (BRANCH STOCK ENRICHMENT)
     // =========================================================================
     const medIds = candidateMeds.map((m) => m._id.toString());
-    const regexStr = branchId.replace(/^BR-0*/i, '');
+    const canonicalBranchId = this.normalizeBranchCode(branchId);
+    const branchCandidates = Array.from(new Set([canonicalBranchId, branchId].filter(Boolean)));
     const batchFilter: any = {
       medicineId: { $in: medIds },
-      $or: [
-        { branchId },
-        { branchId: new RegExp(branchId, 'i') },
-        { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
-        { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
-      ],
+      branchId: branchCandidates.length === 1 ? canonicalBranchId : { $in: branchCandidates },
     };
 
     const [balances, branchInvs, batches] = await Promise.all([
@@ -883,13 +838,9 @@ export class MedicineService implements OnModuleInit {
                 if (query.branchId === 'CENTRAL_WH') {
                   batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
                 } else {
-                  const regexStr = query.branchId.replace(/^BR-0*/i, '');
-                  batchFilter.$or = [
-                    { branchId: query.branchId },
-                    { branchId: new RegExp(query.branchId, 'i') },
-                    { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
-                    { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
-                  ];
+                  const canonicalBranchId = this.normalizeBranchCode(query.branchId);
+                  const branchCandidates = Array.from(new Set([canonicalBranchId, query.branchId].filter(Boolean)));
+                  batchFilter.branchId = branchCandidates.length === 1 ? canonicalBranchId : { $in: branchCandidates };
                 }
               }
               const aiBatches = await this.batchModel.find(batchFilter).lean().exec();
@@ -970,13 +921,9 @@ export class MedicineService implements OnModuleInit {
             if (query.branchId === 'CENTRAL_WH') {
               batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
             } else {
-              const regexStr = query.branchId.replace(/^BR-0*/i, '');
-              batchFilter.$or = [
-                { branchId: query.branchId },
-                { branchId: new RegExp(query.branchId, 'i') },
-                { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
-                { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
-              ];
+              const canonicalBranchId = this.normalizeBranchCode(query.branchId);
+              const branchCandidates = Array.from(new Set([canonicalBranchId, query.branchId].filter(Boolean)));
+              batchFilter.branchId = branchCandidates.length === 1 ? canonicalBranchId : { $in: branchCandidates };
             }
           }
           const allBatches = await this.batchModel.find(batchFilter).lean().exec();
@@ -1084,13 +1031,9 @@ export class MedicineService implements OnModuleInit {
           if (bId === 'CENTRAL_WH') {
             batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
           } else {
-            const regexStr = bId.replace(/^BR-0*/i, ''); // e.g. BR-001 -> 1
-            batchFilter.$or = [
-              { branchId: bId },
-              { branchId: new RegExp(bId, 'i') },
-              { branchId: new RegExp(`CN-?0*${regexStr}$`, 'i') },
-              { branchId: new RegExp(`Quận\\s*${regexStr}`, 'i') },
-            ];
+            const canonicalBranchId = this.normalizeBranchCode(bId);
+            const branchCandidates = Array.from(new Set([canonicalBranchId, bId].filter(Boolean)));
+            batchFilter.branchId = branchCandidates.length === 1 ? canonicalBranchId : { $in: branchCandidates };
           }
         } else if (!query.branchId) {
           batchFilter.branchId = { $in: ['CENTRAL_WH', null, ''] };
@@ -3699,6 +3642,62 @@ export class MedicineService implements OnModuleInit {
     } catch (error: any) {
       this.logger.error(`[getMedicinesInfiniteScroll] Lỗi truy vấn cuộn vô tận: ${error.message}`, error.stack);
       throw new RpcException(error.message || 'Lỗi hệ thống khi tải danh sách thuốc cuộn vô tận');
+    }
+  }
+
+  /**
+   * Lấy thống kê tồn kho thực tế và số lô sắp hết hạn cho danh sách chi nhánh (Batch RPC)
+   * Sử dụng 1 lệnh $group aggregation để gom nhóm theo branchId trong 1 câu truy vấn duy nhất,
+   * triệt tiêu hoàn toàn vấn đề N+1 Kafka Query.
+   */
+  async getBatchStatsForBranches(
+    branchCodes: string[]
+  ): Promise<Record<string, { totalStock: number; expiringCount: number }>> {
+    const result: Record<string, { totalStock: number; expiringCount: number }> = {};
+    if (!branchCodes || branchCodes.length === 0) return result;
+
+    for (const code of branchCodes) {
+      result[code] = { totalStock: 0, expiringCount: 0 };
+    }
+
+    try {
+      const thirtyDaysLater = new Date();
+      thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+
+      const stockAgg = await this.batchModel.aggregate([
+        {
+          $match: {
+            branchId: { $in: branchCodes },
+            status: 'ACTIVE',
+            stock: { $gt: 0 },
+          },
+        },
+        {
+          $group: {
+            _id: '$branchId',
+            totalStock: { $sum: '$stock' },
+            expiringCount: {
+              $sum: {
+                $cond: [{ $lte: ['$expDate', thirtyDaysLater] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]).exec();
+
+      for (const item of stockAgg) {
+        if (result[item._id]) {
+          result[item._id] = {
+            totalStock: item.totalStock || 0,
+            expiringCount: item.expiringCount || 0,
+          };
+        }
+      }
+
+      return result;
+    } catch (err: any) {
+      this.logger.error(`[Inventory MS] Lỗi lấy batch thống kê lô thuốc chi nhánh: ${err.message}`);
+      return result;
     }
   }
 

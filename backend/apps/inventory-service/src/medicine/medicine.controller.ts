@@ -454,11 +454,15 @@ export class MedicineController {
 
   // =========================================================================
   // THỐNG KÊ LÔ THUỐC THEO CHI NHÁNH PHỤC VỤ USER-SERVICE (KAFKA RPC)
+  // Hỗ trợ cả truy vấn đơn lẻ (branchCode) và Batch RPC (branchCodes) chống N+1
   // =========================================================================
   @MessagePattern('inventory.batch.stats_by_branch')
-  async getBatchStatsByBranch(@Payload() data: { branchCode: string }) {
+  async getBatchStatsByBranch(@Payload() data: { branchCode?: string; branchCodes?: string[] }) {
     try {
       const payload = typeof data === 'string' ? JSON.parse(data) : (data || {});
+      if (Array.isArray(payload?.branchCodes)) {
+        return await this.medicineService.getBatchStatsForBranches(payload.branchCodes);
+      }
       return await this.medicineService.getBatchStatsByBranch(payload?.branchCode);
     } catch (error: any) {
       if (error instanceof RpcException) throw error;

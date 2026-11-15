@@ -91,6 +91,8 @@ describe('Kiểm thử Thống kê Lô thuốc Chi nhánh (getBatchStatsByBranch
     });
 
     it('[Abnormal Values] TC-04: Xử lý an toàn khi MongoDB gặp lỗi kết nối (không làm sập hệ thống)', async () => {
+      const loggerSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
+
       mockBatchModel.aggregate.mockReturnValueOnce({
         exec: jest.fn().mockRejectedValue(new Error('Mongo connection error')),
       });
@@ -98,6 +100,45 @@ describe('Kiểm thử Thống kê Lô thuốc Chi nhánh (getBatchStatsByBranch
       const res = await service.getBatchStatsByBranch('BR-001');
 
       expect(res).toEqual({ totalStock: 0, expiringCount: 0 });
+      loggerSpy.mockRestore();
+    });
+  });
+
+  describe('4. [Batch RPC] Kiểm thử thống kê lô thuốc hàng loạt chi nhánh (getBatchStatsForBranches)', () => {
+    it('[Normal Values] TC-05: Gom nhóm thành công tồn kho và số lô hết hạn cho nhiều chi nhánh trong 1 query', async () => {
+      mockBatchModel.aggregate.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([
+          { _id: 'BR-001', totalStock: 500, expiringCount: 2 },
+          { _id: 'BR-002', totalStock: 800, expiringCount: 0 },
+        ]),
+      });
+
+      const res = await service.getBatchStatsForBranches(['BR-001', 'BR-002', 'BR-003']);
+
+      expect(res['BR-001']).toEqual({ totalStock: 500, expiringCount: 2 });
+      expect(res['BR-002']).toEqual({ totalStock: 800, expiringCount: 0 });
+      expect(res['BR-003']).toEqual({ totalStock: 0, expiringCount: 0 });
+      expect(mockBatchModel.aggregate).toHaveBeenCalledTimes(1);
+    });
+
+    it('[Boundary Values] TC-06: Mảng branchCodes rỗng trả về object rỗng mà không gọi database', async () => {
+      const res = await service.getBatchStatsForBranches([]);
+
+      expect(res).toEqual({});
+      expect(mockBatchModel.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('[Abnormal Values] TC-07: Xử lý an toàn khi aggregation thất bại, trả về map với giá trị mặc định 0', async () => {
+      const loggerSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
+
+      mockBatchModel.aggregate.mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValue(new Error('Database network drop')),
+      });
+
+      const res = await service.getBatchStatsForBranches(['BR-001']);
+
+      expect(res['BR-001']).toEqual({ totalStock: 0, expiringCount: 0 });
+      loggerSpy.mockRestore();
     });
   });
 });

@@ -262,6 +262,9 @@ describe('MedicineService - getMedicinesInfiniteScroll (Bài toán cuộn 2000+ 
     });
 
     it('A-02: Bắt và bọc lỗi RpcException an toàn khi Mongoose Database gặp sự cố', async () => {
+      // Giả lập tắt log lỗi ra console trong lúc giả lập sự cố database
+      const loggerSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
+
       mockMedicineModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
           sort: jest.fn().mockReturnValue({
@@ -275,6 +278,7 @@ describe('MedicineService - getMedicinesInfiniteScroll (Bài toán cuộn 2000+ 
       });
 
       await expect(service.getMedicinesInfiniteScroll()).rejects.toThrow(RpcException);
+      loggerSpy.mockRestore();
     });
 
     it('A-03: Phải xử lý an toàn và không làm sập service khi tham số search chứa các ký tự điều khiển regex đặc biệt ([, (, *, +, ?, ((a+)+)+$)', async () => {

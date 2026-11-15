@@ -684,34 +684,13 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
   async getLoyaltyInfo(userId: string) {
     this.logger.log(`Getting loyalty info for user ${userId}`);
     if (!userId || !Types.ObjectId.isValid(userId)) {
-      // Fallback an toàn cho tài khoản test hoặc userId định dạng chuỗi
-      return {
-        userId: userId || '',
-        fullName: 'Khách hàng thân thiết',
-        phone: '',
-        email: '',
-        points: 0,
-        accumulatedPoints: 0,
-        tier: 'Bronze',
-        multiplier: 1.0,
-        conversionRate: 1,
-      };
+      throw new RpcException({ message: 'Mã người dùng không hợp lệ', statusCode: 400 });
     }
 
     try {
       const user = await this.userModel.findById(userId);
       if (!user) {
-        return {
-          userId,
-          fullName: 'Khách hàng mới',
-          phone: '',
-          email: '',
-          points: 0,
-          accumulatedPoints: 0,
-          tier: 'Bronze',
-          multiplier: 1.0,
-          conversionRate: 1,
-        };
+        throw new RpcException({ message: 'User not found', statusCode: 404 });
       }
       const accPoints = user.accumulatedPoints || 0;
       const currentPoints = user.points || 0;
@@ -729,18 +708,12 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
         conversionRate: 1, // 1 point = 1 VND
       };
     } catch (err: any) {
-      this.logger.warn(`Lỗi khi lấy loyalty user ${userId}: ${err.message}`);
-      return {
-        userId,
-        fullName: 'Khách hàng',
-        phone: '',
-        email: '',
-        points: 0,
-        accumulatedPoints: 0,
-        tier: 'Bronze',
-        multiplier: 1.0,
-        conversionRate: 1,
-      };
+      if (err instanceof RpcException) throw err;
+      this.logger.error(`Lỗi khi lấy thông tin tích lũy của user ${userId}: ${err.message}`, err.stack);
+      throw new RpcException({
+        message: err.message || 'Lỗi hệ thống khi lấy thông tin điểm tích lũy',
+        statusCode: 500,
+      });
     }
   }
 

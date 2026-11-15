@@ -191,7 +191,52 @@ describe('BranchService', () => {
       expect(res.length).toBe(1);
       expect(res[0].stats.totalStock).toBe(350);
       expect(res[0].stats.expiring).toBe(12);
-      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.batch.stats_by_branch', { branchCode: 'BR-001' });
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.batch.stats_by_branch', { branchCodes: ['BR-001'] });
+    });
+
+    it('[Normal Values] TC-01b: Batch RPC lấy đồng thời thống kê cho nhiều chi nhánh trong 1 thông điệp Kafka', async () => {
+      const mockBranches = [
+        { _id: '66a01234567890abcdef0001', branchCode: 'BR-001', branchName: 'Chi nhánh 1' },
+        { _id: '66a01234567890abcdef0002', branchCode: 'BR-002', branchName: 'Chi nhánh 2' },
+      ];
+      const multiBranchModel = {
+        find: jest.fn().mockReturnValue({
+          sort: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(mockBranches),
+            }),
+          }),
+        }),
+      };
+      const mockInventoryClient = {
+        send: jest.fn().mockReturnValue({
+          pipe: jest.fn().mockReturnValue(
+            require('rxjs').of({
+              'BR-001': { totalStock: 350, expiringCount: 12 },
+              'BR-002': { totalStock: 800, expiringCount: 5 },
+            })
+          ),
+        }),
+      };
+
+      const testModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          BranchService,
+          { provide: getModelToken(Branch.name), useValue: multiBranchModel },
+          { provide: getModelToken(User.name), useValue: mockUserModel },
+          { provide: 'INVENTORY_SERVICE', useValue: mockInventoryClient },
+        ],
+      }).compile();
+
+      const branchSvc = testModule.get<BranchService>(BranchService);
+      const res = await branchSvc.findAll();
+
+      expect(res).toHaveLength(2);
+      expect(res[0].stats.totalStock).toBe(350);
+      expect(res[1].stats.totalStock).toBe(800);
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.batch.stats_by_branch', {
+        branchCodes: ['BR-001', 'BR-002'],
+      });
     });
 
     it('[Boundary Values] TC-02: Chi nhánh có 0 tồn kho và 0 lô thuốc (Boundary: zero-stock branch)', async () => {
