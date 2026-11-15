@@ -1,4 +1,5 @@
 /// <reference types="jest" />
+import { of, throwError } from 'rxjs';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken, getConnectionToken } from '@nestjs/mongoose';
 import { UserService } from '../../apps/user-service/src/user-service.service';
@@ -34,6 +35,8 @@ describe('UserService - Customer Feedback & Performance Analytics', () => {
   let mockFeedbackModel: any;
   let mockBranchModel: any;
   let mockConnection: any;
+  let mockInventoryClient: any;
+  let mockOrderClient: any;
 
   const defaultMockModel = {
     find: jest.fn().mockReturnThis(),
@@ -78,6 +81,22 @@ describe('UserService - Customer Feedback & Performance Analytics', () => {
       })),
     };
 
+    mockInventoryClient = {
+      send: jest.fn().mockReturnValue(of({})),
+      emit: jest.fn(),
+      subscribeToResponseOf: jest.fn(),
+      connect: jest.fn().mockResolvedValue(true),
+      close: jest.fn().mockResolvedValue(true),
+    };
+
+    mockOrderClient = {
+      send: jest.fn().mockReturnValue(of({})),
+      emit: jest.fn(),
+      subscribeToResponseOf: jest.fn(),
+      connect: jest.fn().mockResolvedValue(true),
+      close: jest.fn().mockResolvedValue(true),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
@@ -103,13 +122,11 @@ describe('UserService - Customer Feedback & Performance Analytics', () => {
         { provide: getConnectionToken(), useValue: mockConnection },
         {
           provide: 'INVENTORY_SERVICE',
-          useValue: {
-            send: jest.fn(),
-            emit: jest.fn(),
-            subscribeToResponseOf: jest.fn(),
-            connect: jest.fn().mockResolvedValue(true),
-            close: jest.fn().mockResolvedValue(true),
-          },
+          useValue: mockInventoryClient,
+        },
+        {
+          provide: 'ORDER_SERVICE',
+          useValue: mockOrderClient,
         },
         {
           provide: 'AUTH_SERVICE',
@@ -210,29 +227,25 @@ describe('UserService - Customer Feedback & Performance Analytics', () => {
         },
       ]);
 
-      // Mock dữ liệu mua hàng và bán hàng
-      mockConnection.collection.mockImplementation((name: string) => {
-        if (name === 'purchaseorders') {
-          return {
-            aggregate: jest.fn().mockReturnValue({
-              toArray: jest.fn().mockResolvedValue([
-                { _id: 'BR-001', totalPoCount: 8, totalPurchaseValue: 120000000 },
-                { _id: 'BR-002', totalPoCount: 4, totalPurchaseValue: 45000000 },
-              ]),
-            }),
-          };
+      // Mock dữ liệu mua hàng và bán hàng qua Kafka (Event-Driven Microservices)
+      mockInventoryClient.send.mockImplementation((pattern: string) => {
+        if (pattern === 'inventory.po.summary_by_branch') {
+          return of({
+            'BR-001': { totalPoCount: 8, totalPurchaseValue: 120000000 },
+            'BR-002': { totalPoCount: 4, totalPurchaseValue: 45000000 },
+          });
         }
-        if (name === 'orders') {
-          return {
-            aggregate: jest.fn().mockReturnValue({
-              toArray: jest.fn().mockResolvedValue([
-                { _id: 'BR-001', totalOrders: 250, totalSalesRevenue: 85000000 },
-                { _id: 'BR-002', totalOrders: 110, totalSalesRevenue: 32000000 },
-              ]),
-            }),
-          };
+        return of({});
+      });
+
+      mockOrderClient.send.mockImplementation((pattern: string) => {
+        if (pattern === 'orders.summary_by_branch') {
+          return of({
+            'BR-001': { totalOrders: 250, totalSalesRevenue: 85000000 },
+            'BR-002': { totalOrders: 110, totalSalesRevenue: 32000000 },
+          });
         }
-        return { aggregate: () => ({ toArray: () => Promise.resolve([]) }) };
+        return of({});
       });
 
       const res = await service.getBranchPerformanceReport();
@@ -317,18 +330,12 @@ describe('UserService - Customer Feedback & Performance Analytics', () => {
         },
       ]);
 
-      // Giả lập lỗi truy vấn purchaseorders
-      mockConnection.collection.mockImplementation((name: string) => {
-        if (name === 'purchaseorders') {
-          return {
-            aggregate: jest.fn().mockImplementation(() => {
-              throw new Error('Connection timeout to purchaseorders');
-            }),
-          };
+      // Giả lập lỗi truy vấn mua hàng qua Kafka
+      mockInventoryClient.send.mockImplementation((pattern: string) => {
+        if (pattern === 'inventory.po.summary_by_branch') {
+          return throwError(() => new Error('Kafka timeout to inventory-service'));
         }
-        return {
-          aggregate: () => ({ toArray: () => Promise.resolve([]) }),
-        };
+        return of({});
       });
 
       const res = await service.getBranchPerformanceReport();

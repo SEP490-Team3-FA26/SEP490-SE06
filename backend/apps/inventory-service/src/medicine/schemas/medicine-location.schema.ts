@@ -13,7 +13,7 @@ import { Document } from 'mongoose';
  */
 @Schema({ timestamps: true, collection: 'medicinelocations' })
 export class MedicineLocation extends Document {
-  @Prop({ type: String, required: true, index: true })
+  @Prop({ type: String, required: true })
   medicineId: string;
 
   @Prop({ type: String, required: true })
