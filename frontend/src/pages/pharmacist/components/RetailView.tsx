@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
   Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, Wifi,
-  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck, UserPlus, AlertCircle
+  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck, UserPlus, AlertCircle, Camera
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
@@ -16,6 +16,7 @@ import { useSocket } from "../../../hooks/useSocket";
 import { VietQRCode } from "../../../components/common/VietQRCode";
 import AIPharmacistAuditModal, { AIPharmacistConfirmationData } from "./AIPharmacistAuditModal";
 import { WifiScannerModal } from "./WifiScannerModal";
+import { LiveBarcodeScannerModal } from "./LiveBarcodeScannerModal";
 import CustomerClinicalModal from "./CustomerClinicalModal";
 import QuickRegisterCustomerModal from "./QuickRegisterCustomerModal";
 import { customerService, AllergyCheckResult, QuickRegisterCustomerDto } from "../../../services/sales/customer.service";
@@ -84,8 +85,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [classificationsList, setClassificationsList] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Quản lý kết nối Súng quét Barcode Wi-Fi / Mobile POS Bridge
+  // Quản lý kết nối Súng quét Barcode Wi-Fi & Camera Live Scanner trực tiếp
   const [isWifiScannerOpen, setIsWifiScannerOpen] = useState(false);
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
   const [posSessionId] = useState<string>(() => {
     const saved = typeof window !== 'undefined' ? sessionStorage.getItem('pos_session_id') : null;
     if (saved) return saved;
@@ -1952,6 +1954,13 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               </div>
             </div>
             <button
+              onClick={() => setIsLiveCameraOpen(true)}
+              className="px-4 py-3.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
+              title="Bật Webcam máy tính quét trực tiếp Barcode & QR Code tự động nạp giỏ hàng"
+            >
+              <Camera size={15} /> Quét Camera Live
+            </button>
+            <button
               onClick={() => setIsWifiScannerOpen(true)}
               className="px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
               title="Biến điện thoại di động thành súng quét Barcode Wi-Fi không dây"
@@ -3736,6 +3745,14 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         onClose={() => setIsWifiScannerOpen(false)}
         sessionId={posSessionId}
         onBarcodeSimulated={handleBarcodeScanned}
+      />
+
+      {/* Modal Quét Barcode & QR Trực Tiếp Bằng Camera / Webcam Máy Tính */}
+      <LiveBarcodeScannerModal
+        isOpen={isLiveCameraOpen}
+        onClose={() => setIsLiveCameraOpen(false)}
+        onBarcodeScanned={handleBarcodeScanned}
+        cart={cart}
       />
 
       {/* =======================================
