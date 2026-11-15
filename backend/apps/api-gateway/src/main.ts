@@ -161,7 +161,7 @@ async function bootstrap() {
 
       const port = process.env.PORT || 4000;
 
-      // Khởi tạo Kafka Consumer cho API Gateway
+      // Khởi tạo Kafka Consumer cho API Gateway (phục vụ WebSocket Realtime Events & Audit Logs)
       app.connectMicroservice({
         transport: Transport.KAFKA,
         options: {
@@ -175,7 +175,7 @@ async function bootstrap() {
       });
       await app.startAllMicroservices();
 
-      await app.listen(port);
+      await app.listen(port, '0.0.0.0');
       console.log(`\n🚀 API Gateway running at: http://localhost:${port}`);
       console.log(`📚 Swagger Docs at:        http://localhost:${port}/api/docs\n`);
       break;

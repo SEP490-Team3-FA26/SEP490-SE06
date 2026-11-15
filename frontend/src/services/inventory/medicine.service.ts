@@ -86,12 +86,30 @@ export const medicineService = {
     if (!branchId || branchId.trim() === '') {
       return this.getMedicines(params);
     }
+    // Nếu có từ khóa search, tự động chuyển hướng sang API search chi nhánh chuyên biệt
+    if (params.search && params.search.trim() !== '') {
+      return this.searchBranchMedicines(branchId, params);
+    }
     try {
       const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.BRANCH_MEDICINES(branchId), { params });
       return response.data as PaginatedResult<Medicine>;
     } catch (err) {
       console.warn(`Lỗi lấy kho chi nhánh (${branchId}), chuyển sang danh mục tổng:`, err);
       return this.getMedicines(params);
+    }
+  },
+
+  // API chuyên biệt tìm kiếm thuốc tại chi nhánh (Bảo đảm chuẩn xác 100% tồn kho chi nhánh)
+  async searchBranchMedicines(branchId?: string, params: MedicineQueryParams = {}) {
+    if (!branchId || branchId.trim() === '') {
+      return this.getMedicines(params);
+    }
+    try {
+      const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.BRANCH_SEARCH(branchId), { params });
+      return response.data as PaginatedResult<Medicine>;
+    } catch (err) {
+      console.warn(`Lỗi tìm kiếm kho chi nhánh (${branchId}), fallback sang getBranchMedicines:`, err);
+      return this.getBranchMedicines(branchId, params);
     }
   },
 

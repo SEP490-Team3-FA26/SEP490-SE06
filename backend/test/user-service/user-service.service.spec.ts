@@ -11,6 +11,8 @@ describe('UserService - getExportJobStatus', () => {
   const mockKafkaClient = {
     subscribeToResponseOf: jest.fn(),
     connect: jest.fn(),
+    emit: jest.fn(),
+    send: jest.fn().mockReturnValue({ pipe: jest.fn().mockReturnValue(require('rxjs').of(null)) }),
   };
 
   beforeEach(async () => {
@@ -293,6 +295,64 @@ describe('UserService - getExportJobStatus', () => {
         expect(res.error).toBe(true);
         expect(res.statusCode).toBe(404);
         expect(res.message).toContain('Thuốc không tồn tại');
+      });
+    });
+  });
+
+  describe('UserService - getLoyaltyInfo (Tuân thủ Fail-Fast & Chuẩn Hóa RpcException)', () => {
+    const validUserId = '66a01234567890abcdef0001';
+
+    describe('[Normal Values] Luồng nghiệp vụ chuẩn', () => {
+      it('Lấy thông tin điểm tích lũy và hạng thành viên chính xác cho người dùng', async () => {
+        (service as any).userModel.findById = jest.fn().mockResolvedValue({
+          _id: validUserId,
+          fullName: 'Nguyễn Văn A',
+          phone: '0901234567',
+          email: 'nguyenvana@gmail.com',
+          points: 150,
+          accumulatedPoints: 1200,
+        });
+
+        const res = await service.getLoyaltyInfo(validUserId);
+
+        expect(res).toBeDefined();
+        expect(res.fullName).toBe('Nguyễn Văn A');
+        expect(res.points).toBe(150);
+        expect(res.accumulatedPoints).toBe(1200);
+        expect(res.tier).toBe('Silver');
+        expect(res.multiplier).toBe(1.2);
+      });
+    });
+
+    describe('[Boundary Values] Giá trị biên & Điểm tích lũy 0', () => {
+      it('Người dùng mới có 0 điểm tích lũy đạt hạng Bronze với multiplier 1.0', async () => {
+        (service as any).userModel.findById = jest.fn().mockResolvedValue({
+          _id: validUserId,
+          fullName: 'Khách Mới',
+          phone: '0988888888',
+          email: 'newuser@gmail.com',
+          points: 0,
+          accumulatedPoints: 0,
+        });
+
+        const res = await service.getLoyaltyInfo(validUserId);
+
+        expect(res.tier).toBe('Bronze');
+        expect(res.multiplier).toBe(1.0);
+        expect(res.points).toBe(0);
+      });
+    });
+
+    describe('[Abnormal Values] Dữ liệu dị thường & Bắt lỗi Fail-Fast', () => {
+      it('Ném RpcException 400 khi userId không phải ObjectId hợp lệ hoặc bị rỗng', async () => {
+        await expect(service.getLoyaltyInfo('')).rejects.toThrow(RpcException);
+        await expect(service.getLoyaltyInfo('invalid-id-format')).rejects.toThrow(RpcException);
+      });
+
+      it('Ném RpcException 404 khi không tìm thấy người dùng trong cơ sở dữ liệu', async () => {
+        (service as any).userModel.findById = jest.fn().mockResolvedValue(null);
+
+        await expect(service.getLoyaltyInfo('66a01234567890abcdef9999')).rejects.toThrow(RpcException);
       });
     });
   });

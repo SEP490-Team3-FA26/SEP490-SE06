@@ -1,45 +1,54 @@
 /**
- * Script Chuyển Dữ Liệu Tự Động Từ MongoDB Cloud (Atlas) Sang MongoDB VPS
+ * Script Chuyển Dữ Liệu Tự Động Từ MongoDB Cloud (Atlas) Sang Cụm 7 Containers VPS Độc Lập
  * 
- * Hỗ trợ 2 chế độ:
- * 1. Mode "full" (Mặc định): Clone toàn bộ database WDP201 nguyên bản từ Cloud sang VPS.
- * 2. Mode "split": Tự động bóc tách 69 collections vào từng database riêng biệt theo Microservice.
+ * Hỗ trợ 3 chế độ:
+ * 1. Mode "containers" (Mặc định): Chuyển trực tiếp dữ liệu vào 7 containers MongoDB độc lập qua port 27018 - 27024.
+ * 2. Mode "split": Chuyển vào 1 host nhưng bóc tách theo database name.
+ * 3. Mode "full": Clone toàn bộ database WDP201 nguyên bản sang 1 target DB.
  * 
  * Cách chạy:
  *   cd backend
  *   node scripts/migrate-mongo-cloud-to-vps.js
  * 
  * Tuỳ chọn tham số môi trường:
- *   TARGET_URI="mongodb://admin:admin@<IP_VPS>:27017/?authSource=admin" node scripts/migrate-mongo-cloud-to-vps.js
- *   MODE="split" node scripts/migrate-mongo-cloud-to-vps.js
+ *   VPS_HOST="127.0.0.1" (hoặc IP VPS)
+ *   TARGET_PASSWORD="your_password"
  */
 
 const { MongoClient } = require('mongodb');
 
-// Cấu hình kết nối nguồn (Cloud Atlas) và đích (VPS) - Bắt buộc truyền qua biến môi trường
+// Cấu hình kết nối nguồn (Cloud Atlas)
 const SOURCE_URI = process.env.SOURCE_URI || process.env.MONGODB_URI;
-const TARGET_URI = process.env.TARGET_URI;
-
-if (!SOURCE_URI) {
-  console.error("❌ Lỗi bảo mật: Thiếu biến môi trường SOURCE_URI (hoặc MONGODB_URI). Dừng script!");
-  process.exit(1);
-}
-
-if (!TARGET_URI) {
-  console.error("❌ Lỗi bảo mật: Thiếu biến môi trường TARGET_URI. Dừng script!");
-  process.exit(1);
-}
-const MODE = (process.env.MODE || 'full').toLowerCase(); // 'full' hoặc 'split'
+const MODE = (process.env.MODE || 'containers').toLowerCase(); // 'containers', 'split', 'full'
+const VPS_HOST = process.env.VPS_HOST || '127.0.0.1';
+const ADMIN_USER = process.env.TARGET_USER || 'admin';
+const ADMIN_PASS = encodeURIComponent(process.env.TARGET_PASSWORD || '');
 const BATCH_SIZE = 1000;
 
-// Bảng phân chia Collection theo từng Microservice khi chạy chế độ "split"
+if (!SOURCE_URI) {
+  console.error("❌ Vui lòng cung cấp biến môi trường SOURCE_URI hoặc MONGODB_URI.");
+  process.exit(1);
+}
+
+// Cấu hình kết nối tới từng container riêng biệt (Port host từ 27018 đến 27024)
+const CONTAINER_TARGET_URIS = {
+  wdp301_auth: process.env.TARGET_AUTH_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27018/wdp301_auth?authSource=admin&directConnection=true`,
+  wdp301_user: process.env.TARGET_USER_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27019/wdp301_user?authSource=admin&directConnection=true`,
+  wdp301_orders: process.env.TARGET_ORDERS_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27020/wdp301_orders?authSource=admin&directConnection=true`,
+  wdp301_inventory: process.env.TARGET_INVENTORY_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27021/wdp301_inventory?authSource=admin&directConnection=true`,
+  wdp301_supplier: process.env.TARGET_SUPPLIER_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27022/wdp301_supplier?authSource=admin&directConnection=true`,
+  wdp301_gateway: process.env.TARGET_GATEWAY_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27023/wdp301_gateway?authSource=admin&directConnection=true`,
+  wdp301_national_pharma: process.env.TARGET_PHARMA_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27024/wdp301_national_pharma?authSource=admin&directConnection=true`,
+};
+
+// Bảng phân chia 69 Collections chuẩn 100% cho 7 Microservices
 const SERVICE_DB_MAP = {
-  // Auth Service
+  // 1. Auth Service (1 collection xác thực)
   wdp301_auth: [
     'verificationtokens'
   ],
 
-  // User Service
+  // 2. User Service (19 collections hồ sơ & nhân sự)
   wdp301_user: [
     'users',
     'branches',
@@ -62,7 +71,7 @@ const SERVICE_DB_MAP = {
     'leave_requests'
   ],
 
-  // Orders Service
+  // 3. Orders Service (8 collections đơn hàng & thanh toán)
   wdp301_orders: [
     'orders',
     'vouchers',
@@ -74,7 +83,7 @@ const SERVICE_DB_MAP = {
     'marketingcampaigns'
   ],
 
-  // Inventory Service
+  // 4. Inventory Service (30 collections dược phẩm & kho GSP)
   wdp301_inventory: [
     'medicines',
     'medicinebatches',
@@ -102,22 +111,19 @@ const SERVICE_DB_MAP = {
     'salesorders',
     'quotas',
     'totes',
-    'national_drugs',
-    'national_facilities',
-    'national_transactions',
     'internalexports',
     'dispatchorders',
     'products',
     'processedrequests'
   ],
 
-  // Supplier Service
+  // 5. Supplier Service (2 collections nhà cung cấp)
   wdp301_supplier: [
     'suppliers',
     'suppliercredittransactions'
   ],
 
-  // API Gateway
+  // 6. API Gateway (6 collections thông báo & IoT)
   wdp301_gateway: [
     'notifications',
     'device_tokens',
@@ -125,30 +131,55 @@ const SERVICE_DB_MAP = {
     'prescription_ocr_logs',
     'consultation_audio_records',
     'chat_sessions'
+  ],
+
+  // 7. CSDL Dược Quốc Gia Simulator (3 collections)
+  wdp301_national_pharma: [
+    'national_drugs',
+    'national_facilities',
+    'national_transactions'
   ]
 };
 
 async function migrate() {
   console.log('====================================================');
-  console.log('🚀 BẮT ĐẦU CHUYỂN DỮ LIỆU MONGODB CLOUD -> VPS');
+  console.log('🚀 BẮT ĐẦU CHUYỂN DỮ LIỆU SANG CỤM 7 CONTAINERS MONGODB ĐỘC LẬP');
   console.log(`📌 Nguồn (Cloud Atlas): ${SOURCE_URI.replace(/:([^@]+)@/, ':****@')}`);
-  console.log(`📌 Đích (VPS/Local):   ${TARGET_URI.replace(/:([^@]+)@/, ':****@')}`);
   console.log(`📌 Chế độ (MODE):       ${MODE.toUpperCase()}`);
   console.log('====================================================\n');
 
   const sourceClient = new MongoClient(SOURCE_URI);
-  const targetClient = new MongoClient(TARGET_URI);
+  const targetClients = {};
 
   try {
-    console.log('⏳ Đang kết nối tới cả 2 cụm MongoDB...');
+    console.log('⏳ Đang kết nối tới MongoDB Atlas (Source)...');
     await sourceClient.connect();
-    console.log('✅ Đã kết nối thành công tới MongoDB Atlas (Source)!');
-    await targetClient.connect();
-    console.log('✅ Đã kết nối thành công tới MongoDB VPS (Target)!\n');
+    console.log('✅ Đã kết nối thành công tới MongoDB Atlas (Source)!\n');
 
     const sourceDb = sourceClient.db('WDP201');
     const collections = await sourceDb.listCollections().toArray();
-    console.log(`📦 Tổng số Collections cần xử lý: ${collections.length}\n`);
+    console.log(`📦 Tổng số Collections trên Cloud Atlas: ${collections.length}\n`);
+
+    // Khởi tạo các kết nối đích
+    if (MODE === 'containers') {
+      console.log('⏳ Đang kiểm tra kết nối tới 7 container MongoDB độc lập...');
+      for (const [dbName, uri] of Object.entries(CONTAINER_TARGET_URIS)) {
+        try {
+          const client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
+          await client.connect();
+          targetClients[dbName] = client;
+          console.log(`  ✔ Kết nối sẵn sàng: [${dbName}] -> ${uri.replace(/:([^@]+)@/, ':****@')}`);
+        } catch (err) {
+          console.warn(`  ⚠️ Container [${dbName}] chưa bật trên cổng tương ứng (sẽ bỏ qua nếu chưa up container)`);
+        }
+      }
+      console.log('');
+    } else {
+      const singleTargetUri = process.env.TARGET_URI || `mongodb://${ADMIN_USER}:${ADMIN_PASS}@${VPS_HOST}:27017/?authSource=admin`;
+      const client = new MongoClient(singleTargetUri);
+      await client.connect();
+      targetClients['default'] = client;
+    }
 
     let totalDocsMigrated = 0;
     const startTime = Date.now();
@@ -160,34 +191,38 @@ async function migrate() {
       const sourceCol = sourceDb.collection(colName);
       const totalDocs = await sourceCol.countDocuments();
 
-      // Xác định Database đích tùy theo chế độ
-      let targetDbNames = ['WDP201']; // Mặc định chế độ Full
+      // Xác định Database đích
+      let targetDbNames = ['WDP201'];
 
-      if (MODE === 'split') {
+      if (MODE === 'containers' || MODE === 'split') {
         targetDbNames = [];
         for (const [dbName, colList] of Object.entries(SERVICE_DB_MAP)) {
           if (colList.includes(colName)) {
             targetDbNames.push(dbName);
           }
         }
-        // Nếu là collection users, chép vào cả auth (để authenticate) và user (để quản lý hồ sơ)
+        // Collection users: chép vào cả auth (để login) và user (để quản lý hồ sơ)
         if (colName === 'users') {
           targetDbNames = ['wdp301_auth', 'wdp301_user'];
         }
-        // Nếu không thuộc danh sách phân nhóm, đưa vào wdp301_inventory làm dự phòng
         if (targetDbNames.length === 0) {
           targetDbNames = ['wdp301_inventory'];
         }
       }
 
       for (const targetDbName of targetDbNames) {
-        const targetDb = targetClient.db(targetDbName);
+        const client = MODE === 'containers' ? targetClients[targetDbName] : targetClients['default'];
+        if (!client) {
+          console.log(`[${i + 1}/${collections.length}] ⚠️ Bỏ qua "${colName}" vì target [${targetDbName}] chưa kết nối.`);
+          continue;
+        }
+
+        const targetDb = client.db(targetDbName);
         const targetCol = targetDb.collection(colName);
 
-        process.stdout.write(`[${i + 1}/${collections.length}] Chuyển "${colName}" -> DB [${targetDbName}] (${totalDocs} docs)... `);
+        process.stdout.write(`[${i + 1}/${collections.length}] Chuyển "${colName}" -> [${targetDbName}] (${totalDocs} docs)... `);
 
         if (totalDocs === 0) {
-          // Vẫn tạo collection rỗng và index
           await targetDb.createCollection(colName).catch(() => {});
           console.log('✅ (0 docs)');
           continue;
@@ -207,15 +242,11 @@ async function migrate() {
             });
 
           if (targetIndexes.length > 0) {
-            await targetCol.createIndexes(targetIndexes).catch(e => {
-              // Bỏ qua cảnh báo index không tương thích
-            });
+            await targetCol.createIndexes(targetIndexes).catch(() => {});
           }
-        } catch (idxErr) {
-          // Bỏ qua lỗi index nếu có
-        }
+        } catch (idxErr) {}
 
-        // 2. Chuyển dữ liệu theo từng Batch
+        // 2. Chuyển dữ liệu theo từng Batch (BSON stream)
         const cursor = sourceCol.find({}).batchSize(BATCH_SIZE);
         let batch = [];
         let count = 0;
@@ -253,9 +284,10 @@ async function migrate() {
     console.error('\n❌ Gặp lỗi trong quá trình di dời:', err);
   } finally {
     await sourceClient.close();
-    await targetClient.close();
+    for (const client of Object.values(targetClients)) {
+      await client.close().catch(() => {});
+    }
   }
 }
 
 migrate();
-

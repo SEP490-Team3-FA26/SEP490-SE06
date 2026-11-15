@@ -1,0 +1,230 @@
+# ==============================================================================
+# HẠ TẦNG MẪU 7 CONTAINERS MONGODB ĐỘC LẬP VẬT LÝ CHO TỪNG MICROSERVICE (INSTANCE-PER-SERVICE)
+# Tối ưu hóa cách ly lỗi tuyệt đối, cấp quota RAM riêng biệt cho từng service
+#
+# Hướng dẫn sử dụng:
+#   1. Copy file này thành: cp docker-compose.mongo.example.yml docker-compose.mongo.yml
+#   2. Cập nhật mật khẩu trong file .env hoặc trực tiếp trong compose
+#   3. Khởi động 7 containers: docker compose -f docker-compose.mongo.yml up -d
+#
+# Cổng kết nối tương ứng:
+#   - Auth:      127.0.0.1:27018
+#   - User:      127.0.0.1:27019
+#   - Orders:    127.0.0.1:27020
+#   - Inventory: 127.0.0.1:27021
+#   - Supplier:  127.0.0.1:27022
+#   - Gateway:   127.0.0.1:27023
+#   - Pharma:    127.0.0.1:27024
+# ==============================================================================
+
+services:
+  # 1. Database Riêng Cho Auth Service
+  mongo-auth:
+    image: mongo:8.0
+    container_name: wdp301-mongo-auth
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_auth
+      SERVICE_DB_USER: ${MONGO_AUTH_USER:-user_auth}
+      SERVICE_DB_PASSWORD: ${MONGO_AUTH_PASSWORD:-change_me_auth_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo_auth_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-auth
+
+  # 2. Database Riêng Cho User Service
+  mongo-user:
+    image: mongo:8.0
+    container_name: wdp301-mongo-user
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_user
+      SERVICE_DB_USER: ${MONGO_USER_USER:-user_user}
+      SERVICE_DB_PASSWORD: ${MONGO_USER_PASSWORD:-change_me_user_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.35"]
+    volumes:
+      - mongo_user_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-user
+
+  # 3. Database Riêng Cho Orders Service
+  mongo-orders:
+    image: mongo:8.0
+    container_name: wdp301-mongo-orders
+    restart: unless-stopped
+    ports:
+      - "27020:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_orders
+      SERVICE_DB_USER: ${MONGO_ORDERS_USER:-user_orders}
+      SERVICE_DB_PASSWORD: ${MONGO_ORDERS_PASSWORD:-change_me_orders_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.35"]
+    volumes:
+      - mongo_orders_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-orders
+
+  # 4. Database Riêng Cho Inventory Service (Chạy Replica Set rs-inv cho Transactions)
+  mongo-inventory:
+    image: mongo:8.0
+    container_name: wdp301-mongo-inventory
+    restart: unless-stopped
+    ports:
+      - "27021:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_inventory
+      SERVICE_DB_USER: ${MONGO_INVENTORY_USER:-user_inventory}
+      SERVICE_DB_PASSWORD: ${MONGO_INVENTORY_PASSWORD:-change_me_inv_password}
+    command: [
+      "mongod",
+      "--replSet", "rs-inv",
+      "--bind_ip_all",
+      "--keyFile", "/etc/mongo/keyfile",
+      "--wiredTigerCacheSizeGB", "0.5"
+    ]
+    volumes:
+      - mongo_inv_data:/data/db
+      - ./docker/mongo/keyfile:/etc/mongo/keyfile:ro
+      - ./docker/mongo/init-inventory-rs.js:/docker-entrypoint-initdb.d/init-inventory-rs.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-inventory
+
+  # 5. Database Riêng Cho Supplier Service
+  mongo-supplier:
+    image: mongo:8.0
+    container_name: wdp301-mongo-supplier
+    restart: unless-stopped
+    ports:
+      - "27022:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_supplier
+      SERVICE_DB_USER: ${MONGO_SUPPLIER_USER:-user_supplier}
+      SERVICE_DB_PASSWORD: ${MONGO_SUPPLIER_PASSWORD:-change_me_supp_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo_supp_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-supplier
+
+  # 6. Database Riêng Cho API Gateway
+  mongo-gateway:
+    image: mongo:8.0
+    container_name: wdp301-mongo-gateway
+    restart: unless-stopped
+    ports:
+      - "27023:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_gateway
+      SERVICE_DB_USER: ${MONGO_GATEWAY_USER:-user_gateway}
+      SERVICE_DB_PASSWORD: ${MONGO_GATEWAY_PASSWORD:-change_me_gw_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo_gw_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-gateway
+
+  # 7. Database Riêng Cho Mock CSDL Dược Quốc Gia
+  mongo-pharma:
+    image: mongo:8.0
+    container_name: wdp301-mongo-pharma
+    restart: unless-stopped
+    ports:
+      - "27024:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_root_password}
+      SERVICE_DB_NAME: wdp301_national_pharma
+      SERVICE_DB_USER: ${MONGO_PHARMA_USER:-user_pharma}
+      SERVICE_DB_PASSWORD: ${MONGO_PHARMA_PASSWORD:-change_me_pharma_password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo_pharma_data:/data/db
+      - ./docker/mongo/init-service-user.js:/docker-entrypoint-initdb.d/init-service-user.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      wdp301-network:
+        aliases:
+          - mongo-pharma
+
+networks:
+  wdp301-network:
+    name: wdp301-network
+    driver: bridge
+
+volumes:
+  mongo_auth_data:
+    name: wdp301_mongo_auth_data
+  mongo_user_data:
+    name: wdp301_mongo_user_data
+  mongo_orders_data:
+    name: wdp301_mongo_orders_data
+  mongo_inv_data:
+    name: wdp301_mongo_inv_data
+  mongo_supp_data:
+    name: wdp301_mongo_supp_data
+  mongo_gw_data:
+    name: wdp301_mongo_gw_data
+  mongo_pharma_data:
+    name: wdp301_mongo_pharma_data
+

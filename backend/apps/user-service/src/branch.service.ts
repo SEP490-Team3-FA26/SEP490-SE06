@@ -1,13 +1,15 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { RpcException } from '@nestjs/microservices';
+import { ClientKafka, RpcException } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { Branch, BranchDocument } from './schemas/branch.schema';
 import { User, UserDocument } from '../../auth-service/src/auth/user.schema';
 import { MedicineBatch } from '../../inventory-service/src/medicine/schemas/medicine-batch.schema';
 
 @Injectable()
-export class BranchService implements OnModuleInit {
+export class BranchService {
   private readonly logger = new Logger(BranchService.name);
 
   constructor(
@@ -15,79 +17,111 @@ export class BranchService implements OnModuleInit {
     private readonly branchModel: Model<BranchDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @Optional()
     @InjectModel(MedicineBatch.name)
-    private readonly batchModel: Model<MedicineBatch>,
+    private readonly batchModel?: Model<MedicineBatch>,
+    @Optional()
+    @Inject('INVENTORY_SERVICE')
+    private readonly inventoryClient?: ClientKafka,
   ) { }
 
-  async onModuleInit() {
-    // Không gán tọa độ mặc định; Quản lý chi nhánh phải tự cấu hình vị trí thực tế của cơ sở
-  }
-
   async findAll(): Promise<any[]> {
-    let branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
+    const branches = await this.branchModel.find().sort({ branchCode: 1 }).lean().exec();
+    if (!branches || branches.length === 0) return [];
 
-    // Tính toán dữ liệu nhân sự & tồn kho thực tế từ DB cho từng chi nhánh
-    const enrichedBranches = await Promise.all(
-      branches.map(async (branch) => {
-        const code = branch.branchCode;
+    const branchCodes = branches.map((b) => b.branchCode).filter(Boolean);
 
-        // 1. Đếm số nhân sự thuộc chi nhánh
-        const employeeCount = await this.userModel.countDocuments({
-          branchId: code,
-          isApproved: { $ne: 'rejected' },
-        }).exec();
-
-        // 2. Tính tổng số tồn kho thực tế từ MedicineBatch kết hợp branch_inventories
-        const [batchAggregate, branchInvAggregate] = await Promise.all([
-          this.batchModel.aggregate([
-            { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
-            { $group: { _id: null, total: { $sum: '$stock' } } },
-          ]).exec(),
-          this.batchModel.db.collection('branch_inventories').aggregate([
-            { $match: { branchId: code, status: 'ACTIVE', stock: { $gt: 0 } } },
-            { $group: { _id: null, total: { $sum: '$stock' } } },
-          ]).toArray().catch(() => []),
-        ]);
-
-        const batchStock = batchAggregate.length > 0 ? batchAggregate[0].total : 0;
-        const branchInvStock = branchInvAggregate.length > 0 ? branchInvAggregate[0].total : 0;
-        const realTotalStock = batchStock + branchInvStock;
-
-        // 3. Đếm số lô thuốc hết hạn hoặc sắp hết hạn (< 30 ngày)
-        const now = new Date();
-        const thirtyDaysLater = new Date();
-        thirtyDaysLater.setDate(now.getDate() + 30);
-
-        const [expiringBatchCount, expiringBranchInvCount] = await Promise.all([
-          this.batchModel.countDocuments({
-            branchId: code,
-            status: 'ACTIVE',
-            stock: { $gt: 0 },
-            expDate: { $lte: thirtyDaysLater },
-          }).exec(),
-          this.batchModel.db.collection('branch_inventories').countDocuments({
-            branchId: code,
-            status: 'ACTIVE',
-            stock: { $gt: 0 },
-            expDate: { $lte: thirtyDaysLater },
-          }).catch(() => 0),
-        ]);
-
-        const expiringCount = expiringBatchCount + expiringBranchInvCount;
-
-        return {
-          ...branch,
-          stats: {
-            employees: employeeCount,
-            totalStock: realTotalStock,
-            lowStock: branch.stats?.lowStock || 0,
-            expiring: expiringCount,
+    // 1. Đếm số lượng nhân sự thuộc từng chi nhánh trong 1 câu lệnh aggregate duy nhất
+    const employeeCountMap = new Map<string, number>();
+    try {
+      const employeeCounts = await this.userModel.aggregate([
+        {
+          $match: {
+            branchId: { $in: branchCodes },
+            isApproved: { $ne: 'rejected' },
           },
-        };
-      })
-    );
+        },
+        {
+          $group: {
+            _id: '$branchId',
+            count: { $sum: 1 },
+          },
+        },
+      ]).exec();
+      for (const ec of employeeCounts) {
+        employeeCountMap.set(ec._id, ec.count);
+      }
+    } catch (err: any) {
+      this.logger.warn(`[BranchService] Lỗi thống kê nhân sự chi nhánh: ${err.message}`);
+    }
 
-    return enrichedBranches;
+    // 2. Lấy thống kê tồn kho thực tế và lô sắp hết hạn qua Batch Kafka RPC (1 message duy nhất)
+    let statsMap: Record<string, { totalStock: number; expiringCount: number }> = {};
+    if (this.inventoryClient && branchCodes.length > 0) {
+      try {
+        const statsRes: any = await lastValueFrom(
+          this.inventoryClient.send('inventory.batch.stats_by_branch', { branchCodes }).pipe(
+            timeout(3000)
+          )
+        );
+        if (statsRes && typeof statsRes === 'object') {
+          // Hỗ trợ cả map { [branchCode]: { totalStock, expiringCount } } lẫn fallback { totalStock, expiringCount }
+          if (branchCodes.length === 1 && 'totalStock' in statsRes && !statsRes[branchCodes[0]]) {
+            statsMap[branchCodes[0]] = {
+              totalStock: statsRes.totalStock || 0,
+              expiringCount: statsRes.expiringCount || 0,
+            };
+          } else {
+            statsMap = statsRes;
+          }
+        }
+      } catch (kafkaErr: any) {
+        this.logger.warn(`[BranchService] Kafka Batch RPC inventory.batch.stats_by_branch lỗi: ${kafkaErr.message}`);
+      }
+    }
+
+    // 3. Fallback: Nếu không nhận được dữ liệu từ Kafka và có batchModel cục bộ
+    const localBatchStats = new Map<string, { totalStock: number; expiringCount: number }>();
+    const missingCodes = branchCodes.filter((code) => !statsMap[code] || (statsMap[code].totalStock === 0 && statsMap[code].expiringCount === 0));
+    if (this.batchModel && missingCodes.length > 0) {
+      try {
+        const thirtyDaysLater = new Date();
+        thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+        const stockAggregate = await this.batchModel.aggregate([
+          { $match: { branchId: { $in: missingCodes }, status: 'ACTIVE', stock: { $gt: 0 } } },
+          {
+            $group: {
+              _id: '$branchId',
+              totalStock: { $sum: '$stock' },
+              expiringCount: {
+                $sum: { $cond: [{ $lte: ['$expDate', thirtyDaysLater] }, 1, 0] },
+              },
+            },
+          },
+        ]).exec();
+        for (const item of stockAggregate) {
+          localBatchStats.set(item._id, { totalStock: item.totalStock || 0, expiringCount: item.expiringCount || 0 });
+        }
+      } catch (dbErr) {
+        // Bỏ qua lỗi fallback DB
+      }
+    }
+
+    return branches.map((branch) => {
+      const code = branch.branchCode;
+      const employeeCount = employeeCountMap.get(code) || 0;
+      const stats = statsMap[code] || localBatchStats.get(code) || { totalStock: 0, expiringCount: 0 };
+
+      return {
+        ...branch,
+        stats: {
+          employees: employeeCount,
+          totalStock: stats.totalStock || 0,
+          lowStock: branch.stats?.lowStock || 0,
+          expiring: stats.expiringCount || 0,
+        },
+      };
+    });
   }
 
   async create(data: any): Promise<Branch> {

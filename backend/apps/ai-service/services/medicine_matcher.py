@@ -3,21 +3,7 @@ import re
 import pymongo
 from typing import List, Dict, Any, Optional
 
-def get_mongo_db():
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-        return None
-    try:
-        client = pymongo.MongoClient(uri)
-        db_name = "WDP201"
-        if "net/" in uri:
-            parts = uri.split("net/")
-            if len(parts) > 1:
-                db_name = parts[1].split("?")[0]
-        return client[db_name]
-    except Exception as e:
-        print(f"Error connecting to MongoDB: {e}")
-        return None
+from services.db_service import get_mongo_db
 
 def find_fefo_batch(db, medicine_id: str, branch_id: str = "CENTRAL_WH") -> Optional[Dict[str, Any]]:
     """

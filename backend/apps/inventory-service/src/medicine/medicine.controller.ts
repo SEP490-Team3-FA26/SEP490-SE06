@@ -57,6 +57,19 @@ export class MedicineController {
     }
   }
 
+  @MessagePattern('inventory.medicine.branch_search')
+  async searchBranchMedicines(@Payload() query: any) {
+    try {
+      if (!query?.branchId) {
+        throw new RpcException('Yêu cầu branchId để tìm kiếm thuốc tại chi nhánh');
+      }
+      return await this.medicineService.searchBranchMedicines(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi tìm kiếm thuốc tại chi nhánh');
+    }
+  }
+
   @MessagePattern('inventory.medicine.get_by_id')
   async getMedicineById(@Payload() data: { id: string }) {
     try {
@@ -451,6 +464,24 @@ export class MedicineController {
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi tải danh sách thuốc cuộn vô tận');
+    }
+  }
+
+  // =========================================================================
+  // THỐNG KÊ LÔ THUỐC THEO CHI NHÁNH PHỤC VỤ USER-SERVICE (KAFKA RPC)
+  // Hỗ trợ cả truy vấn đơn lẻ (branchCode) và Batch RPC (branchCodes) chống N+1
+  // =========================================================================
+  @MessagePattern('inventory.batch.stats_by_branch')
+  async getBatchStatsByBranch(@Payload() data: { branchCode?: string; branchCodes?: string[] }) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : (data || {});
+      if (Array.isArray(payload?.branchCodes)) {
+        return await this.medicineService.getBatchStatsForBranches(payload.branchCodes);
+      }
+      return await this.medicineService.getBatchStatsByBranch(payload?.branchCode);
+    } catch (error: any) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy thống kê lô thuốc chi nhánh');
     }
   }
 }

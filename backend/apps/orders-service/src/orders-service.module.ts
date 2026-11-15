@@ -18,7 +18,7 @@ import { MarketingCampaign, MarketingCampaignSchema } from './schemas/marketing-
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
+        uri: configService.get<string>('MONGODB_ORDERS_URI') || configService.get<string>('MONGODB_URI'),
       }),
       inject: [ConfigService],
     }),

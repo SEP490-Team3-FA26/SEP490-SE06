@@ -28,7 +28,7 @@ import { NotificationService } from '../notification/notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
 @ApiTags('IoT Telemetry Sensor')
-@Controller('api/sensor')
+@Controller(['api/sensor', 'api/sensors'])
 export class SensorController implements OnModuleInit {
   private readonly logger = new Logger(SensorController.name);
 
@@ -557,7 +557,7 @@ export class SensorController implements OnModuleInit {
   // =========================================================================
   // API TRUY VẤN DÀNH CHO DASHBOARD FRONTEND (YÊU CẦU ĐĂNG NHẬP RBAC)
   // =========================================================================
-  @Get('latest')
+  @Get(['latest', 'telemetry'])
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Lấy chỉ số quan trắc mới nhất của trạm cảm biến' })
   async getLatest(@Query('deviceId') deviceId?: string) {

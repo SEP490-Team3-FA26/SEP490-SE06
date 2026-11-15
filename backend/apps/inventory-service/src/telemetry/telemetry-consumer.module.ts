@@ -14,7 +14,7 @@ import { TelemetryModule } from './telemetry.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
+        uri: configService.get<string>('MONGODB_INVENTORY_URI') || configService.get<string>('MONGODB_URI'),
       }),
       inject: [ConfigService],
     }),
