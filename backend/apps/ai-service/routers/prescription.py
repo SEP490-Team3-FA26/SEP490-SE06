@@ -59,26 +59,13 @@ def get_mongo_client() -> pymongo.MongoClient:
         )
     return _mongo_client
 
-def get_mongo_collection():
-    client = get_mongo_client()
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING") or ""
-    db_name = "WDP201"
-    if "net/" in uri:
-        parts = uri.split("net/")
-        if len(parts) > 1:
-            db_name = parts[1].split("?")[0]
-    return client[db_name]["medicines"]
-
+from services.db_service import get_mongo_db, get_mongo_collection
 
 def get_chat_sessions_collection():
-    client = get_mongo_client()
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING") or ""
-    db_name = "WDP201"
-    if "net/" in uri:
-        parts = uri.split("net/")
-        if len(parts) > 1:
-            db_name = parts[1].split("?")[0]
-    return client[db_name]["chat_sessions"]
+    db = get_mongo_db()
+    if db is None:
+        raise Exception("Không thể kết nối MongoDB cho chat_sessions")
+    return db["chat_sessions"]
 
 
 def _normalize_medicine_text(value: str) -> str:
@@ -1212,18 +1199,9 @@ async def inspect_receipt_item(
         tolerance_pct = 0.02
 
     # 3. Connect to MongoDB and fetch expectedQty & medicineId
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
+    db = get_mongo_db()
+    if db is None:
         raise HTTPException(status_code=500, detail="Database connection string not configured.")
-    
-    client = pymongo.MongoClient(uri)
-    db_name = "WDP201"
-    if "net/" in uri:
-        parts = uri.split("net/")
-        if len(parts) > 1:
-            db_name = parts[1].split("?")[0]
-    
-    db = client[db_name]
     
     receipt_query = {"_id": ObjectId(receiptId)} if ObjectId.is_valid(receiptId) else {"_id": receiptId}
     receipt = db["goodsreceiptnotes"].find_one(receipt_query)
@@ -1477,16 +1455,9 @@ async def verify_receipt_item_count(
     inspectionRecordId: str,
     req: VerifyCountRequest
 ):
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-         raise HTTPException(status_code=500, detail="Database connection string not configured.")
-    client = pymongo.MongoClient(uri)
-    db_name = "WDP201"
-    if "net/" in uri:
-        parts = uri.split("net/")
-        if len(parts) > 1:
-            db_name = parts[1].split("?")[0]
-    db = client[db_name]
+    db = get_mongo_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection string not configured.")
     
     # 1. Fetch current record status to check conflict state
     record = db["inspection_records"].find_one({"_id": ObjectId(inspectionRecordId)})
@@ -1536,16 +1507,9 @@ async def verify_receipt_item_count(
 
 @router.get("/api/ai/receipts/{receiptId}/items/{receiptItemId}/inspection")
 async def get_inspection_record(receiptId: str, receiptItemId: str):
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-         raise HTTPException(status_code=500, detail="Database connection string not configured.")
-    client = get_mongo_client()
-    db_name = "WDP201"
-    if "net/" in uri:
-        parts = uri.split("net/")
-        if len(parts) > 1:
-            db_name = parts[1].split("?")[0]
-    db = client[db_name]
+    db = get_mongo_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection string not configured.")
     
     record = db["inspection_records"].find_one({
         "receiptId": receiptId,

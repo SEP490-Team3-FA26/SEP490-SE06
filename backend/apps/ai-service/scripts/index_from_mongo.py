@@ -265,14 +265,18 @@ def main(recreate: bool = False, limit_records: Optional[int] = None):
                 True -> Xóa và tái tạo lại toàn bộ collection từ đầu.
     - limit_records: Giới hạn số lượng bản ghi để test nhanh nếu cần.
     """
-    MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+    MONGODB_URI = (
+        os.getenv("MONGODB_INVENTORY_URI")
+        or os.getenv("MONGODB_URI")
+        or os.getenv("MONGODB_CONNECTION_STRING")
+    )
 
     if not COHERE_API_KEY:
         print("❌ Thiếu COHERE_API_KEY trong biến môi trường!")
         sys.exit(1)
 
     if not MONGODB_URI:
-        print("❌ Thiếu MONGODB_URI hoặc MONGODB_CONNECTION_STRING trong biến môi trường!")
+        print("❌ Thiếu MONGODB_INVENTORY_URI hoặc MONGODB_URI trong biến môi trường!")
         sys.exit(1)
 
     try:
@@ -285,12 +289,30 @@ def main(recreate: bool = False, limit_records: Optional[int] = None):
     print("🔌 Đang kết nối MongoDB...")
     try:
         mongo_client = MongoClient(MONGODB_URI)
-        db_name = "WDP201"
-        if "net/" in MONGODB_URI:
-            parts = MONGODB_URI.split("net/")
-            if len(parts) > 1:
-                db_name = parts[1].split("?")[0]
+        db_name = None
+        try:
+            default_db = mongo_client.get_default_database()
+            if default_db is not None and default_db.name and default_db.name.upper() != "ADMIN":
+                db_name = default_db.name
+        except Exception:
+            pass
 
+        if not db_name:
+            from urllib.parse import urlparse
+            parsed = urlparse(MONGODB_URI)
+            if parsed.path and parsed.path.strip("/"):
+                path_name = parsed.path.strip("/").split("?")[0]
+                if path_name and path_name.upper() != "ADMIN":
+                    db_name = path_name
+            elif "net/" in MONGODB_URI:
+                parts = MONGODB_URI.split("net/")
+                if len(parts) > 1:
+                    db_name = parts[1].split("?")[0]
+
+        if not db_name or db_name.upper() in ["WDP201", "ADMIN"]:
+            db_name = "wdp301_inventory"
+
+        print(f"📦 Đang đọc dữ liệu từ Database: '{db_name}', Collection: 'medicines'...")
         db = mongo_client[db_name]
         collection = db["medicines"]
         cursor = collection.find({})
