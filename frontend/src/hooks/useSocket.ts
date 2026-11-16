@@ -205,7 +205,7 @@ export function useSocket(namespace: string = '') {
     sseManager.removeEventListener(event, callback);
   }, []);
 
-  // Mock socket object để tương thích 100% với NotificationContext & các components
+  // Mock socket object to maintain compatibility with NotificationContext and consuming components
   const mockSocket = useMemo(() => ({
     connected: isConnected,
     on: onEvent,

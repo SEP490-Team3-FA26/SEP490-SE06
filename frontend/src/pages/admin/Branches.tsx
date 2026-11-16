@@ -458,14 +458,14 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
    const [isManualInput, setIsManualInput] = useState(false);
 
    useEffect(() => {
-      // Ưu tiên tải danh sách nhân sự quản lý (role: 'branch'), nếu rỗng thì tải toàn bộ nhân sự
+      // Prioritize fetching managers (role: 'branch'); fallback to all staff if empty
       employeeService.getEmployees({ role: 'branch' })
          .then((data: any) => {
             const list = Array.isArray(data) ? data : data?.data || [];
             if (list.length > 0) {
                setUnassignedManagers(list);
             } else {
-               // Fallback: lấy tất cả nhân sự trong hệ thống
+               // Fallback: fetch all active staff
                employeeService.getEmployees().then((all: any) => {
                   const allList = Array.isArray(all) ? all : all?.data || [];
                   setUnassignedManagers(allList.filter((e: any) => e.role !== 'user'));
@@ -473,7 +473,7 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
             }
          })
          .catch((err) => {
-            console.error("Lỗi khi tải danh sách quản lý:", err);
+            console.error("Failed to load managers:", err);
             setIsManualInput(true);
          });
    }, []);
