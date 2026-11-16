@@ -2132,62 +2132,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           </div>
         )}
 
-        {/* 🧠 AI CLINICAL & SUPPLEMENT ASSISTANT (GỢI Ý TPCN BỔ TRỢ THEO BỆNH MÃN TÍNH) */}
-        {chronicCareSuggestions.length > 0 && (
-          <div className="bg-gradient-to-br from-indigo-50/90 via-white to-blue-50/90 border-2 border-indigo-200 rounded-[20px] p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow">
-                  <Sparkles size={18} className="animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 text-sm uppercase tracking-wide flex items-center gap-2">
-                    AI Tư Vấn Phác Đồ & Thực Phẩm Chức Năng Bổ Trợ
-                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">GPP Clinical Shield</span>
-                  </h3>
-                  <p className="text-xs text-slate-500">Phát hiện bệnh mãn tính từ phác đồ đang bán & gợi ý TPCN chuẩn y khoa</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {chronicCareSuggestions.map((item, idx) => (
-                <div key={idx} className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-xs flex flex-col justify-between gap-3">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                        <span>{item.icon}</span>
-                        <span>{item.title}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${item.badgeColor}`}>
-                        {item.badge}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {item.supplements.map((sup: any, sIdx: number) => (
-                        <div key={sIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-1">
-                          <div className="font-bold text-xs text-indigo-950 flex items-center justify-between">
-                            <span>✨ {sup.name}</span>
-                            <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">{sup.timing}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{sup.desc}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {item.caution && (
-                      <div className="mt-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-[10px] font-bold text-rose-800 flex items-start gap-1.5">
-                        <AlertTriangle size={13} className="shrink-0 text-rose-600 mt-0.5" />
-                        <span>{item.caution}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 🧠 AI CLINICAL & SUPPLEMENT ASSISTANT - Đã ẩn theo yêu cầu để giao diện quầy POS tinh gọn và chuẩn GPP */}
+        {/* {chronicCareSuggestions.length > 0 && ( ... )} */}
 
         {/* 🛡️ BANNER THÔNG BÁO XÁC NHẬN DƯỢC SĨ CHO ĐƠN THUỐC TƯ VẤN AI */}
         {aiPharmacistConfirmation?.confirmed && (
