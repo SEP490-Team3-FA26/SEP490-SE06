@@ -5,12 +5,25 @@ import { Kafka } from 'kafkajs';
 
 //File này chứa các hàm tiện ích để xử lý việc đăng ký Kafka Topic, tự động khởi tạo Topic và gửi Message/Bắt lỗi chuẩn.
 
+// Cache ghi nhớ các topic đã được khởi tạo/kiểm tra để chống gọi Kafka Admin lặp lại
+export const ensuredTopicsCache = new Set<string>();
+
 /**
  * Tự động tạo trước các Kafka Topic (và topic .reply tương ứng) trên Kafka Broker nếu chưa tồn tại.
  * Giúp tránh lỗi UNKNOWN_TOPIC_OR_PARTITION khi ClientKafka kết nối.
+ * Đã tối ưu hóa: Sử dụng Set cache chống gọi lặp và waitForLeaders: false để không block NestJS event loop.
  */
 export async function ensureKafkaTopicsExist(topics: string[]) {
   if (!topics || topics.length === 0) return;
+
+  // Lọc chỉ những topic hợp lệ, không rỗng và loại bỏ trùng lặp trong mảng đầu vào
+  const uniqueTopics = Array.from(new Set(topics.filter(Boolean)));
+  const pendingTopics = uniqueTopics.filter((t) => !ensuredTopicsCache.has(t));
+  if (pendingTopics.length === 0) return;
+
+  // Lưu ngay vào cache để tránh các request/module khởi tạo song song bị trùng lặp
+  pendingTopics.forEach((t) => ensuredTopicsCache.add(t));
+
   try {
     const brokers = (process.env.KAFKA_BROKERS || 'localhost:9092').split(',');
     const kafka = new Kafka({
@@ -23,18 +36,18 @@ export async function ensureKafkaTopicsExist(topics: string[]) {
     await admin.connect();
 
     const topicsToCreate = [];
-    for (const t of topics) {
+    for (const t of pendingTopics) {
       topicsToCreate.push({ topic: t }, { topic: `${t}.reply` });
     }
 
     await admin.createTopics({
       topics: topicsToCreate,
-      waitForLeaders: true,
+      waitForLeaders: false, // Tối ưu: Không block event loop chờ bầu leader, broker tự động xử lý ngầm
     });
 
     await admin.disconnect();
   } catch (err: any) {
-    console.warn(`[subscribeToKafkaTopics] Warning ensuring topics exist via Kafka Admin: ${err.message}`);
+    console.warn(`[subscribeToKafkaTopics] Cảnh báo kiểm tra topic qua Kafka Admin: ${err.message}`);
   }
 }
 

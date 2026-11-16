@@ -153,8 +153,8 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -301,8 +301,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     depends_on:
-      api-gateway:
-        condition: service_healthy
+      - api-gateway
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4050/api/sim/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
