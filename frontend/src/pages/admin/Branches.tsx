@@ -458,22 +458,15 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
    const [isManualInput, setIsManualInput] = useState(false);
 
    useEffect(() => {
-      // Prioritize fetching managers (role: 'branch'); fallback to all staff if empty
+      // Strictly query and display only accounts with branch manager role
       employeeService.getEmployees({ role: 'branch' })
          .then((data: any) => {
             const list = Array.isArray(data) ? data : data?.data || [];
-            if (list.length > 0) {
-               setUnassignedManagers(list);
-            } else {
-               // Fallback: fetch all active staff
-               employeeService.getEmployees().then((all: any) => {
-                  const allList = Array.isArray(all) ? all : all?.data || [];
-                  setUnassignedManagers(allList.filter((e: any) => e.role !== 'user'));
-               });
-            }
+            const managersOnly = list.filter((e: any) => e.role === 'branch' || e.role === 'manager');
+            setUnassignedManagers(managersOnly);
          })
          .catch((err) => {
-            console.error("Failed to load managers:", err);
+            console.error("Failed to load branch managers:", err);
             setIsManualInput(true);
          });
    }, []);
@@ -573,7 +566,7 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
                            }}
                            className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
                         >
-                           <option value="">-- Chọn Quản lý ({unassignedManagers.length} nhân sự) --</option>
+                           <option value="">-- Chọn Quản lý ({unassignedManagers.length} quản lý) --</option>
                            {unassignedManagers.map(emp => (
                               <option key={emp._id} value={emp._id}>
                                  {emp.fullName} ({emp.email}){emp.branchId ? ` - [${emp.branchId}]` : ' - [Chưa gán]'}
