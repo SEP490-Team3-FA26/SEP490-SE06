@@ -164,9 +164,9 @@ export class PurchaseController {
   }
 
   @MessagePattern('inventory.grn.list')
-  async listGoodsReceiptNotes(): Promise<any> {
+  async listGoodsReceiptNotes(@Payload() query?: any): Promise<any> {
     try {
-      return await this.purchaseService.listGoodsReceiptNotes();
+      return await this.purchaseService.listGoodsReceiptNotes(query);
     } catch (error) {
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách phiếu nhập kho');
     }

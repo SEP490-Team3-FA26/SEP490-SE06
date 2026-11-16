@@ -126,3 +126,9 @@ bot-simulator/data/
 *.db-wal
 *.db-shm
 docker-compose.mongo.yml
+
+# MongoDB Replica Set Keyfile & Secrets
+docker/mongo/keyfile
+**/keyfile
+*.keyfile
+docker/mongo/*.key

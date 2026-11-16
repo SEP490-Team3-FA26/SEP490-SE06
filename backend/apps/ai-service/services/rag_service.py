@@ -164,17 +164,9 @@ async def get_embedding(text: str) -> list[float]:
 
 
 def _get_mongo_medicines_collection():
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
-    if not uri:
-        return None
     try:
-        client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=3000)
-        db_name = "WDP201"
-        if "net/" in uri:
-            parts = uri.split("net/")
-            if len(parts) > 1:
-                db_name = parts[1].split("?")[0]
-        return client[db_name]["medicines"]
+        from services.db_service import get_mongo_collection
+        return get_mongo_collection()
     except Exception:
         return None
 

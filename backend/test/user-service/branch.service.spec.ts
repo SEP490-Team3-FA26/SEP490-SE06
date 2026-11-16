@@ -203,4 +203,134 @@ describe('BranchService', () => {
       expect(res).toEqual(mockBranch);
     });
   });
+
+  describe('findAll - Database-per-Service Kafka RPC & Fallback', () => {
+    it('[Normal Values] TC-01: Lấy danh sách chi nhánh và thống kê tồn kho qua Kafka RPC thành công', async () => {
+      const mockInventoryClient = {
+        send: jest.fn().mockReturnValue({
+          pipe: jest.fn().mockReturnValue(
+            require('rxjs').of({ totalStock: 350, expiringCount: 12 })
+          ),
+        }),
+        subscribeToResponseOf: jest.fn(),
+        connect: jest.fn().mockResolvedValue(true),
+      };
+
+      const testModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          BranchService,
+          { provide: getModelToken(Branch.name), useValue: mockBranchModel },
+          { provide: getModelToken(User.name), useValue: mockUserModel },
+          { provide: 'INVENTORY_SERVICE', useValue: mockInventoryClient },
+        ],
+      }).compile();
+
+      const branchSvc = testModule.get<BranchService>(BranchService);
+      const res = await branchSvc.findAll();
+
+      expect(res).toBeDefined();
+      expect(res.length).toBe(1);
+      expect(res[0].stats.totalStock).toBe(350);
+      expect(res[0].stats.expiring).toBe(12);
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.batch.stats_by_branch', { branchCodes: ['BR-001'] });
+    });
+
+    it('[Normal Values] TC-01b: Batch RPC lấy đồng thời thống kê cho nhiều chi nhánh trong 1 thông điệp Kafka', async () => {
+      const mockBranches = [
+        { _id: '66a01234567890abcdef0001', branchCode: 'BR-001', branchName: 'Chi nhánh 1' },
+        { _id: '66a01234567890abcdef0002', branchCode: 'BR-002', branchName: 'Chi nhánh 2' },
+      ];
+      const multiBranchModel = {
+        find: jest.fn().mockReturnValue({
+          sort: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(mockBranches),
+            }),
+          }),
+        }),
+      };
+      const mockInventoryClient = {
+        send: jest.fn().mockReturnValue({
+          pipe: jest.fn().mockReturnValue(
+            require('rxjs').of({
+              'BR-001': { totalStock: 350, expiringCount: 12 },
+              'BR-002': { totalStock: 800, expiringCount: 5 },
+            })
+          ),
+        }),
+      };
+
+      const testModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          BranchService,
+          { provide: getModelToken(Branch.name), useValue: multiBranchModel },
+          { provide: getModelToken(User.name), useValue: mockUserModel },
+          { provide: 'INVENTORY_SERVICE', useValue: mockInventoryClient },
+        ],
+      }).compile();
+
+      const branchSvc = testModule.get<BranchService>(BranchService);
+      const res = await branchSvc.findAll();
+
+      expect(res).toHaveLength(2);
+      expect(res[0].stats.totalStock).toBe(350);
+      expect(res[1].stats.totalStock).toBe(800);
+      expect(mockInventoryClient.send).toHaveBeenCalledWith('inventory.batch.stats_by_branch', {
+        branchCodes: ['BR-001', 'BR-002'],
+      });
+    });
+
+    it('[Boundary Values] TC-02: Chi nhánh có 0 tồn kho và 0 lô thuốc (Boundary: zero-stock branch)', async () => {
+      const mockInventoryClient = {
+        send: jest.fn().mockReturnValue({
+          pipe: jest.fn().mockReturnValue(
+            require('rxjs').of({ totalStock: 0, expiringCount: 0 })
+          ),
+        }),
+      };
+
+      const testModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          BranchService,
+          { provide: getModelToken(Branch.name), useValue: mockBranchModel },
+          { provide: getModelToken(User.name), useValue: mockUserModel },
+          { provide: 'INVENTORY_SERVICE', useValue: mockInventoryClient },
+        ],
+      }).compile();
+
+      const branchSvc = testModule.get<BranchService>(BranchService);
+      const res = await branchSvc.findAll();
+
+      expect(res).toBeDefined();
+      expect(res[0].stats.totalStock).toBe(0);
+      expect(res[0].stats.expiring).toBe(0);
+    });
+
+    it('[Abnormal Values] TC-03: Xử lý an toàn khi Kafka RPC bị timeout hoặc ngoại lệ (Fallback 0)', async () => {
+      const mockInventoryClient = {
+        send: jest.fn().mockReturnValue({
+          pipe: jest.fn().mockReturnValue(
+            require('rxjs').throwError(() => new Error('Kafka Connection Timeout'))
+          ),
+        }),
+      };
+
+      const testModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          BranchService,
+          { provide: getModelToken(Branch.name), useValue: mockBranchModel },
+          { provide: getModelToken(User.name), useValue: mockUserModel },
+          { provide: 'INVENTORY_SERVICE', useValue: mockInventoryClient },
+        ],
+      }).compile();
+
+      const branchSvc = testModule.get<BranchService>(BranchService);
+      // Khi Kafka RPC lỗi, hàm findAll vẫn trả về kết quả an toàn không bị sập
+      const res = await branchSvc.findAll();
+
+      expect(res).toBeDefined();
+      expect(res[0].stats.totalStock).toBe(0);
+      expect(res[0].stats.expiring).toBe(0);
+    });
+  });
 });

@@ -68,11 +68,11 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     // Đọc biến môi trường toàn cục
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // MongoDB connection for notifications persistence
+    // MongoDB connection cho API Gateway (Thông báo in-app, Device tokens, OCR logs)
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
-        uri: config.get<string>("MONGODB_URI"),
+        uri: config.get<string>("MONGODB_GATEWAY_URI") || config.get<string>("MONGODB_URI"),
       }),
       inject: [ConfigService],
     }),
@@ -331,6 +331,11 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.sensor.get_stations",
       "inventory.recommendation.for_you",
       "inventory.recommendation.recent_searches",
+      // Đăng ký bổ sung toàn bộ reply topics cho kiểm kê kho (Inventory Check)
+      "inventory.check.create",
+      "inventory.check.list",
+      "inventory.check.get_by_id",
+      "inventory.check.complete",
     ];
 
     // 2. SUPPLIER_SERVICE Reply Topics

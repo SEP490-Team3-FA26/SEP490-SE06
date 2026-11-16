@@ -65,6 +65,7 @@ export function CreateMedicineModal({ isOpen, onClose, onSuccess }: CreateMedici
       setErrorMsg("");
       const result = await medicineService.createMedicine({
         ...formData,
+        national_sync_status: formData.national_sync_status as "SYNCED" | "UNSYNCED" | "NOT_REQUIRED",
         price: Number(formData.price),
         stock: Number(formData.stock),
         safetyStock: Number(formData.safetyStock),

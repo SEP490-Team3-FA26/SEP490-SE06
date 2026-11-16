@@ -90,6 +90,7 @@ export function EditMedicineModal({ isOpen, product, onClose, onSuccess }: EditM
       setErrorMsg("");
       const result = await medicineService.updateMedicine(product.id, {
         ...formData,
+        national_sync_status: formData.national_sync_status as "SYNCED" | "UNSYNCED" | "NOT_REQUIRED",
         price: Number(formData.price),
         safetyStock: Number(formData.safetyStock),
         reorderPoint: Number(formData.reorderPoint),

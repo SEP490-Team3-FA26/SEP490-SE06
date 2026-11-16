@@ -134,8 +134,16 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Get()
-  async listPurchaseOrders(@Query('status') status?: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.po.list', { status });
+  async listPurchaseOrders(
+    @Query('status') status?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.po.list', {
+      status,
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+    });
   }
 
   @Get(':id')

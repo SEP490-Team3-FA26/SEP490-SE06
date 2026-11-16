@@ -632,6 +632,7 @@ export class ReportController implements OnModuleInit {
         const response = await fetch(aiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(4000),
           body: JSON.stringify({ dataset: rawDataset || [], periodDays: days }),
         });
 
@@ -989,6 +990,7 @@ export class ReportController implements OnModuleInit {
           aiResponse = await fetch(aiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(4000),
             body: JSON.stringify({
               dataset: rawDataset || [],
               weatherRegion,
@@ -1001,6 +1003,7 @@ export class ReportController implements OnModuleInit {
           aiResponse = await fetch(aiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(3000),
             body: JSON.stringify({
               dataset: rawDataset || [],
               weatherRegion,

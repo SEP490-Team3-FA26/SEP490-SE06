@@ -22,7 +22,7 @@ import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper
 @ApiTags('🛡️ Admin & Branch Employee Management')
 @Controller('api/admin/employees')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin', 'branch')
+@Roles('admin', 'branch', 'director')
 @ApiBearerAuth()
 export class AdminEmployeeController implements OnModuleInit {
   constructor(@Inject('USER_SERVICE') private readonly kafkaClient: ClientKafka) {}
@@ -62,7 +62,7 @@ export class AdminEmployeeController implements OnModuleInit {
   }
 
   @Get('transfer-requests')
-  @Roles('admin', 'branch', 'pharmacist')
+  @Roles('admin', 'branch', 'pharmacist', 'director')
   @ApiOperation({ summary: 'Lấy danh sách yêu cầu điều chuyển nhân sự' })
   async listTransferRequests(@Query('status') status: string, @Request() req: any) {
     return await sendKafkaMessage(this.kafkaClient, 'user.admin.employee.transfer.list', {
@@ -71,6 +71,13 @@ export class AdminEmployeeController implements OnModuleInit {
       branchId: req.user?.branchId,
       status,
     });
+  }
+
+  @Get('transfers')
+  @Roles('admin', 'branch', 'pharmacist', 'director')
+  @ApiOperation({ summary: 'Alias lấy danh sách yêu cầu điều chuyển nhân sự' })
+  async listTransfersAlias(@Query('status') status: string, @Request() req: any) {
+    return await this.listTransferRequests(status, req);
   }
 
   @Post('transfer-requests')

@@ -3,17 +3,36 @@ import pymongo
 import re
 from bson import ObjectId
 
+from urllib.parse import urlparse
+
 def get_mongo_db():
-    uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
+    uri = os.getenv("MONGODB_INVENTORY_URI") or os.getenv("MONGODB_URI") or os.getenv("MONGODB_CONNECTION_STRING")
     if not uri:
         return None
     try:
         client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
-        db_name = "WDP201"
-        if "net/" in uri:
-            parts = uri.split("net/")
-            if len(parts) > 1:
-                db_name = parts[1].split("?")[0]
+        db_name = None
+        try:
+            default_db = client.get_default_database()
+            if default_db is not None and default_db.name and default_db.name.upper() != "ADMIN":
+                db_name = default_db.name
+        except Exception:
+            pass
+
+        if not db_name:
+            parsed = urlparse(uri)
+            if parsed.path and parsed.path.strip("/"):
+                path_name = parsed.path.strip("/").split("?")[0]
+                if path_name and path_name.upper() != "ADMIN":
+                    db_name = path_name
+            elif "net/" in uri:
+                parts = uri.split("net/")
+                if len(parts) > 1:
+                    db_name = parts[1].split("?")[0]
+
+        if not db_name or db_name.upper() in ["WDP201", "ADMIN"]:
+            db_name = "wdp301_inventory"
+
         return client[db_name]
     except Exception as e:
         print(f"Error connecting to MongoDB: {e}")

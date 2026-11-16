@@ -107,8 +107,18 @@ export class PurchaseRequisitionController implements OnModuleInit {
    * Danh sách PR (filter bằng ?status=SUBMITTED hoặc ?branchId=xxx)
    */
   @Get()
-  async listPurchaseRequisitions(@Query('status') status?: string, @Query('branchId') branchId?: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.list', { status, branchId });
+  async listPurchaseRequisitions(
+    @Query('status') status?: string,
+    @Query('branchId') branchId?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.list', {
+      status,
+      branchId,
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+    });
   }
 
   /**

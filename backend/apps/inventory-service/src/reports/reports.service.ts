@@ -159,11 +159,6 @@ export class ReportsService {
     // 3. Lấy thông tin giá nhập từ GoodsReceiptNote theo batchNo
     const batchNos = [...new Set(salesByMonth.map(s => s.batchNo).filter(Boolean))];
     const grnCollection = this.medicineModel.db.collection('goodsreceiptnotes');
-    
-    // Đảm bảo có index để tránh full collection scan gây timeout
-    await grnCollection.createIndex({ "items.batchNo": 1 }).catch(err => {
-      this.logger.warn(`Failed to create index on goodsreceiptnotes: ${err.message}`);
-    });
 
     const grns = await grnCollection.find({
       "items.batchNo": { $in: batchNos }

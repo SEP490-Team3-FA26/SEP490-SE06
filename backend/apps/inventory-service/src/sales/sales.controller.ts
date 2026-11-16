@@ -19,7 +19,7 @@ export class SalesController {
   @MessagePattern('inventory.prescription.list')
   async listPrescriptions(@Payload() data?: any) {
     try {
-      return await this.salesService.listPrescriptions();
+      return await this.salesService.listPrescriptions(data);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách đơn thuốc');

@@ -80,6 +80,7 @@ export const API_ENDPOINTS = {
     ANOMALY_DETECTION: '/api/medicines/anomaly-detection',
     SAFE_INVENTORY: (branchId: string) => `/api/medicines/safe-inventory/${encodeURIComponent(branchId)}`,
     BRANCH_MEDICINES: (branchId: string) => `/api/medicines/branch/${encodeURIComponent(branchId)}`,
+    BRANCH_SEARCH: (branchId: string) => `/api/medicines/branch/${encodeURIComponent(branchId)}/search`,
     
     // Sơ đồ kho GSP
     WAREHOUSE_MAP: '/api/medicines/warehouse-map',

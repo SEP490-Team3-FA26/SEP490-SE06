@@ -91,15 +91,25 @@ export class InventoryCheckController implements OnModuleInit {
     });
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Lấy danh sách biên bản kiểm kê kho' })
-  async listChecks(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
-    return sendKafkaMessage(this.inventoryClient, 'inventory.check.list', { branchId: this.branchFor(req, branchIdQuery) });
-  }
-
   @Get('batches')
+  @ApiOperation({ summary: 'Lấy danh sách lô kiểm kê theo chi nhánh' })
   async listBatches(@Req() req: InventoryCheckRequest, @Query('branchId') branchIdQuery?: string) {
     return sendKafkaMessage(this.inventoryClient, 'inventory.check.batches', { branchId: this.branchFor(req, branchIdQuery) });
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Lấy danh sách biên bản kiểm kê kho' })
+  async listChecks(
+    @Req() req: InventoryCheckRequest,
+    @Query('branchId') branchIdQuery?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.check.list', {
+      branchId: this.branchFor(req, branchIdQuery),
+      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+    });
   }
 
   @Get(':id')

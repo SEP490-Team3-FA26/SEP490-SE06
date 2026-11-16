@@ -115,7 +115,7 @@ def fetch_database_sales_history(sequence_len: int = 12) -> tuple[list, list]:
         except Exception:
             db = None
         if db is None:
-            db = client["WDP201"]
+            db = client["wdp301_inventory"]
         
         # 1. Lấy danh mục thuốc từ medicines
         medicines = list(db["medicines"].find(

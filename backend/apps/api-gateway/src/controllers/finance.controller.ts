@@ -72,6 +72,22 @@ export class FinanceController implements OnModuleInit {
     return await sendKafkaMessage(this.ordersClient, 'finance.cashflow.summary', { branchId, year, viewType, date });
   }
 
+  @Get('daily-summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Thống kê tài chính & dòng tiền hàng ngày (Daily Summary)' })
+  async getDailySummary(
+    @Query('branchId') branchId?: string,
+    @Query('date') date?: string,
+  ) {
+    const today = date || new Date().toISOString().split('T')[0];
+    return await sendKafkaMessage(this.ordersClient, 'finance.cashflow.summary', {
+      branchId,
+      viewType: 'day',
+      date: today,
+    });
+  }
+
   @Post('payment-vouchers')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'head_branch', 'branch', 'accountant')
