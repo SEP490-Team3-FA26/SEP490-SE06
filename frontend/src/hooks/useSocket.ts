@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { AUTH_TOKEN_CHANGED_EVENT } from '../utils/authEvents';
 
 const getApiGatewayUrl = () => {
@@ -206,11 +206,11 @@ export function useSocket(namespace: string = '') {
   }, []);
 
   // Mock socket object để tương thích 100% với NotificationContext & các components
-  const mockSocket = {
+  const mockSocket = useMemo(() => ({
     connected: isConnected,
     on: onEvent,
     off: offEvent,
-  };
+  }), [isConnected, onEvent, offEvent]);
 
   return {
     isConnected,

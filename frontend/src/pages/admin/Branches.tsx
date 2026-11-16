@@ -455,11 +455,27 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
    const [gppExpiryDate, setGppExpiryDate] = useState("");
    const [image, setImage] = useState("");
    const [unassignedManagers, setUnassignedManagers] = useState<Employee[]>([]);
+   const [isManualInput, setIsManualInput] = useState(false);
 
    useEffect(() => {
-      employeeService.getEmployees({ role: 'branch', unassigned: true })
-         .then(data => setUnassignedManagers(data))
-         .catch(console.error);
+      // Ưu tiên tải danh sách nhân sự quản lý (role: 'branch'), nếu rỗng thì tải toàn bộ nhân sự
+      employeeService.getEmployees({ role: 'branch' })
+         .then((data: any) => {
+            const list = Array.isArray(data) ? data : data?.data || [];
+            if (list.length > 0) {
+               setUnassignedManagers(list);
+            } else {
+               // Fallback: lấy tất cả nhân sự trong hệ thống
+               employeeService.getEmployees().then((all: any) => {
+                  const allList = Array.isArray(all) ? all : all?.data || [];
+                  setUnassignedManagers(allList.filter((e: any) => e.role !== 'user'));
+               });
+            }
+         })
+         .catch((err) => {
+            console.error("Lỗi khi tải danh sách quản lý:", err);
+            setIsManualInput(true);
+         });
    }, []);
 
    const handleSubmit = (e: React.FormEvent) => {
@@ -516,32 +532,55 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
-                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Quản lý *</label>
-                     <select
-                        required
-                        value={managerId}
-                        onChange={(e) => {
-                           const selectedId = e.target.value;
-                           const selectedEmp = unassignedManagers.find(emp => emp._id === selectedId);
-                           if (selectedEmp) {
-                              setManagerId(selectedId);
-                              setManager(selectedEmp.fullName);
-                              setContact(selectedEmp.email); // Auto fill contact
-                           } else {
+                     <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Quản lý *</label>
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setIsManualInput(!isManualInput);
                               setManagerId("");
-                              setManager("");
-                              setContact("");
-                           }
-                        }}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
-                     >
-                        <option value="">-- Chọn Quản lý --</option>
-                        {unassignedManagers.map(emp => (
-                           <option key={emp._id} value={emp._id}>
-                              {emp.fullName} ({emp.email})
-                           </option>
-                        ))}
-                     </select>
+                           }}
+                           className="text-[11px] font-semibold text-[#0057cd] hover:underline"
+                        >
+                           {isManualInput ? "Chọn danh sách" : "Nhập tay tên"}
+                        </button>
+                     </div>
+                     {isManualInput || unassignedManagers.length === 0 ? (
+                        <input
+                           type="text"
+                           required
+                           value={manager}
+                           onChange={(e) => setManager(e.target.value)}
+                           placeholder="Nhập họ tên Quản lý..."
+                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                        />
+                     ) : (
+                        <select
+                           required
+                           value={managerId}
+                           onChange={(e) => {
+                              const selectedId = e.target.value;
+                              const selectedEmp = unassignedManagers.find(emp => emp._id === selectedId);
+                              if (selectedEmp) {
+                                 setManagerId(selectedId);
+                                 setManager(selectedEmp.fullName);
+                                 setContact(selectedEmp.phone || selectedEmp.phoneNumber || selectedEmp.email || "");
+                              } else {
+                                 setManagerId("");
+                                 setManager("");
+                                 setContact("");
+                              }
+                           }}
+                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
+                        >
+                           <option value="">-- Chọn Quản lý ({unassignedManagers.length} nhân sự) --</option>
+                           {unassignedManagers.map(emp => (
+                              <option key={emp._id} value={emp._id}>
+                                 {emp.fullName} ({emp.email}){emp.branchId ? ` - [${emp.branchId}]` : ' - [Chưa gán]'}
+                              </option>
+                           ))}
+                        </select>
+                     )}
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số điện thoại *</label>
