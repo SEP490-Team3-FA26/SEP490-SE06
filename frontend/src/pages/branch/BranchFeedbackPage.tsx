@@ -212,7 +212,10 @@ export const BranchFeedbackPage: React.FC = () => {
       fb.orderCode?.toLowerCase().includes(term) ||
       fb.customerPhone?.toLowerCase().includes(term) ||
       fb.comment?.toLowerCase().includes(term) ||
-      fb.tags?.some((t) => t.toLowerCase().includes(term))
+      fb.tags?.some((t: any) => {
+        const tagName = typeof t === 'string' ? t : t?.tag || '';
+        return tagName.toLowerCase().includes(term);
+      })
     );
   });
 
@@ -455,18 +458,22 @@ export const BranchFeedbackPage: React.FC = () => {
                       {/* Thẻ tags */}
                       {fb.tags && fb.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-1">
-                          {fb.tags.map((tag, idx) => (
-                            <span
-                              key={idx}
-                              className={`text-[11px] px-2.5 py-0.5 rounded-lg font-medium ${
-                                isNegative
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : 'bg-sky-50 text-sky-700 border border-sky-100'
-                              }`}
-                            >
-                              #{tag}
-                            </span>
-                          ))}
+                          {fb.tags.map((tag: any, idx: number) => {
+                            const tagName = typeof tag === 'string' ? tag : tag?.tag || '';
+                            if (!tagName) return null;
+                            return (
+                              <span
+                                key={idx}
+                                className={`text-[11px] px-2.5 py-0.5 rounded-lg font-medium ${
+                                  isNegative
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    : 'bg-sky-50 text-sky-700 border border-sky-100'
+                                }`}
+                              >
+                                #{tagName}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -689,11 +696,16 @@ export const BranchFeedbackPage: React.FC = () => {
                           </div>
                           {staff.topTags && staff.topTags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
-                              {staff.topTags.map((t: string, i: number) => (
-                                <span key={i} className="text-[10px] px-2 py-0.5 bg-white border border-emerald-200 text-emerald-700 rounded-md font-medium">
-                                  #{t}
-                                </span>
-                              ))}
+                              {staff.topTags.map((t: any, i: number) => {
+                                const tagName = typeof t === 'string' ? t : t?.tag || '';
+                                const tagCount = typeof t === 'object' && t?.count ? ` (${t.count})` : '';
+                                if (!tagName) return null;
+                                return (
+                                  <span key={i} className="text-[10px] px-2 py-0.5 bg-white border border-emerald-200 text-emerald-700 rounded-md font-medium">
+                                    #{tagName}{tagCount}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -767,11 +779,16 @@ export const BranchFeedbackPage: React.FC = () => {
                           </div>
                           {staff.topTags && staff.topTags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
-                              {staff.topTags.map((t: string, i: number) => (
-                                <span key={i} className="text-[10px] px-2 py-0.5 bg-white border border-rose-200 text-rose-700 rounded-md font-medium">
-                                  #{t}
-                                </span>
-                              ))}
+                              {staff.topTags.map((t: any, i: number) => {
+                                const tagName = typeof t === 'string' ? t : t?.tag || '';
+                                const tagCount = typeof t === 'object' && t?.count ? ` (${t.count})` : '';
+                                if (!tagName) return null;
+                                return (
+                                  <span key={i} className="text-[10px] px-2 py-0.5 bg-white border border-rose-200 text-rose-700 rounded-md font-medium">
+                                    #{tagName}{tagCount}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
