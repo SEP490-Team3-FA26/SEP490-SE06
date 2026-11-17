@@ -25,7 +25,25 @@ export class PurchaseController {
     try {
       return await this.purchaseService.listPurchaseRequisitions(query);
     } catch (error) {
-      throw new RpcException(error.message || 'Lỗi hệ thống khi lấy danh sách PR');
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        message: error.message || 'Lỗi hệ thống khi lấy danh sách PR',
+        statusCode: 500,
+      });
+    }
+  }
+
+  // Lắng nghe topic lấy số lượng yêu cầu PR theo trạng thái phục vụ badge sub-tab
+  @MessagePattern('inventory.pr.status_counts')
+  async getPurchaseRequisitionsStatusCounts(@Payload() query: any) {
+    try {
+      return await this.purchaseService.getPurchaseRequisitionsStatusCounts(query);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        message: error.message || 'Lỗi hệ thống khi lấy số lượng PR theo trạng thái',
+        statusCode: 500,
+      });
     }
   }
 

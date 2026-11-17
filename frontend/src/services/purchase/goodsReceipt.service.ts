@@ -26,8 +26,11 @@ export interface GoodsReceiptPayload {
 }
 
 export const goodsReceiptService = {
-  async getGoodsReceipts() {
-    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.LIST);
+  // Lấy danh sách phiếu nhập kho GRN (hỗ trợ phân trang, lọc trạng thái)
+  async getGoodsReceipts(options?: { status?: string; limit?: number; page?: number }) {
+    const response = await api.get(API_ENDPOINTS.GOODS_RECEIPTS.LIST, {
+      params: options,
+    });
     return response.data;
   },
 

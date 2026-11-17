@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Query, Param, Body, Inject, OnModuleInit, UseGuards, Delete, Req } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Query, Param, Body, Inject, OnModuleInit, UseGuards, Delete, Req, BadRequestException } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { AppWebsocketGateway } from '../websocket/websocket.gateway';
@@ -19,6 +19,7 @@ export class PurchaseRequisitionController implements OnModuleInit {
     await subscribeToKafkaTopics(this.inventoryClient, [
       'inventory.pr.create',
       'inventory.pr.list',
+      'inventory.pr.status_counts',
       'inventory.pr.get_by_id',
       'inventory.pr.process_urgent',
       'inventory.pr.update_status',
@@ -122,10 +123,22 @@ export class PurchaseRequisitionController implements OnModuleInit {
   }
 
   /**
-   * Chi tiết PR theo ID
+   * Thống kê số lượng PR theo từng trạng thái (phục vụ hiển thị badge sub-tab)
+   * Khai báo trước route động @Get(':id') theo Rule 11
+   */
+  @Get('status-counts')
+  async getStatusCounts(@Query('branchId') branchId?: string) {
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.status_counts', { branchId });
+  }
+
+  /**
+   * Chi tiết PR theo ID (kiểm tra định dạng ObjectId 24 ký tự theo Rule 11)
    */
   @Get(':id')
   async getPurchaseRequisitionById(@Param('id') id: string) {
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      throw new BadRequestException('Mã định danh PR không đúng định dạng ObjectId 24 ký tự');
+    }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.get_by_id', { id });
   }
 

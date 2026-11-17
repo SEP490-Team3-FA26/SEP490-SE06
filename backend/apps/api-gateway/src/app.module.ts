@@ -284,6 +284,7 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.report.list",
       "inventory.pr.create",
       "inventory.pr.list",
+      "inventory.pr.status_counts",
       "inventory.pr.get_by_id",
       "inventory.pr.process_urgent",
       "inventory.rfq.create",

@@ -86,14 +86,29 @@ export function IncomingOrdersTab({
   const [trackingModalPo, setTrackingModalPo] = useState<any | null>(null);
   const [arrivedPoIds, setArrivedPoIds] = useState<Record<string, string>>({}); // poId -> timestamp
 
+  // Tải danh sách đơn đặt hàng PO đang về và danh sách phiếu nhập kho GRN
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [poRes, grnRes] = await Promise.all([
-        purchaseOrderService.getPurchaseOrders().catch(() => []),
-        goodsReceiptService.getGoodsReceipts().catch(() => []),
-      ]);
-      setPoList(Array.isArray(poRes) ? poRes : []);
+      // 1. Thử gọi API gộp các trạng thái đang về: SHIPPING, RECEIVING, PARTIAL_RECEIVED
+      let poData = await purchaseOrderService.getPurchaseOrders("SHIPPING,RECEIVING,PARTIAL_RECEIVED", { limit: 100 }).catch(() => []);
+      
+      // Fallback: nếu backend chưa gộp trạng thái qua dấu phẩy, truy vấn song song từng trạng thái
+      if (!Array.isArray(poData) || poData.length === 0) {
+        const [shippingRes, receivingRes, partialRes] = await Promise.all([
+          purchaseOrderService.getPurchaseOrders("SHIPPING", { limit: 50 }).catch(() => []),
+          purchaseOrderService.getPurchaseOrders("RECEIVING", { limit: 50 }).catch(() => []),
+          purchaseOrderService.getPurchaseOrders("PARTIAL_RECEIVED", { limit: 50 }).catch(() => []),
+        ]);
+        poData = [
+          ...(Array.isArray(shippingRes) ? shippingRes : []),
+          ...(Array.isArray(receivingRes) ? receivingRes : []),
+          ...(Array.isArray(partialRes) ? partialRes : []),
+        ];
+      }
+
+      const grnRes = await goodsReceiptService.getGoodsReceipts({ limit: 100 }).catch(() => []);
+      setPoList(Array.isArray(poData) ? poData : []);
       setGrnList(Array.isArray(grnRes) ? grnRes : []);
     } finally { setLoading(false); }
   };

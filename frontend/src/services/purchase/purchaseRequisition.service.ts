@@ -22,9 +22,21 @@ export interface PurchaseRequisitionPayload {
 }
 
 export const purchaseRequisitionService = {
-  async getPurchaseRequisitions(status?: string) {
+  // Lấy danh sách yêu cầu mua hàng PR (hỗ trợ lọc theo trạng thái, chi nhánh, phân trang tối đa 100)
+  async getPurchaseRequisitions(status?: string, options?: { limit?: number; page?: number; branchId?: string }) {
     const response = await api.get(API_ENDPOINTS.PURCHASE_REQUISITIONS.LIST, {
-      params: status ? { status } : undefined,
+      params: {
+        ...(status ? { status } : {}),
+        ...(options || {}),
+      },
+    });
+    return response.data;
+  },
+
+  // Lấy số lượng PR theo từng trạng thái để hiển thị badge sub-tab
+  async getStatusCounts(branchId?: string): Promise<Record<string, number>> {
+    const response = await api.get(`${API_ENDPOINTS.PURCHASE_REQUISITIONS.LIST}/status-counts`, {
+      params: branchId ? { branchId } : undefined,
     });
     return response.data;
   },
