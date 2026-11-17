@@ -406,7 +406,33 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
           if (match) cleanCode = match[1];
         }
 
-        // 1. Kiểm tra nếu mã quét từ Web là mã đơn PO hoặc GRN (Tra cứu trực tiếp qua API Gateway)
+        const normalizedCode = cleanCode.replace(/^[#:\s]+/, '').trim().toLowerCase();
+        const targetClean = normalizedCode.replace(/^(po|grn)[-_:\s]*/i, '');
+
+        // 1. Kiểm tra nếu mã quét khớp với Phiếu nhập kho (GRN) đã có
+        const currentReceipts = receipts.length > 0 ? receipts : await ApiService.getGoodsReceipts().catch(() => []);
+        const matchedReceipt = Array.isArray(currentReceipts)
+          ? currentReceipts.find((r: any) => {
+              const rId = String(r.id || r._id || '').toLowerCase();
+              const rCode = String(r.poCode || r.receiptCode || '').toLowerCase();
+              return (
+                rId === normalizedCode ||
+                rCode === normalizedCode ||
+                rId === targetClean ||
+                rCode === targetClean ||
+                (targetClean.length >= 4 && (rId.includes(targetClean) || rCode.includes(targetClean)))
+              );
+            })
+          : null;
+
+        if (matchedReceipt) {
+          setActiveTab('RECEIPTS');
+          handleStartInspection(matchedReceipt);
+          showToast.success('Nhận diện phiếu nhập', `Đang mở phiếu: ${matchedReceipt.id || matchedReceipt.poCode}`);
+          return;
+        }
+
+        // 2. Kiểm tra nếu mã quét từ Web là mã đơn PO (Tra cứu trực tiếp qua API Gateway)
         let matchedPo = null;
         if (cleanCode.length >= 3) {
           matchedPo = await ApiService.getPurchaseOrderById(cleanCode).catch(() => null);
@@ -415,15 +441,13 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         // Nếu chưa thấy, mới fallback tìm trong danh sách PO (tìm không phân biệt hoa thường và hỗ trợ hậu tố)
         if (!matchedPo) {
           const pos = incomingPOs.length > 0 ? incomingPOs : await ApiService.getPurchaseOrders().catch(() => []);
-          const targetClean = cleanCode.toLowerCase().replace(/^po[-_:\s]*/i, '');
           matchedPo = Array.isArray(pos)
             ? pos.find((p: any) => {
                 const pId = String(p._id || p.id || '').toLowerCase();
                 const pCode = String(p.poCode || '').toLowerCase();
-                const codeLower = cleanCode.toLowerCase();
                 return (
-                  pId === codeLower ||
-                  pCode === codeLower ||
+                  pId === normalizedCode ||
+                  pCode === normalizedCode ||
                   pId === targetClean ||
                   pCode === targetClean ||
                   (targetClean.length >= 4 && pId.endsWith(targetClean)) ||
@@ -459,15 +483,6 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
           setActiveTab('RECEIPTS');
           handleStartInspection(poReceipt);
           showToast.success('Đồng bộ đơn PO', `Mở phiên kiểm đếm kiện hàng cho đơn: ${poReceipt.poCode}`);
-          return;
-        }
-
-        // 2. Kiểm tra phiếu nhập kho trong state
-        const matchedReceipt = receipts.find((r) => r.id === cleanCode || r.poCode === cleanCode || (r as any)._id === cleanCode);
-        if (matchedReceipt) {
-          setActiveTab('RECEIPTS');
-          handleStartInspection(matchedReceipt);
-          showToast.success('Nhận diện phiếu nhập', `Đang mở phiếu: ${matchedReceipt.id}`);
           return;
         }
 

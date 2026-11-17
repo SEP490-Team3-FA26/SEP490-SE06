@@ -45,12 +45,21 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
     }
   }, [visible, zone, rack, shelf]);
 
+  const extractBatches = (data: any): any[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.batches)) return data.batches;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data.data?.batches)) return data.data.batches;
+    return [];
+  };
+
   const loadShelfDetail = async () => {
     try {
       setLoading(true);
       const res = await ApiService.getShelfDetail(zone, rack, shelf);
       setShelfData(res);
-      const list = res?.batches || [];
+      const list = extractBatches(res);
       // Mặc định chọn tất cả các thuốc trên tầng kệ này để thuận tiện kiểm kê
       const allIds = list.map((m: any, idx: number) => String(m.id || m.medicineId || m._id || m.sku || `med_${idx}`));
       setSelectedIds(allIds);
@@ -61,7 +70,7 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
     }
   };
 
-  const batches = shelfData?.batches || [];
+  const batches = extractBatches(shelfData);
 
   const toggleSelectMedicine = (medId: string) => {
     setSelectedIds((prev) =>
@@ -161,7 +170,7 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
                             color={isSelected ? '#38BDF8' : '#64748B'}
                           />
                           <Text style={styles.medName} numberOfLines={1}>
-                            {item.name}
+                            {item.name || item.medicineName || 'Dược phẩm'}
                           </Text>
                         </View>
                         <View style={styles.catBadge}>
