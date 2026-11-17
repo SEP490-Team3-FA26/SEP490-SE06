@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   Plus,
   Search,
   CheckCircle,
+  CheckCircle2,
+  AlertCircle,
   Clock,
   AlertTriangle,
   ChevronRight,
@@ -20,6 +23,7 @@ import {
   Calendar,
   Check,
   Tag,
+  Info,
 } from "lucide-react";
 import { inventoryCheckService, InventoryCheckItem, InventoryCheckMedicine } from "../../services/inventory/inventoryCheck.service";
 import { authService } from "../../services/auth/auth.service";
@@ -60,6 +64,26 @@ export function InventoryCheck() {
   const [selectedCheck, setSelectedCheck] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
+
+  // Quản lý thông báo Toast y tế chuẩn GSP/GDP
+  const [toasts, setToasts] = useState<
+    { id: string; message: string; type: "success" | "error" | "warning" | "info" }[]
+  >([]);
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "warning" | "info" = "success"
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   const fetchChecks = async () => {
     setLoading(true);
@@ -130,24 +154,24 @@ export function InventoryCheck() {
 
   const handleAddItem = () => {
     if (!selectedMedicineObj || !selectedBatch || actualStockInput.trim() === "") {
-      alert("Vui lòng điền đầy đủ thông tin thuốc, số lô và số lượng kiểm thực tế!");
+      showToast("Vui lòng điền đầy đủ thông tin thuốc, số lô và số lượng kiểm thực tế!", "warning");
       return;
     }
 
     if (!validActual) {
-      alert("Số lượng kiểm thực tế phải là số nguyên không âm!");
+      showToast("Số lượng kiểm thực tế phải là số nguyên không âm!", "warning");
       return;
     }
 
     // Kiểm tra trùng lô trong cùng 1 biên bản
     if (itemsList.some(item => item.batchId === selectedBatch.id)) {
-      alert("Lô thuốc này đã có trong danh sách kiểm kê!");
+      showToast("Lô thuốc này đã có trong danh sách kiểm kê!", "warning");
       return;
     }
 
     const reason = reasonInput.trim();
     if (difference !== 0 && !reason) {
-      alert("Vui lòng ghi lý do khi số lượng thực tế lệch tồn sổ.");
+      showToast("Vui lòng ghi lý do khi số lượng thực tế lệch tồn sổ.", "warning");
       return;
     }
 
@@ -163,6 +187,7 @@ export function InventoryCheck() {
     };
 
     setItemsList(prev => [...prev, newItem]);
+    showToast(`Đã thêm ${selectedMedicineObj.name} (Lô: ${selectedBatch.batchNo}) vào danh sách`, "info");
 
     // Reset các trường nhập
     setSelectedMedId("");
@@ -177,7 +202,7 @@ export function InventoryCheck() {
 
   const handleSubmitCheck = async () => {
     if (itemsList.length === 0) {
-      alert("Vui lòng thêm ít nhất 1 mặt hàng cần kiểm kê!");
+      showToast("Vui lòng thêm ít nhất 1 mặt hàng cần kiểm kê!", "warning");
       return;
     }
 
@@ -195,14 +220,14 @@ export function InventoryCheck() {
       };
 
       await inventoryCheckService.createCheck(payload);
-      alert("Lưu biên bản nháp thành công!");
+      showToast("Lưu biên bản nháp thành công!", "success");
       setIsCreating(false);
       setItemsList([]);
       setNotes("");
       fetchChecks();
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Lỗi khi xử lý biên bản kiểm kê!");
+      showToast(error.response?.data?.message || "Lỗi khi xử lý biên bản kiểm kê!", "error");
     } finally {
       setSaving(false);
     }
@@ -212,13 +237,13 @@ export function InventoryCheck() {
     setCompletingId(checkId);
     try {
       await inventoryCheckService.completeCheck(checkId);
-      alert("Hoàn thành biên bản và tự động cập nhật số lượng tồn kho thành công!");
+      showToast("Hoàn thành biên bản và tự động cập nhật số lượng tồn kho thành công!", "success");
       setDetailOpen(false);
       fetchChecks();
       fetchMedicinesList();
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Lỗi khi chốt biên bản kiểm kê!");
+      showToast(error.response?.data?.message || "Lỗi khi chốt biên bản kiểm kê!", "error");
     } finally {
       setCompletingId(null);
     }
@@ -935,6 +960,44 @@ export function InventoryCheck() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ GSP */}
+      {typeof document !== "undefined" && createPortal(
+        <div className="fixed top-6 right-6 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+                t.type === "error"
+                  ? "bg-rose-950/95 text-rose-100 border-rose-800"
+                  : t.type === "warning"
+                  ? "bg-amber-950/95 text-amber-100 border-amber-800"
+                  : t.type === "info"
+                  ? "bg-blue-950/95 text-blue-100 border-blue-800"
+                  : "bg-emerald-950/95 text-emerald-100 border-emerald-800"
+              }`}
+            >
+              <div className="shrink-0 mt-0.5">
+                {t.type === "error" && <AlertCircle size={18} className="text-rose-400" />}
+                {t.type === "warning" && <AlertTriangle size={18} className="text-amber-400" />}
+                {t.type === "info" && <Info size={18} className="text-blue-400" />}
+                {t.type === "success" && <CheckCircle2 size={18} className="text-emerald-400" />}
+              </div>
+              <div className="flex-1 text-xs font-semibold leading-relaxed">
+                {t.message}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeToast(t.id)}
+                className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>,
+        document.body
       )}
     </div>
   );
