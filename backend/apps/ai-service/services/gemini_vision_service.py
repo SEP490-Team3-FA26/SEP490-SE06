@@ -84,9 +84,9 @@ async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[s
     # Chiến lược 1: Ưu tiên gọi trực tiếp Google AI Studio API (Hoàn toàn miễn phí, tốc độ cao 1-2s, không phụ thuộc credit)
     if google_key and len(google_key) > 10:
         try:
-            print("🚀 [AI Vision] Sử dụng Google AI Studio Direct API (Gemini 3.8 Flash)...")
+            print("🚀 [AI Vision] Sử dụng Google AI Studio Direct API (Gemini Vision)...")
             res = await _call_google_direct_api(images, google_key)
-            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital") or res.get("rejection_reason") or res.get("is_printed") is not None):
                 return res
         except Exception as e:
             print(f"Google Direct API call error: {e}")
@@ -96,7 +96,7 @@ async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[s
         try:
             print("🔄 [AI Vision] Gọi OpenRouter fallback...")
             res = await _call_openrouter_gemini_vision(images, openrouter_key)
-            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital") or res.get("rejection_reason") or res.get("is_printed") is not None):
                 return res
         except Exception as e:
             print(f"OpenRouter Gemini Vision call error: {e}")
@@ -194,8 +194,14 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
     return {}
 
 async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
-    # Danh sách model Google AI Studio hiện hành (Gemini 3.8 Flash & Gemini Flash Latest)
-    models_to_try = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-1.5-flash"]
+    # Danh sách model Google AI Studio hiện hành (Ưu tiên gemini-3.5-flash & gemini-3.7-flash hoạt động ổn định, kèm fallback 3.8 và lite)
+    models_to_try = [
+        "gemini-3.5-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest",
+    ]
     parts = [{"text": GEMINI_SYSTEM_PROMPT}]
     for idx, (img_bytes, mime_type) in enumerate(images):
         b64_data = base64.b64encode(img_bytes).decode('utf-8')
@@ -230,6 +236,8 @@ async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str)
                             parsed = json.loads(clean_text)
                             parsed["prompt_version"] = f"v2.1 (Google {model})"
                             return parsed
+                else:
+                    print(f"Google Direct {model} status {res.status_code}: {res.text[:150]}")
             except Exception as e:
                 print(f"Google Direct {model} error: {e}")
     return {}
