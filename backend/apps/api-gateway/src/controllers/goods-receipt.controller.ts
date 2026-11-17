@@ -354,18 +354,38 @@ export class GoodsReceiptController implements OnModuleInit {
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('imageUrl') imageUrl?: string,
   ) {
+    let fileBuffer = file?.buffer;
+    let fileMimetype = file?.mimetype || 'image/jpeg';
+    let fileName = file?.originalname || 'package.jpg';
+
+    // Hỗ trợ phân tích ảnh mẫu từ remote URL khi mobile gửi đường dẫn ảnh
+    if (!fileBuffer && imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+      try {
+        const imgFetch = await fetch(imageUrl);
+        if (imgFetch.ok) {
+          const arrBuf = await imgFetch.arrayBuffer();
+          fileBuffer = Buffer.from(arrBuf);
+          fileMimetype = imgFetch.headers.get('content-type') || 'image/jpeg';
+          fileName = imageUrl.split('/').pop()?.split('?')[0] || 'package.jpg';
+        }
+      } catch (fetchErr) {
+        console.warn('Lỗi tải ảnh remote cho kiểm định AI:', fetchErr);
+      }
+    }
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout cho xử lý thị giác máy tính
 
       const aiUrl = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
       const formData = new FormData();
-      if (file) {
-        const blob = new Blob([new Uint8Array(file.buffer)], {
-          type: file.mimetype || 'image/jpeg',
+      if (fileBuffer) {
+        const blob = new Blob([new Uint8Array(fileBuffer)], {
+          type: fileMimetype,
         });
-        formData.append('file', blob, file.originalname || 'package.jpg');
+        formData.append('file', blob, fileName);
       }
 
       const response = await fetch(`${aiUrl}/api/ai/receipts/${id}/items/${itemId}/inspection`, {
@@ -387,10 +407,10 @@ export class GoodsReceiptController implements OnModuleInit {
         throw new Error(errBody.detail);
       }
     } catch (e: any) {
-      // Cơ chế Self-Healing: Khi AI Service không phản hồi, tự động phân tích qua Roboflow trực tiếp
+      // Cơ chế Self-Healing: Khi AI Service không phản hồi hoặc timeout, tự động phân tích qua Roboflow trực tiếp
       try {
-        if (file?.buffer) {
-          const directRes = await this.processWithRoboflowDirectly(file.buffer);
+        if (fileBuffer) {
+          const directRes = await this.processWithRoboflowDirectly(fileBuffer);
           return {
             success: true,
             aiCount: directRes.detectedCount,

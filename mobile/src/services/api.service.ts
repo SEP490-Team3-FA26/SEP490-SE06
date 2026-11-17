@@ -2199,9 +2199,9 @@ export class ApiService {
       const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
 
       if (typeof imageInput === 'string') {
+        formData = new FormData();
         if (!isRemoteUrl) {
           // Ảnh chụp trực tiếp từ camera hoặc thư viện máy (file:// hoặc content://)
-          formData = new FormData();
           const filename = imageInput.split('/').pop() || 'package.jpg';
           const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
           const type = ext === 'png' ? 'image/png' : 'image/jpeg';
@@ -2210,6 +2210,9 @@ export class ApiService {
             name: filename,
             type,
           } as any);
+        } else {
+          // Ảnh từ remote URL (ảnh mẫu hiển thị sẵn trên màn hình)
+          formData.append('imageUrl', imageInput);
         }
       } else {
         formData = imageInput;

@@ -624,7 +624,10 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         quality: 0.85,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
-        setSelectedInspectionImage(res.assets[0].uri);
+        const photoUri = res.assets[0].uri;
+        setSelectedInspectionImage(photoUri);
+        // Tự động kích hoạt kiểm định AI Vision ngay sau khi chụp ảnh
+        handleRunAiInspection(photoUri);
       }
     } catch (e) {
       console.warn('Lỗi chụp ảnh kiểm hàng:', e);
@@ -639,7 +642,10 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         quality: 0.85,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
-        setSelectedInspectionImage(res.assets[0].uri);
+        const galleryUri = res.assets[0].uri;
+        setSelectedInspectionImage(galleryUri);
+        // Tự động kích hoạt kiểm định AI Vision ngay sau khi chọn ảnh
+        handleRunAiInspection(galleryUri);
       }
     } catch (e) {
       console.warn('Lỗi chọn ảnh thư viện:', e);
@@ -665,8 +671,13 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
     }
   };
 
-  const handleRunAiInspection = async () => {
+  const handleRunAiInspection = async (overrideImageUri?: string) => {
     if (!selectedReceiptForInspection) return;
+    const targetImage = overrideImageUri || selectedInspectionImage;
+    if (!targetImage) {
+      showToast.error('Thiếu hình ảnh', 'Vui lòng chụp ảnh hoặc chọn ảnh kiện hàng để kiểm định.');
+      return;
+    }
     setIsAiScanning(true);
     setAiScanResult(null);
 
@@ -675,14 +686,16 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
       const res = await ApiService.inspectReceiptItemAI(
         selectedReceiptForInspection.id || selectedReceiptForInspection._id,
         currentItem.id || String(selectedItemIndex),
-        selectedInspectionImage
+        targetImage
       );
 
-      if (res && res.success !== false && typeof res.aiCount === 'number') {
+      const detectedCount = typeof res?.aiCount === 'number' ? res.aiCount : (typeof res?.detectedCount === 'number' ? res.detectedCount : null);
+
+      if (res && res.success !== false && detectedCount !== null) {
         const medicineName = currentItem?.medName || currentItem?.medicineName || currentItem?.name || 'Dược phẩm';
         const scanOutput = {
           medName: medicineName,
-          aiCount: Number(res.aiCount),
+          aiCount: Number(detectedCount),
           batchNo: String(res.batchNo || currentItem?.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${100 + selectedItemIndex * 12}`),
           expDate: String(res.expDate || (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : '31/12/2028')),
           integrity: res.difference === 0 ? 'Nguyên vẹn 100%' : `Chênh lệch: ${res.difference > 0 ? '+' : ''}${res.difference}`,
