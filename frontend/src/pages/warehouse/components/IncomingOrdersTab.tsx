@@ -192,7 +192,10 @@ export function IncomingOrdersTab({
     } catch (err: any) {
       console.error("Lỗi khi phân tích AI kiểm đếm:", err);
       // Khi API ngoại lệ hoặc mất kết nối: Tuyệt đối không mock hay gán số lượng của PO
-      alert(err?.response?.data?.message || 'Không thể phân tích ảnh. Vui lòng thử lại hoặc nhập số lượng thủ công.');
+      onMsg({
+        type: "error",
+        text: err?.response?.data?.message || "Không thể phân tích ảnh. Vui lòng thử lại hoặc nhập số lượng thủ công.",
+      });
     } finally {
       setAiVisionProcessing(false);
     }

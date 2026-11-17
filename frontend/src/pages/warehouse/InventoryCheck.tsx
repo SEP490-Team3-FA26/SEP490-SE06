@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   Plus,
   Search,
   CheckCircle,
+  CheckCircle2,
+  AlertCircle,
   Clock,
   AlertTriangle,
   ChevronRight,
@@ -20,9 +23,12 @@ import {
   Calendar,
   Check,
   Tag,
+  Info,
+  Building2,
 } from "lucide-react";
 import { inventoryCheckService, InventoryCheckItem, InventoryCheckMedicine } from "../../services/inventory/inventoryCheck.service";
 import { authService } from "../../services/auth/auth.service";
+import { branchService } from "../../services/admin/branch.service";
 
 export function InventoryCheck() {
   const [checks, setChecks] = useState<any[]>([]);
@@ -36,10 +42,30 @@ export function InventoryCheck() {
   const [modalSearchTerm, setModalSearchTerm] = useState("");
   const [modalSelectedCategory, setModalSelectedCategory] = useState("all");
 
+  // Phân quyền và phạm vi kho kiểm kê
+  const currentUser = authService.getCurrentUser();
+  const role = (currentUser?.role || '').toLowerCase();
+  const isBranchUser = role === 'branch' || role === 'head_branch';
+  const isAdminOrDirector = role === 'admin' || role === 'director';
+
+  // Xác định kho kiểm kê mặc định:
+  // - Tài khoản quầy chi nhánh: gán chặt theo chi nhánh quản lý (ví dụ: BR-001)
+  // - Tài khoản Kho tổng (warehouse) hoặc Quản trị chuỗi (admin/director): mặc định Kho Tổng GSP ('CENTRAL_WH')
+  const defaultWarehouseId = isBranchUser ? (currentUser?.branchId || 'BR-001') : 'CENTRAL_WH';
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(defaultWarehouseId);
+  const [branchesList, setBranchesList] = useState<any[]>([]);
+
+  // Tải danh sách chi nhánh phục vụ giám sát toàn chuỗi cho Admin/Director
+  useEffect(() => {
+    if (isAdminOrDirector) {
+      branchService.getBranches().then(res => setBranchesList(res || [])).catch(() => {});
+    }
+  }, [isAdminOrDirector]);
+
   // Trạng thái lập biên bản mới
   const [isCreating, setIsCreating] = useState(false);
   const [notes, setNotes] = useState("");
-  const performedBy = authService.getCurrentUser()?.fullName || "Người đăng nhập";
+  const performedBy = currentUser?.fullName || currentUser?.name || "Người đăng nhập";
   const [itemsList, setItemsList] = useState<InventoryCheckItem[]>([]);
 
   // Trạng thái chọn thuốc và lô trong form
@@ -61,10 +87,30 @@ export function InventoryCheck() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
-  const fetchChecks = async () => {
+  // Quản lý thông báo Toast y tế chuẩn GSP/GDP
+  const [toasts, setToasts] = useState<
+    { id: string; message: string; type: "success" | "error" | "warning" | "info" }[]
+  >([]);
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "warning" | "info" = "success"
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const fetchChecks = async (targetWarehouse = selectedWarehouseId) => {
     setLoading(true);
     try {
-      const data = await inventoryCheckService.getChecks();
+      const data = await inventoryCheckService.getChecks(targetWarehouse);
       setChecks(data || []);
     } catch (error) {
       console.error("Failed to load inventory checks:", error);
@@ -73,10 +119,10 @@ export function InventoryCheck() {
     }
   };
 
-  const fetchMedicinesList = async () => {
+  const fetchMedicinesList = async (targetWarehouse = selectedWarehouseId) => {
     setBatchError(false);
     try {
-      setMedicines(await inventoryCheckService.getBatches());
+      setMedicines(await inventoryCheckService.getBatches(targetWarehouse));
     } catch (err) {
       setMedicines([]);
       setBatchError(true);
@@ -84,9 +130,9 @@ export function InventoryCheck() {
   };
 
   useEffect(() => {
-    fetchChecks();
-    fetchMedicinesList();
-  }, []);
+    fetchChecks(selectedWarehouseId);
+    fetchMedicinesList(selectedWarehouseId);
+  }, [selectedWarehouseId]);
 
   // Danh mục phân loại thuốc cho Modal
   const categories = useMemo(() => {
@@ -130,24 +176,24 @@ export function InventoryCheck() {
 
   const handleAddItem = () => {
     if (!selectedMedicineObj || !selectedBatch || actualStockInput.trim() === "") {
-      alert("Vui lòng điền đầy đủ thông tin thuốc, số lô và số lượng kiểm thực tế!");
+      showToast("Vui lòng điền đầy đủ thông tin thuốc, số lô và số lượng kiểm thực tế!", "warning");
       return;
     }
 
     if (!validActual) {
-      alert("Số lượng kiểm thực tế phải là số nguyên không âm!");
+      showToast("Số lượng kiểm thực tế phải là số nguyên không âm!", "warning");
       return;
     }
 
     // Kiểm tra trùng lô trong cùng 1 biên bản
     if (itemsList.some(item => item.batchId === selectedBatch.id)) {
-      alert("Lô thuốc này đã có trong danh sách kiểm kê!");
+      showToast("Lô thuốc này đã có trong danh sách kiểm kê!", "warning");
       return;
     }
 
     const reason = reasonInput.trim();
     if (difference !== 0 && !reason) {
-      alert("Vui lòng ghi lý do khi số lượng thực tế lệch tồn sổ.");
+      showToast("Vui lòng ghi lý do khi số lượng thực tế lệch tồn sổ.", "warning");
       return;
     }
 
@@ -163,6 +209,7 @@ export function InventoryCheck() {
     };
 
     setItemsList(prev => [...prev, newItem]);
+    showToast(`Đã thêm ${selectedMedicineObj.name} (Lô: ${selectedBatch.batchNo}) vào danh sách`, "info");
 
     // Reset các trường nhập
     setSelectedMedId("");
@@ -177,7 +224,7 @@ export function InventoryCheck() {
 
   const handleSubmitCheck = async () => {
     if (itemsList.length === 0) {
-      alert("Vui lòng thêm ít nhất 1 mặt hàng cần kiểm kê!");
+      showToast("Vui lòng thêm ít nhất 1 mặt hàng cần kiểm kê!", "warning");
       return;
     }
 
@@ -194,15 +241,15 @@ export function InventoryCheck() {
         }))
       };
 
-      await inventoryCheckService.createCheck(payload);
-      alert("Lưu biên bản nháp thành công!");
+      await inventoryCheckService.createCheck(payload, selectedWarehouseId);
+      showToast("Lưu biên bản nháp thành công!", "success");
       setIsCreating(false);
       setItemsList([]);
       setNotes("");
-      fetchChecks();
+      fetchChecks(selectedWarehouseId);
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Lỗi khi xử lý biên bản kiểm kê!");
+      showToast(error.response?.data?.message || "Lỗi khi xử lý biên bản kiểm kê!", "error");
     } finally {
       setSaving(false);
     }
@@ -211,14 +258,14 @@ export function InventoryCheck() {
   const handleCompleteDraft = async (checkId: string) => {
     setCompletingId(checkId);
     try {
-      await inventoryCheckService.completeCheck(checkId);
-      alert("Hoàn thành biên bản và tự động cập nhật số lượng tồn kho thành công!");
+      await inventoryCheckService.completeCheck(checkId, selectedWarehouseId);
+      showToast("Hoàn thành biên bản và tự động cập nhật số lượng tồn kho thành công!", "success");
       setDetailOpen(false);
-      fetchChecks();
-      fetchMedicinesList();
+      fetchChecks(selectedWarehouseId);
+      fetchMedicinesList(selectedWarehouseId);
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Lỗi khi chốt biên bản kiểm kê!");
+      showToast(error.response?.data?.message || "Lỗi khi chốt biên bản kiểm kê!", "error");
     } finally {
       setCompletingId(null);
     }
@@ -226,7 +273,7 @@ export function InventoryCheck() {
 
   const handleOpenDetail = async (check: any) => {
     try {
-      const fullCheck = await inventoryCheckService.getCheckById(check.id || check._id);
+      const fullCheck = await inventoryCheckService.getCheckById(check.id || check._id, check.branchId || selectedWarehouseId);
       let parsed = fullCheck;
       if (typeof fullCheck === 'string') {
         try {
@@ -249,29 +296,86 @@ export function InventoryCheck() {
     }
   };
 
+  // Xác định thông tin hiển thị kho kiểm kê
+  const isCheckingCentral = selectedWarehouseId === 'CENTRAL_WH';
+  const activeBranchObj = branchesList.find(b => (b.branchId || b._id || b.id) === selectedWarehouseId);
+  const currentWarehouseName = isCheckingCentral 
+    ? "Kho Tổng GSP (Trung Tâm)" 
+    : (activeBranchObj?.name || activeBranchObj?.branchName || (isBranchUser ? `Chi nhánh ${currentUser?.branchId || selectedWarehouseId}` : `Chi nhánh ${selectedWarehouseId}`));
+  const standardText = isCheckingCentral ? "GSP / GDP" : "GPP";
+
   return (
     <div className="flex flex-col gap-4 h-full bg-[#faf8ff] px-6 pt-4 pb-3 lg:px-8 overflow-hidden">
-      <div className="flex flex-row justify-between items-center shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Biên Bản Kiểm Kê Kho Chi Nhánh</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Quản lý đối chiếu kho thực tế và tự động điều chỉnh số lượng tồn chuẩn GPP</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Biên Bản Kiểm Kê {isCheckingCentral ? "Kho Tổng GSP" : "Kho Chi Nhánh"}
+            </h1>
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+              isCheckingCentral
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+              <Building2 size={12} />
+              {currentWarehouseName}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quản lý đối chiếu kho thực tế và tự động điều chỉnh số lượng tồn chuẩn {standardText}
+          </p>
         </div>
-        {!isCreating && (
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="px-4 py-2 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 text-sm cursor-pointer"
-          >
-            <Plus size={16} />
-            Lập Biên Bản Mới
-          </button>
-        )}
+
+        <div className="flex items-center gap-3">
+          {/* Bộ chọn kho cho Quản trị viên / Ban giám đốc */}
+          {isAdminOrDirector && (
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+              <Building2 size={15} className="text-[#0057cd]" />
+              <label className="text-xs font-bold text-slate-600 whitespace-nowrap">Kho kiểm:</label>
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => {
+                  setSelectedWarehouseId(e.target.value);
+                  setSelectedMedicine("");
+                  setSelectedBatchId("");
+                  setItemsList([]);
+                }}
+                disabled={isCreating}
+                className="text-xs font-semibold text-slate-800 bg-transparent outline-none cursor-pointer"
+              >
+                <option value="CENTRAL_WH">🏢 Kho Tổng GSP (Trung Tâm)</option>
+                {branchesList.map((b: any) => {
+                  const bId = b.branchId || b._id || b.id;
+                  const bName = b.name || b.branchName || `Chi nhánh ${bId}`;
+                  return (
+                    <option key={bId} value={bId}>
+                      🏪 {bName} ({bId})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {!isCreating && (
+            <button 
+              onClick={() => setIsCreating(true)}
+              className="px-4 py-2 bg-[#0057cd] text-white font-bold rounded-xl hover:bg-[#00419e] transition-colors shadow-sm flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap"
+            >
+              <Plus size={16} />
+              Lập Biên Bản Mới
+            </button>
+          )}
+        </div>
       </div>
 
       {isCreating ? (
         /* Create Checking View */
         <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden flex flex-col animate-in fade-in duration-300">
           <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-            <h3 className="font-extrabold text-slate-800 text-sm">Lập Biên Bản Kiểm Kê & Điều Chỉnh Kho Chi Nhánh</h3>
+            <h3 className="font-extrabold text-slate-800 text-sm">
+              Lập Biên Bản Kiểm Kê & Điều Chỉnh {isCheckingCentral ? "Kho Tổng GSP" : currentWarehouseName}
+            </h3>
             <button 
               onClick={() => setIsCreating(false)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -403,7 +507,9 @@ export function InventoryCheck() {
                 <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Chọn lô */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Số lô hàng chi nhánh</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      Số lô hàng {isCheckingCentral ? "Kho Tổng GSP" : "Chi Nhánh"}
+                    </label>
                     <select
                       value={selectedBatchId}
                       onChange={(e) => {
@@ -567,7 +673,9 @@ export function InventoryCheck() {
         /* Danh sách lịch sử biên bản kiểm kê */
         <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/30">
           <div className="px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white flex justify-between items-center shrink-0">
-            <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm">Lịch sử biên bản kiểm kê điều chỉnh kho chi nhánh</h3>
+            <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm">
+              Lịch sử biên bản kiểm kê điều chỉnh {isCheckingCentral ? "Kho Tổng GSP (Trung Tâm)" : currentWarehouseName}
+            </h3>
           </div>
 
           <div className="overflow-x-auto overflow-y-auto relative flex-1 min-h-0 custom-scrollbar">
@@ -662,7 +770,7 @@ export function InventoryCheck() {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">
-                    Danh Mục Dược Phẩm Kho Chi Nhánh
+                    Danh Mục Dược Phẩm {isCheckingCentral ? "Kho Tổng GSP (Trung Tâm)" : currentWarehouseName}
                   </h3>
                   <p className="text-xs text-slate-500">
                     Tìm kiếm theo tên thuốc, danh mục hoặc số lô để chọn đối chiếu tồn kho
@@ -784,7 +892,7 @@ export function InventoryCheck() {
                           {/* Danh sách lô hàng chi nhánh */}
                           <div className="mt-2 space-y-1.5">
                             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
-                              <span>Các lô tại chi nhánh ({med.batches.length}):</span>
+                              <span>Các lô tại {isCheckingCentral ? "Kho Tổng GSP" : "chi nhánh"} ({med.batches.length}):</span>
                               <span className="text-[#0057cd]">Tổng tồn: {totalBranchStock}</span>
                             </div>
 
@@ -844,7 +952,7 @@ export function InventoryCheck() {
 
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs text-slate-500 shrink-0 px-6">
-              <span>Đang hiển thị <strong>{filteredModalMedicines.length}</strong> dược phẩm trong kho chi nhánh</span>
+              <span>Đang hiển thị <strong>{filteredModalMedicines.length}</strong> dược phẩm trong {isCheckingCentral ? "Kho Tổng GSP" : "kho chi nhánh"}</span>
               <button
                 onClick={() => setIsMedicineModalOpen(false)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer"
@@ -875,7 +983,7 @@ export function InventoryCheck() {
                 <div>Người kiểm: <strong>{selectedCheck.performedBy}</strong></div>
                 <div>Ngày tạo: <strong>{new Date(selectedCheck.createdAt).toLocaleString("vi-VN")}</strong></div>
                 <div>Trạng thái: <strong className={selectedCheck.status === 'COMPLETED' ? 'text-sky-600' : 'text-amber-600'}>{selectedCheck.status === 'COMPLETED' ? 'ĐÃ HOÀN TẤT & ĐIỀU CHỈNH' : 'BẢN NHÁP (DRAFT)'}</strong></div>
-                <div>Chi nhánh: <strong>{selectedCheck.branchId}</strong></div>
+                <div>Kho kiểm kê: <strong>{selectedCheck.branchId === 'CENTRAL_WH' ? 'Kho Tổng GSP (Trung Tâm)' : (selectedCheck.branchName || selectedCheck.branchId)}</strong></div>
                 {selectedCheck.notes && <div className="col-span-2 text-slate-500">Ghi chú: {selectedCheck.notes}</div>}
               </div>
 
@@ -935,6 +1043,44 @@ export function InventoryCheck() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TOAST NOTIFICATION CONTAINER CHUẨN Y TẾ GSP */}
+      {typeof document !== "undefined" && createPortal(
+        <div className="fixed top-6 right-6 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+                t.type === "error"
+                  ? "bg-rose-950/95 text-rose-100 border-rose-800"
+                  : t.type === "warning"
+                  ? "bg-amber-950/95 text-amber-100 border-amber-800"
+                  : t.type === "info"
+                  ? "bg-blue-950/95 text-blue-100 border-blue-800"
+                  : "bg-emerald-950/95 text-emerald-100 border-emerald-800"
+              }`}
+            >
+              <div className="shrink-0 mt-0.5">
+                {t.type === "error" && <AlertCircle size={18} className="text-rose-400" />}
+                {t.type === "warning" && <AlertTriangle size={18} className="text-amber-400" />}
+                {t.type === "info" && <Info size={18} className="text-blue-400" />}
+                {t.type === "success" && <CheckCircle2 size={18} className="text-emerald-400" />}
+              </div>
+              <div className="flex-1 text-xs font-semibold leading-relaxed">
+                {t.message}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeToast(t.id)}
+                className="shrink-0 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>,
+        document.body
       )}
     </div>
   );

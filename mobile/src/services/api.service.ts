@@ -2283,6 +2283,7 @@ export class ApiService {
     let bodyPayload: any = null;
     const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
     const isDataUri = typeof imageInput === 'string' && imageInput.startsWith('data:');
+    const isBase64Only = typeof imageInput === 'string' && !isRemoteUrl && !isDataUri && imageInput.length > 500;
 
     if (isRemoteUrl) {
       bodyPayload = {
@@ -2292,8 +2293,8 @@ export class ApiService {
           classes: ['medicine', 'medicine box', 'Medicine', 'box', 'package', 'pharmaceutical box', 'carton', 'drugs', 'item'],
         },
       };
-    } else if (isDataUri) {
-      const cleanBase64 = imageInput.split(',')[1] || imageInput;
+    } else if (isDataUri || isBase64Only) {
+      const cleanBase64 = imageInput.replace(/^data:image\/\w+;base64,/, '');
       bodyPayload = {
         api_key: roboflowApiKey,
         inputs: {
@@ -2374,48 +2375,72 @@ export class ApiService {
       const cleanReceiptId = String(receiptId || 'default').trim();
       const cleanItemId = String(receiptItemId || 'item_0').trim();
 
-      let formData: FormData | null = null;
-      let base64Image: string | null = null;
-      const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
-      const isDataUri = typeof imageInput === 'string' && imageInput.startsWith('data:');
+      // Chuẩn hóa và làm sạch dữ liệu đầu vào (phòng chống sự kiện click truyền nhầm object event)
+      if (!imageInput || (typeof imageInput === 'object' && !(imageInput as any).append && (imageInput as any).nativeEvent)) {
+        throw new Error('Dữ liệu hình ảnh kiểm định không hợp lệ.');
+      }
+
+      let requestBody: any = null;
+      let isJsonRequest = false;
+      let fallbackImageForRoboflow: string = '';
 
       if (typeof imageInput === 'string') {
-        formData = new FormData();
-        if (isRemoteUrl) {
-          // Ảnh từ remote URL (ảnh mẫu hiển thị sẵn trên màn hình)
-          formData.append('imageUrl', imageInput);
-        } else if (isDataUri) {
-          base64Image = imageInput;
-          formData.append('imageBase64', imageInput);
+        const cleanInput = imageInput.trim();
+        fallbackImageForRoboflow = cleanInput;
+
+        if (cleanInput.startsWith('http://') || cleanInput.startsWith('https://')) {
+          // 1. Ảnh từ remote URL (ảnh mẫu hiển thị trên màn hình)
+          requestBody = JSON.stringify({ imageUrl: cleanInput });
+          isJsonRequest = true;
+        } else if (cleanInput.startsWith('data:') || cleanInput.length > 500) {
+          // 2. Ảnh dạng Base64 / Data URI: gửi dạng JSON trực tiếp để loại bỏ hoàn toàn lỗi Unsupported FormDataPart trên Expo WinterCG
+          requestBody = JSON.stringify({ imageBase64: cleanInput });
+          isJsonRequest = true;
         } else {
-          // Ảnh chụp trực tiếp từ camera hoặc thư viện máy (file:// hoặc content://)
-          const filename = imageInput.split('/').pop() || 'package.jpg';
-          const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-          const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-          // Đọc file thành Web Blob chuẩn W3C để tương thích 100% Expo WinterCG fetch (tránh lỗi Unsupported FormDataPart)
-          let blobAppended = false;
+          // 3. Ảnh chụp từ file URI: thử chuyển sang Base64 qua XMLHttpRequest hoặc đóng gói Blob an toàn
+          let convertedB64 = '';
           try {
-            const blobRes = await fetch(imageInput);
-            if (blobRes && blobRes.ok) {
-              const blob = await blobRes.blob();
-              formData.append('file', blob, filename);
-              blobAppended = true;
-            }
-          } catch (blobErr) {
-            console.warn('Không thể tạo Web Blob từ file URI:', blobErr);
-          }
+            convertedB64 = await new Promise<string>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.onload = () => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(xhr.response);
+              };
+              xhr.onerror = reject;
+              xhr.responseType = 'blob';
+              xhr.open('GET', cleanInput, true);
+              xhr.send(null);
+            });
+          } catch (_) {}
 
-          if (!blobAppended) {
-            formData.append('file', {
-              uri: imageInput,
-              name: filename,
-              type,
-            } as any);
+          if (convertedB64) {
+            fallbackImageForRoboflow = convertedB64;
+            requestBody = JSON.stringify({ imageBase64: convertedB64 });
+            isJsonRequest = true;
+          } else {
+            // Fallback FormData với Web Blob
+            const fd = new FormData();
+            const filename = cleanInput.split('/').pop() || 'package.jpg';
+            const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+            const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+            try {
+              const blobRes = await fetch(cleanInput);
+              if (blobRes && blobRes.ok) {
+                const blob = await blobRes.blob();
+                fd.append('file', blob, filename);
+              } else {
+                fd.append('file', { uri: cleanInput, name: filename, type } as any);
+              }
+            } catch (_) {
+              fd.append('file', { uri: cleanInput, name: filename, type } as any);
+            }
+            requestBody = fd;
           }
         }
-      } else {
-        formData = imageInput;
+      } else if (imageInput && typeof (imageInput as any).append === 'function') {
+        requestBody = imageInput;
       }
 
       let token = this.currentToken;
@@ -2428,8 +2453,11 @@ export class ApiService {
         'x-internal-token': EnvService.get('INTERNAL_TOKEN'),
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (isJsonRequest) {
+        headers['Content-Type'] = 'application/json';
+      }
 
-      if (!formData) {
+      if (!requestBody) {
         throw new Error('Dữ liệu hình ảnh kiểm đếm không hợp lệ.');
       }
 
@@ -2443,7 +2471,7 @@ export class ApiService {
           {
             method: 'POST',
             headers,
-            body: formData,
+            body: requestBody,
             signal: controller.signal,
           }
         );
@@ -2460,7 +2488,7 @@ export class ApiService {
       }
 
       // 2. Cơ chế Self-Healing trên Mobile: Khi API Gateway hoặc AI Service không phản hồi, tự động nhận diện qua Roboflow Vision Cloud
-      const rfFallback = await ApiService.inspectWithRoboflowDirect(imageInput);
+      const rfFallback = await ApiService.inspectWithRoboflowDirect(fallbackImageForRoboflow || imageInput);
       if (rfFallback && rfFallback.detectedCount > 0) {
         return {
           success: true,

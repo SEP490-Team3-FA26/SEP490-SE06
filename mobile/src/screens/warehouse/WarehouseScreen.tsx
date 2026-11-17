@@ -680,7 +680,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
       if (!res.canceled && res.assets?.[0]?.uri) {
         const asset = res.assets[0];
         const photoData = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        setSelectedInspectionImage(asset.uri);
+        setSelectedInspectionImage(photoData);
         // Tự động kích hoạt kiểm định AI Vision ngay sau khi chụp ảnh
         handleRunAiInspection(photoData);
       }
@@ -700,7 +700,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
       if (!res.canceled && res.assets?.[0]?.uri) {
         const asset = res.assets[0];
         const galleryData = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        setSelectedInspectionImage(asset.uri);
+        setSelectedInspectionImage(galleryData);
         // Tự động kích hoạt kiểm định AI Vision ngay sau khi chọn ảnh
         handleRunAiInspection(galleryData);
       }
@@ -730,7 +730,9 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
   const handleRunAiInspection = async (overrideImageUri?: string) => {
     if (!selectedReceiptForInspection) return;
-    const targetImage = overrideImageUri || selectedInspectionImage;
+    const targetImage = (typeof overrideImageUri === 'string' && overrideImageUri.trim())
+      ? overrideImageUri.trim()
+      : selectedInspectionImage;
     if (!targetImage) {
       showToast.error('Thiếu hình ảnh', 'Vui lòng chụp ảnh hoặc chọn ảnh kiện hàng để kiểm định.');
       return;
@@ -1157,30 +1159,33 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
                   {/* Racks list */}
                   <View style={styles.racksContainer}>
-                    {zone.racks?.map((rack, rIdx) => (
-                      <View key={`rack_${zoneKey}_${rack.rackId || rIdx}`} style={styles.rackCard}>
-                        <View style={styles.rackHeader}>
-                          <Ionicons name="server-outline" size={14} color="#64748B" />
-                          <Text style={styles.rackTitle}>Kệ {rack.rackId}</Text>
-                        </View>
+                    {zone.racks?.map((rack, rIdx) => {
+                      const rackId = rack.rackId || (rack as any).id || (rack as any).code || `${zoneKey}${rIdx + 1}`;
+                      return (
+                        <View key={`rack_${zoneKey}_${rackId}_${rIdx}`} style={styles.rackCard}>
+                          <View style={styles.rackHeader}>
+                            <Ionicons name="server-outline" size={14} color="#64748B" />
+                            <Text style={styles.rackTitle}>Kệ {rackId}</Text>
+                          </View>
 
-                        {/* Shelves rows inside rack */}
-                        <View style={styles.shelvesGrid}>
-                          {rack.shelves?.map((shelf, sIdx) => {
-                            const targetId = `${zone.zoneId || zoneKey}-${rack.rackId}-${shelf.shelf}`;
-                            const isHighlighted = highlightedTarget === targetId;
-                            const isWarning = shelf.status === 'NEAR_EXPIRY';
+                          {/* Shelves rows inside rack */}
+                          <View style={styles.shelvesGrid}>
+                            {rack.shelves?.map((shelf, sIdx) => {
+                              const shelfNum = shelf.shelf || (shelf as any).shelfNum || sIdx + 1;
+                              const targetId = `${zone.zoneId || zoneKey}-${rackId}-${shelfNum}`;
+                              const isHighlighted = highlightedTarget === targetId;
+                              const isWarning = shelf.status === 'NEAR_EXPIRY';
 
-                            return (
-                              <TouchableOpacity
-                                key={`shelf_${zoneKey}_${rack.rackId}_${shelf.shelf || sIdx}`}
-                                onPress={() =>
-                                  setSelectedShelfForDetail({
-                                    zone: zone.zoneId,
-                                    rack: rack.rackId,
-                                    shelf: shelf.shelf,
-                                  })
-                                }
+                              return (
+                                <TouchableOpacity
+                                  key={`shelf_${zoneKey}_${rackId}_${shelfNum}_${sIdx}`}
+                                  onPress={() =>
+                                    setSelectedShelfForDetail({
+                                      zone: zone.zoneId || zoneKey,
+                                      rack: rackId,
+                                      shelf: shelfNum,
+                                    })
+                                  }
                                 style={[
                                   styles.shelfBtn,
                                   isHighlighted && styles.shelfHighlighted,
@@ -1205,7 +1210,8 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                           })}
                         </View>
                       </View>
-                    ))}
+                    );
+                  })}
                   </View>
                 </View>
               );
@@ -2709,7 +2715,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
             <GradientButton
               title={isAiScanning ? 'ĐANG QUÉT AI...' : '⚡ BẮT ĐẦU QUÉT AI VISION (ĐẾM & ĐỐI CHIẾU)'}
-              onPress={handleRunAiInspection}
+              onPress={() => handleRunAiInspection()}
               gradientVariant="cyan"
               size="md"
               disabled={isAiScanning}

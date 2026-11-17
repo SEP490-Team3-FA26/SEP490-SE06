@@ -335,7 +335,8 @@ export function GspTelemetryDashboard() {
   // Xuất file CSV báo cáo kiểm định GSP
   const handleExportCsv = () => {
     if (!historyRecords || historyRecords.length === 0) {
-      alert("Không có dữ liệu để xuất file CSV!");
+      setToastMessage({ text: "Không có dữ liệu để xuất file CSV!", type: "error" });
+      setTimeout(() => setToastMessage(null), 4000);
       return;
     }
 

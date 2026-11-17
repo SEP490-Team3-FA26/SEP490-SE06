@@ -96,14 +96,22 @@ export function HQApproval() {
 
       setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
 
-      setUrgentPrs(prData || []);
+      let prList = prData;
+      if (prList && prList.data && Array.isArray(prList.data)) prList = prList.data;
+      if (prList && prList.items && Array.isArray(prList.items)) prList = prList.items;
+      if (prList && prList.value && Array.isArray(prList.value)) prList = prList.value;
+      if (!Array.isArray(prList)) prList = [];
+      setUrgentPrs(prList);
+
       // Nếu không có đơn hỏa tốc nào và đang ở tab URGENT, tự chuyển về PENDING_APPROVAL
-      if ((!prData || prData.length === 0) && tab === "URGENT") {
+      if (prList.length === 0 && tab === "URGENT") {
         setTab("PENDING_APPROVAL");
       }
 
       let poData = poDataRaw;
-      if (poData && poData.value) poData = poData.value;
+      if (poData && poData.data && Array.isArray(poData.data)) poData = poData.data;
+      if (poData && poData.items && Array.isArray(poData.items)) poData = poData.items;
+      if (poData && poData.value && Array.isArray(poData.value)) poData = poData.value;
       if (!Array.isArray(poData)) poData = [];
       setPoList(poData);
     } catch (err: any) {
@@ -181,8 +189,8 @@ export function HQApproval() {
     finally { setActionLoading(false); }
   };
 
-  const toggleSelectPo = (id: string) => setSelectedPos(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  const toggleSelectPr = (id: string) => setSelectedPrs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSelectPo = (id: string) => setSelectedPos(prev => (Array.isArray(prev) ? prev : []).includes(id) ? prev.filter(x => x !== id) : [...(Array.isArray(prev) ? prev : []), id]);
+  const toggleSelectPr = (id: string) => setSelectedPrs(prev => (Array.isArray(prev) ? prev : []).includes(id) ? prev.filter(x => x !== id) : [...(Array.isArray(prev) ? prev : []), id]);
 
   const statusBadge = (s: string) => {
     const styles: Record<string, string> = {
@@ -196,21 +204,33 @@ export function HQApproval() {
     return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${styles[s] || "bg-slate-50 text-slate-500 border-slate-200"}`}>{labels[s] || s}</span>;
   };
 
+  const safeSuppliers = Array.isArray(suppliers) ? suppliers : [];
+  const safePoList = Array.isArray(poList) ? poList : [];
+  const safeUrgentPrs = Array.isArray(urgentPrs) ? urgentPrs : [];
+
   const getSupplierName = (id: string) => {
-    const s = suppliers.find(sup => sup._id === id);
-    return s ? s.name : id?.slice(-6) || "N/A";
+    const s = safeSuppliers.find(sup => sup && (sup._id === id || sup.id === id));
+    return s?.name || id?.slice(-6) || "N/A";
   };
 
-  const filteredPos = poList.filter(po =>
-    (po._id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    getSupplierName(po.supplierId).toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (po.linkedPrCodes && po.linkedPrCodes.some((code: string) => code.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  const filteredPos = safePoList.filter(po => {
+    if (!po) return false;
+    const q = (searchQuery || "").toLowerCase();
+    const idMatch = (po._id || po.id || po.poNumber || "").toLowerCase().includes(q);
+    const supMatch = (getSupplierName(po.supplierId) || "").toLowerCase().includes(q);
+    const prMatch = Array.isArray(po.linkedPrCodes)
+      ? po.linkedPrCodes.some((code: any) => typeof code === "string" && code.toLowerCase().includes(q))
+      : (typeof po.linkedPrCodes === "string" ? po.linkedPrCodes.toLowerCase().includes(q) : false);
+    return idMatch || supMatch || prMatch;
+  });
 
-  const filteredPrs = urgentPrs.filter(pr =>
-    (pr.prCode || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (pr.branchName || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPrs = safeUrgentPrs.filter(pr => {
+    if (!pr) return false;
+    const q = (searchQuery || "").toLowerCase();
+    const prCodeMatch = (pr.prCode || pr._id || "").toLowerCase().includes(q);
+    const branchMatch = (pr.branchName || "").toLowerCase().includes(q);
+    return prCodeMatch || branchMatch;
+  });
 
   return (
     <div className="flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
@@ -249,7 +269,7 @@ export function HQApproval() {
       {/* Tabs */}
       <div className="flex border-b border-slate-200 mb-5 gap-1">
         {([
-          ...(urgentPrs.length > 0 ? [{ key: "URGENT" as const, label: `🔥 Yêu cầu Hỏa tốc (${urgentPrs.length})` }] : []),
+          ...(safeUrgentPrs.length > 0 ? [{ key: "URGENT" as const, label: `🔥 Yêu cầu Hỏa tốc (${safeUrgentPrs.length})` }] : []),
           { key: "PENDING_APPROVAL" as const, label: "Chờ thanh toán PO" },
           { key: "SHIPPING" as const, label: "PO Đang giao" },
           { key: "CANCELLED" as const, label: "Đã hủy" },
