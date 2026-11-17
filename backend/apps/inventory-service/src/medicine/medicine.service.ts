@@ -1192,7 +1192,8 @@ export class MedicineService implements OnModuleInit {
 
       const batchFilter: any = {
         stock: { $gt: 0 },
-        expDate: { $lte: ninetyDaysFromNow }
+        expDate: { $lte: ninetyDaysFromNow },
+        status: { $ne: 'DISPOSED' }
       };
       if (branchId && branchId !== 'all') {
         if (branchId === 'CENTRAL_WH') {
@@ -1202,10 +1203,18 @@ export class MedicineService implements OnModuleInit {
         }
       }
 
-      // Tối ưu hóa: chỉ select các field cần thiết, sử dụng lean() và lọc trực tiếp theo ngày hết hạn (trong vòng 90 ngày)
-      const batches = await this.batchModel.find(batchFilter).select('medicineId batchNo expDate stock status branchId location').lean().exec();
+      // Hỗ trợ cả kho chi nhánh (branch_inventories) và kho tổng (batches)
+      const isBranchWarehouse = Boolean(branchId && branchId !== 'CENTRAL_WH' && branchId !== 'all');
+      const batches = isBranchWarehouse
+        ? await this.branchInvModel.find(batchFilter).select('medicineId batchNo expDate stock status branchId').lean().exec()
+        : await this.batchModel.find(batchFilter).select('medicineId batchNo expDate stock status branchId location').lean().exec();
+
       const medIds = [...new Set(batches.map(b => b.medicineId))];
-      const medicines = await this.medicineModel.find({ _id: { $in: medIds } }).select('name category unit price').lean().exec();
+      // Truy vấn đầy đủ thông tin hình ảnh, hoạt chất, số đăng ký và quy cách dược phẩm
+      const medicines = await this.medicineModel.find({ _id: { $in: medIds } })
+        .select('name category unit price image images active_ingredient registration_number barcode brand country')
+        .lean()
+        .exec();
       const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
 
       const report = batches
@@ -1220,6 +1229,9 @@ export class MedicineService implements OnModuleInit {
             status = 'SOON_TO_EXPIRE';
           }
 
+          const medImage = med?.image || (Array.isArray(med?.images) && med.images[0]) || '';
+          const medImages = Array.isArray(med?.images) && med.images.length > 0 ? med.images : (medImage ? [medImage] : []);
+
           return {
             id: b._id.toString(),
             medicineId: b.medicineId,
@@ -1232,8 +1244,15 @@ export class MedicineService implements OnModuleInit {
             status: status,
             batchStatus: b.status,
             price: med ? med.price : 0,
-            branchId: b.branchId || 'CENTRAL_WH',
-            location: b.location || null,
+            image: medImage,
+            images: medImages,
+            active_ingredient: med?.active_ingredient || '',
+            registrationNumber: med?.registration_number || '',
+            barcode: med?.barcode || '',
+            brand: med?.brand || '',
+            country: med?.country || '',
+            branchId: b.branchId || (isBranchWarehouse ? branchId : 'CENTRAL_WH'),
+            location: (b as any).location || null,
           };
         })
         .filter(item => item.status === 'EXPIRED' || item.status === 'SOON_TO_EXPIRE')
@@ -1258,21 +1277,46 @@ export class MedicineService implements OnModuleInit {
   }) {
     try {
       const { batchId, action, quantity, notes, discountPrice, performedBy, medicineId, batchNo } = data;
-      this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo}`);
+      this.logger.log(`Handling expiration action: ${action} for batch ${batchId || batchNo} (branch: ${data.branchId || 'CENTRAL_WH'})`);
 
       if (batchId ? !Types.ObjectId.isValid(batchId) : !medicineId || !batchNo) {
         throw new RpcException({ message: 'Cần chọn ID lô hoặc mã thuốc và số lô', statusCode: 400 });
       }
-      const batchFilter = {
-        ...this.inventoryCheckBranchFilter(data.branchId),
-        ...(batchId ? { _id: batchId } : { medicineId, batchNo }),
-      };
-      const batches = await this.batchModel.find(batchFilter).limit(2).exec();
-      if (batches.length > 1) {
-        throw new RpcException({ message: 'Số lô bị trùng trong kho. Vui lòng chọn theo ID lô.', statusCode: 409 });
+
+      // Xác định ngữ cảnh kho chi nhánh hay kho tổng
+      const isCentral = !data.branchId || data.branchId === 'CENTRAL_WH';
+      let batch: any = null;
+      let isBranchBatch = false;
+
+      if (!isCentral) {
+        // Tìm kiếm lô trong kho chi nhánh tương ứng
+        const branchFilter = {
+          branchId: data.branchId,
+          ...(batchId ? { _id: batchId } : { medicineId, batchNo }),
+        };
+        const branchBatches = await this.branchInvModel.find(branchFilter).limit(2).exec();
+        if (branchBatches.length > 1) {
+          throw new RpcException({ message: 'Số lô bị trùng trong kho chi nhánh. Vui lòng chọn theo ID lô.', statusCode: 409 });
+        }
+        if (branchBatches.length === 1) {
+          batch = branchBatches[0];
+          isBranchBatch = true;
+        }
       }
 
-      const batch = batches[0];
+      // Nếu không tìm thấy ở kho chi nhánh hoặc thao tác tại Kho Tổng, tìm trong batchModel
+      if (!batch) {
+        const batchFilter = {
+          ...this.inventoryCheckBranchFilter(data.branchId),
+          ...(batchId ? { _id: batchId } : { medicineId, batchNo }),
+        };
+        const batches = await this.batchModel.find(batchFilter).limit(2).exec();
+        if (batches.length > 1) {
+          throw new RpcException({ message: 'Số lô bị trùng trong kho. Vui lòng chọn theo ID lô.', statusCode: 409 });
+        }
+        batch = batches[0];
+      }
+
       if (!batch) {
         throw new RpcException('Không tìm thấy lô thuốc này trong kho');
       }
@@ -1281,6 +1325,8 @@ export class MedicineService implements OnModuleInit {
       if (!medicine) {
         throw new RpcException('Không tìm thấy dược phẩm tương ứng');
       }
+
+      const effectiveBranchId = batch.branchId || data.branchId || 'CENTRAL_WH';
 
       if (action === 'DISPOSE') {
         const actualDeduct = Math.min(batch.stock, quantity);
@@ -1301,7 +1347,7 @@ export class MedicineService implements OnModuleInit {
           medicineName: medicine.name,
           batchNo: batch.batchNo,
           batchId: batch._id ? batch._id.toString() : batchId,
-          branchId: batch.branchId || 'CENTRAL_WH',
+          branchId: effectiveBranchId,
           quantityChange: -actualDeduct,
           stockBefore,
           stockAfter: batch.stock,
@@ -1311,7 +1357,9 @@ export class MedicineService implements OnModuleInit {
         });
         await txn.save();
 
-        await this.syncMedicineStock(batch.medicineId);
+        if (!isBranchBatch) {
+          await this.syncMedicineStock(batch.medicineId);
+        }
 
         // Tự động liên thông CSDL Dược Quốc gia (BPMN 3 - Xuất hủy thuốc hết hạn theo Thông tư 11/2025)
         try {
@@ -1320,7 +1368,7 @@ export class MedicineService implements OnModuleInit {
             batchNo: batch.batchNo,
             quantity: actualDeduct,
             expDate: batch.expDate,
-            branchId: (batch as any).branchId || 'BR-001',
+            branchId: effectiveBranchId,
             notes: notes || 'Xuất hủy thuốc hết hạn/cận hạn',
           });
         } catch (gppErr: any) {
@@ -1352,7 +1400,7 @@ export class MedicineService implements OnModuleInit {
           medicineName: medicine.name,
           batchNo: batch.batchNo,
           batchId: batch._id ? batch._id.toString() : batchId,
-          branchId: batch.branchId || 'CENTRAL_WH',
+          branchId: effectiveBranchId,
           quantityChange: -actualDeduct,
           stockBefore,
           stockAfter: batch.stock,
@@ -1362,7 +1410,9 @@ export class MedicineService implements OnModuleInit {
         });
         await txn.save();
 
-        await this.syncMedicineStock(batch.medicineId);
+        if (!isBranchBatch) {
+          await this.syncMedicineStock(batch.medicineId);
+        }
 
         // Tự động liên thông CSDL Dược Quốc gia (BPMN 3 - Xuất trả nhà cung cấp)
         try {
@@ -1371,7 +1421,7 @@ export class MedicineService implements OnModuleInit {
             batchNo: batch.batchNo,
             quantity: actualDeduct,
             expDate: batch.expDate,
-            branchId: (batch as any).branchId || 'BR-001',
+            branchId: effectiveBranchId,
             notes: notes || 'Gửi trả nhà cung cấp do cận hạn/hết hạn',
           });
         } catch (gppErr: any) {
@@ -1401,11 +1451,35 @@ export class MedicineService implements OnModuleInit {
         }
 
         const oldPrice = batch.expiryDiscountPrice ?? medicine.price;
-        const updated = await this.batchModel.findOneAndUpdate(
-          { _id: batch._id, status: 'ACTIVE', expDate: { $gt: now, $lte: limit }, stock: { $gt: 0 } },
-          { $set: { expiryDiscountPrice: discountPrice } },
-          { new: true },
-        ).exec();
+        let updated: any = null;
+
+        if (isBranchBatch) {
+          // Cập nhật giá khuyến mãi trực tiếp trên kho chi nhánh
+          updated = await this.branchInvModel.findOneAndUpdate(
+            { _id: batch._id, status: 'ACTIVE', expDate: { $gt: now, $lte: limit }, stock: { $gt: 0 } },
+            { $set: { expiryDiscountPrice: discountPrice } },
+            { new: true },
+          ).exec();
+        } else {
+          // Cập nhật giá khuyến mãi trên Kho Tổng
+          updated = await this.batchModel.findOneAndUpdate(
+            { _id: batch._id, status: 'ACTIVE', expDate: { $gt: now, $lte: limit }, stock: { $gt: 0 } },
+            { $set: { expiryDiscountPrice: discountPrice } },
+            { new: true },
+          ).exec();
+
+          // Khi Kho Tổng áp dụng khuyến mãi cho lô cận hạn, tự động đồng bộ giá khuyến mãi này cho các kho chi nhánh có cùng lô cận hạn
+          try {
+            await this.branchInvModel.updateMany(
+              { medicineId: batch.medicineId, batchNo: batch.batchNo, status: 'ACTIVE', expDate: { $gt: now, $lte: limit } },
+              { $set: { expiryDiscountPrice: discountPrice } }
+            ).exec();
+            this.logger.log(`[Expiration Action] Đã đồng bộ giá khuyến mãi ${discountPrice}đ cho lô ${batch.batchNo} (${medicine.name}) sang toàn bộ chi nhánh`);
+          } catch (syncErr: any) {
+            this.logger.warn(`[Sync Branch Discount Warning] ${syncErr.message}`);
+          }
+        }
+
         if (!updated) {
           throw new RpcException({ message: 'Lô đã thay đổi trạng thái hoặc tồn kho', statusCode: 409 });
         }
@@ -1416,7 +1490,7 @@ export class MedicineService implements OnModuleInit {
           medicineName: medicine.name,
           batchNo: batch.batchNo,
           batchId: batch._id ? batch._id.toString() : batchId,
-          branchId: batch.branchId || 'CENTRAL_WH',
+          branchId: effectiveBranchId,
           quantityChange: 0,
           stockBefore: batch.stock,
           stockAfter: batch.stock,

@@ -192,7 +192,7 @@ export class MedicineController implements OnModuleInit {
   // Hỗ trợ cả 2 alias endpoint để đảm bảo tương thích ngược 100%
   @Post(["expiration-action", "handle-expiration"])
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("admin", "director", "warehouse")
+  @Roles("admin", "director", "warehouse", "warehouse_manager", "head_branch", "branch")
   @AuditLogAction({
     actionCode: 'INVENTORY_EXPIRATION_ACTION',
     actionName: 'Xử lý lô cận hạn hoặc hết hạn',
@@ -206,21 +206,29 @@ export class MedicineController implements OnModuleInit {
       "Xử lý đề xuất xử lý thuốc sắp hết hạn (Xuất hủy, Trả NCC, Giảm giá)",
   })
   async handleExpirationAction(
-    @Req() req: { user: { fullName?: string; email: string } },
+    @Req() req: { user: { fullName?: string; email: string; branchId?: string } },
     @Body()
     body: {
-      batchId: string;
+      batchId?: string;
+      medicineId?: string;
+      batchNo?: string;
       action: "DISPOSE" | "RETURN_SUPPLIER" | "DISCOUNT";
       quantity: number;
       notes?: string;
       discountPrice?: number;
       performedBy?: string;
+      branchId?: string;
     },
   ) {
+    const effectiveBranchId = body.branchId || req.user?.branchId || 'CENTRAL_WH';
     const res = await sendKafkaMessage(
       this.inventoryClient,
       "inventory.medicine.handle_expiration_action",
-      { ...body, branchId: 'CENTRAL_WH', performedBy: req.user.fullName || req.user.email },
+      {
+        ...body,
+        branchId: effectiveBranchId,
+        performedBy: body.performedBy || req.user?.fullName || req.user?.email,
+      },
     );
 
     // Xóa cache khi có thao tác xuất hủy/giảm giá/trả NCC
