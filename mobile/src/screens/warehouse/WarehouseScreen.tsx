@@ -207,14 +207,15 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
+      await ApiService.initToken().catch(() => {});
       const [medList, mapRes, lowStock, transferList, grnList, checksList, statsRes, poList] = await Promise.all([
-        ApiService.getMedicines({ search: searchQuery }),
-        ApiService.getWarehouseMap(),
-        ApiService.getLowStockReport(),
-        ApiService.getStockTransfers(),
-        ApiService.getGoodsReceipts(),
-        ApiService.getInventoryChecks(),
-        ApiService.getInventoryStats('CENTRAL_WH'),
+        ApiService.getMedicines({ search: searchQuery }).catch(() => []),
+        ApiService.getWarehouseMap().catch(() => ({ zones: DEFAULT_GSP_ZONES })),
+        ApiService.getLowStockReport().catch(() => []),
+        ApiService.getStockTransfers().catch(() => []),
+        ApiService.getGoodsReceipts().catch(() => []),
+        ApiService.getInventoryChecks().catch(() => []),
+        ApiService.getInventoryStats('CENTRAL_WH').catch(() => null),
         ApiService.getPurchaseOrders().catch(() => []),
       ]);
 
@@ -637,6 +638,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.85,
+        base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
         const photoUri = res.assets[0].uri;
@@ -655,6 +657,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.85,
+        base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
         const galleryUri = res.assets[0].uri;
@@ -2461,6 +2464,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
           zone={selectedShelfForDetail.zone}
           rack={selectedShelfForDetail.rack}
           shelf={selectedShelfForDetail.shelf}
+          availableMedicines={medicines}
           onStartInventoryCheck={(selectedMeds, loc) => {
             const checkItems = buildCheckItemsFromShelf({
               zone: loc.zone,

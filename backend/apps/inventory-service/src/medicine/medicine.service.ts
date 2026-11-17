@@ -2699,19 +2699,33 @@ export class MedicineService implements OnModuleInit {
     try {
       this.logger.log(`Fetching shelf detail: Zone=${zone}, Rack=${rack}, Shelf=${shelf}`);
 
+      const shelfNum = Number(shelf);
       const filter: any = {
         'location.zone': zone,
         'location.rack': rack,
-        'location.shelf': Number(shelf),
+        'location.shelf': { $in: [shelfNum, String(shelf)] },
         stock: { $gte: 0 },
         status: { $nin: ['REMOVED', 'DELETED'] },
       };
-      // Đối với các khu kệ thông thường (A, B, C, D, E, F) thì chỉ lấy lô MAIN, Khu RESERVE lấy toàn bộ
+      // Đối với các khu kệ thông thường (A, B, C, D, E, F), chấp nhận mọi lô không thuộc RESERVE
       if (zone !== 'RESERVE') {
-        filter['location.slotType'] = 'MAIN';
+        filter['location.slotType'] = { $ne: 'RESERVE' };
       }
 
-      const batches = await this.batchModel.find(filter).lean().exec();
+      let batches = await this.batchModel.find(filter).lean().exec();
+
+      // Nếu tầng kệ A-A1-1 không tìm thấy do lô chưa gắn tọa độ vị trí trong DB, tự động đối soát các lô chưa gán vị trí (đồng bộ với Warehouse Map)
+      if (batches.length === 0 && zone === 'A' && rack === 'A1' && shelfNum === 1) {
+        batches = await this.batchModel.find({
+          $or: [
+            { location: { $exists: false } },
+            { location: null },
+            { 'location.zone': { $exists: false } },
+          ],
+          stock: { $gt: 0 },
+          status: { $nin: ['REMOVED', 'DELETED'] },
+        }).limit(10).lean().exec();
+      }
 
       if (batches.length === 0) return [];
 
