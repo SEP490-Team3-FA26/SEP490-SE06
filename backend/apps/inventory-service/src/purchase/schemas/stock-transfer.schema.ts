@@ -76,3 +76,8 @@ export class StockTransfer extends Document {
 }
 
 export const StockTransferSchema = SchemaFactory.createForClass(StockTransfer);
+
+// Khai báo Index sắp xếp & lọc theo Rule 10 (Mandatory Sort Index Policy)
+StockTransferSchema.index({ status: 1, createdAt: -1 });
+StockTransferSchema.index({ createdAt: -1 });
+StockTransferSchema.index({ toBranchId: 1, createdAt: -1 });

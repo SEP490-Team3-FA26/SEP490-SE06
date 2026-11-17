@@ -4,6 +4,11 @@ trigger: always_on
 
 comment code bằng tiếng việt
 
+- **Quy tắc Bắt Buộc Viết Git Commit Bằng Tiếng Anh, Nghiêm Cấm Commit Bằng Tiếng Việt (English-Only Git Commit Policy):**
+  + Toàn bộ thông điệp commit (`git commit -m "..."`) **BẮT BUỘC PHẢI VIẾT BẰNG TIẾNG ANH 100%** theo chuẩn Conventional Commits (ví dụ: `feat(warehouse): ...`, `fix(admin): ...`, `refactor(purchase): ...`, `test(api-gateway): ...`).
+  + Tuyệt đối **CẤM** viết commit message bằng Tiếng Việt (kể cả Tiếng Việt có dấu hay không dấu).
+  + Lưu ý phân biệt rõ ràng: Chú thích mã nguồn (code comments) viết bằng Tiếng Việt, nhưng thông điệp commit trên Git bắt buộc 100% bằng Tiếng Anh.
+
 - **Quy tắc Kẹp Bài Test Bắt Buộc Khi Viết Code Mới (Test-Coupled Mandate):**
   + Khi viết bất kỳ hàm, Service (`*.service.ts`) hoặc Controller (`*.controller.ts`) mới nào, **BẮT BUỘC PHẢI VIẾT KÈM FILE TEST (`*.spec.ts`) TƯƠNG ỨNG NGAY TRONG CÙNG LƯỢT PHÁT TRIỂN / COMMIT**.
   + Tuyệt đối không commit mã nguồn nghiệp vụ mới mà thiếu bài test (Chính sách Zero Untested Code).

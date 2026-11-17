@@ -64,3 +64,8 @@ export class PurchaseOrder extends Document {
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);
+
+// Khai báo Index sắp xếp & lọc theo Rule 10 (Mandatory Sort Index Policy)
+PurchaseOrderSchema.index({ status: 1, createdAt: -1 });
+PurchaseOrderSchema.index({ createdAt: -1 });
+PurchaseOrderSchema.index({ supplierId: 1, createdAt: -1 });

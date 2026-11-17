@@ -33,9 +33,10 @@ export function PurchaseRequestsTab({
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Tải tối đa 100 bản ghi theo phân trang Kafka Playbook
       const data = statusFilter === "PENDING_APPROVAL"
-        ? await purchaseOrderService.getPurchaseOrders("PENDING_APPROVAL")
-        : await purchaseRequisitionService.getPurchaseRequisitions(statusFilter);
+        ? await purchaseOrderService.getPurchaseOrders("PENDING_APPROVAL", { limit: 100 })
+        : await purchaseRequisitionService.getPurchaseRequisitions(statusFilter, { limit: 100 });
       setPrList(Array.isArray(data?.data || data) ? (data.data || data) : []);
     } catch (err) {
       console.error(err);

@@ -17,6 +17,7 @@ export function BranchRequestsTab({
   onCreatePO: (items: any[]) => void;
 }) {
   const [prList, setPrList] = useState<any[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedPrs, setSelectedPrs] = useState<string[]>([]);
@@ -49,33 +50,59 @@ export function BranchRequestsTab({
     { key: "REJECTED", label: "Từ chối", color: "rose" },
   ];
 
-  const fetchData = async () => {
+  // Tải danh sách yêu cầu PR theo đúng trạng thái đang chọn (hỗ trợ tối đa 100 bản ghi)
+  const fetchData = async (currentStatus = statusFilter) => {
     setLoading(true);
     try {
-      const data = await purchaseRequisitionService.getPurchaseRequisitions();
-      setPrList(Array.isArray(data?.data || data) ? (data.data || data) : []);
+      const data = await purchaseRequisitionService.getPurchaseRequisitions(currentStatus, { limit: 100 });
+      const items = Array.isArray(data?.data || data) ? (data.data || data) : [];
+      setPrList(items);
+      // Cập nhật số lượng tạm thời cho sub-tab hiện tại
+      setStatusCounts(prev => ({
+        ...prev,
+        [currentStatus]: items.length,
+      }));
     } catch (e: any) {
-      console.error(e);
+      console.error('Lỗi khi tải danh sách PR:', e);
       setPrList([]);
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); setSelectedPrs([]); }, []);
+  // Tải số lượng bản ghi của tất cả các trạng thái từ Backend để hiển thị badge
+  const fetchCounts = async () => {
+    try {
+      const counts = await purchaseRequisitionService.getStatusCounts();
+      if (counts && typeof counts === 'object') {
+        setStatusCounts(counts);
+      }
+    } catch {
+      // Bỏ qua lỗi nếu endpoint thống kê chưa sẵn sàng
+    }
+  };
+
+  useEffect(() => {
+    fetchData(statusFilter);
+    fetchCounts();
+    setSelectedPrs([]);
+  }, [statusFilter]);
 
   // Lắng nghe realtime sự kiện cập nhật PR qua Socket.IO
   const { onEvent, offEvent } = useSocket();
   useEffect(() => {
     const handlePrUpdated = () => {
-      fetchData();
+      fetchData(statusFilter);
+      fetchCounts();
     };
     onEvent('pr_updated', handlePrUpdated);
+    onEvent('new_pr_notification', handlePrUpdated);
     return () => {
       offEvent('pr_updated', handlePrUpdated);
+      offEvent('new_pr_notification', handlePrUpdated);
     };
-  }, []);
+  }, [statusFilter]);
 
   const filtered = prList.filter(pr =>
-    pr.status === statusFilter &&
+    (statusFilter ? pr.status === statusFilter : true) &&
     ((pr.prCode || "").toLowerCase().includes(search.toLowerCase()) ||
     (pr.branchName || "").toLowerCase().includes(search.toLowerCase()))
   );
@@ -87,7 +114,8 @@ export function BranchRequestsTab({
       await stockTransferService.createStockTransfer(prId, fromBranchId, "Thủ Kho");
       onMsg({ type: "success", text: "Đã xuất kho & chuyển hàng thành công!" });
       setDetailPr(null);
-      fetchData();
+      fetchData(statusFilter);
+      fetchCounts();
     } catch (e: any) {
       const message = e.response?.data?.message || e.message || "Lỗi xuất kho";
       setShipError({ prId, message });
@@ -103,7 +131,8 @@ export function BranchRequestsTab({
       onMsg({ type: "success", text: "Đã báo hết hàng. Thủ kho có thể chọn tạo PO ngay tại tab Hết hàng hoặc tab Mua hàng." });
       setDetailPr(null);
       setOutOfStockPrId(null);
-      fetchData();
+      fetchData(statusFilter);
+      fetchCounts();
     } catch (e: any) {
       onMsg({ type: "error", text: e.response?.data?.message || e.message || "Không thể cập nhật trạng thái" });
     } finally { setActionLoading(false); }
@@ -114,7 +143,9 @@ export function BranchRequestsTab({
       {/* Sub-tabs */}
       <div className="flex gap-1 shrink-0 border-b border-slate-200 pb-0">
         {STATUS_TABS.map(t => {
-          const count = prList.filter(pr => pr.status === t.key).length;
+          const count = statusCounts[t.key] !== undefined
+            ? statusCounts[t.key]
+            : (statusFilter === t.key ? prList.length : 0);
           return (
             <button key={t.key} onClick={() => setStatusFilter(t.key)}
               className={`px-3 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 ${statusFilter === t.key

@@ -125,10 +125,12 @@ export class GoodsReceiptController implements OnModuleInit {
 
   @Get()
   async listGoodsReceiptNotes(
+    @Query('status') status?: string,
     @Query('limit') limit?: number,
     @Query('page') page?: number,
   ) {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.grn.list', {
+      status,
       limit: limit ? Number(limit) : undefined,
       page: page ? Number(page) : undefined,
     });

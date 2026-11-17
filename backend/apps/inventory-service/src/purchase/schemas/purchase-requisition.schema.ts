@@ -106,3 +106,9 @@ export class PurchaseRequisition extends Document {
 
 export const PurchaseRequisitionSchema =
   SchemaFactory.createForClass(PurchaseRequisition);
+
+// Khai báo Index sắp xếp & lọc theo Rule 10 (Mandatory Sort Index Policy)
+PurchaseRequisitionSchema.index({ status: 1, createdAt: -1 });
+PurchaseRequisitionSchema.index({ isUrgent: -1, createdAt: -1 });
+PurchaseRequisitionSchema.index({ branchId: 1, createdAt: -1 });
+PurchaseRequisitionSchema.index({ createdAt: -1 });

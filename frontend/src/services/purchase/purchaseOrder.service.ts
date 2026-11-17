@@ -16,9 +16,13 @@ export interface PurchaseOrderPayload {
 }
 
 export const purchaseOrderService = {
-  async getPurchaseOrders(status?: string) {
+  // Lấy danh sách đơn đặt hàng PO (hỗ trợ lọc theo trạng thái hoặc danh sách trạng thái dạng chuỗi phân tách bởi dấu phẩy, phân trang)
+  async getPurchaseOrders(status?: string, options?: { limit?: number; page?: number }) {
     const response = await api.get(API_ENDPOINTS.PURCHASE_ORDERS.LIST, {
-      params: status ? { status } : undefined,
+      params: {
+        ...(status ? { status } : {}),
+        ...(options || {}),
+      },
     });
     return response.data;
   },

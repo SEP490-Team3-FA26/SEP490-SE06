@@ -306,15 +306,26 @@ export class PurchaseService {
   }
 
   /**
-   * Danh sách tất cả PR (cho Warehouse Manager xem để gom đơn, hoặc HQ xem để duyệt).
+   * Danh sách tất cả PR (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang tối đa 100).
    */
   async listPurchaseRequisitions(query: any = {}) {
     const filter: any = {};
-    if (query.status) filter.status = query.status;
+    if (query.status) {
+      if (typeof query.status === 'string' && query.status.includes(',')) {
+        filter.status = { $in: query.status.split(',').map((s: string) => s.trim()) };
+      } else if (Array.isArray(query.status)) {
+        filter.status = { $in: query.status };
+      } else {
+        filter.status = query.status;
+      }
+    }
     if (query.branchId) filter.branchId = query.branchId;
     // Giới hạn phân trang tránh quá tải Kafka message size (>1MB)
-    const limit = Math.min(Math.max(1, Number(query.limit) || 20), 100);
-    const skip = Math.max(0, (Number(query.page || 1) - 1) * limit);
+    const rawPage = Number(query.page);
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const rawLimit = Number(query.limit);
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
+    const skip = Math.max(0, (page - 1) * limit);
     return this.prModel
       .find(filter)
       .sort({ isUrgent: -1, createdAt: -1 })
@@ -322,6 +333,32 @@ export class PurchaseService {
       .limit(limit)
       .lean()
       .exec();
+  }
+
+  /**
+   * Thống kê số lượng PR theo từng trạng thái (phục vụ hiển thị badge tab phía Thủ Kho / Quản lý)
+   */
+  async getPurchaseRequisitionsStatusCounts(query: any = {}) {
+    const match: any = {};
+    if (query?.branchId) match.branchId = query.branchId;
+    const counts = await this.prModel.aggregate([
+      { $match: match },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    const result: Record<string, number> = {
+      SUBMITTED: 0,
+      SHIPPING: 0,
+      COMPLETED: 0,
+      OUT_OF_STOCK: 0,
+      REJECTED: 0,
+      CONSOLIDATED: 0,
+      PENDING_APPROVAL: 0,
+      DRAFT: 0,
+    };
+    counts.forEach((c: any) => {
+      if (c._id) result[c._id] = c.count;
+    });
+    return result;
   }
 
   /**
@@ -1500,14 +1537,24 @@ export class PurchaseService {
   // QUERY METHODS
   // ===========================================================================================
 
+  // Lấy danh sách đơn đặt hàng PO (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang tối đa 100)
   async listPurchaseOrders(query: any = {}) {
     const filter: any = {};
     if (query.status) {
-      filter.status = query.status;
+      if (typeof query.status === 'string' && query.status.includes(',')) {
+        filter.status = { $in: query.status.split(',').map((s: string) => s.trim()) };
+      } else if (Array.isArray(query.status)) {
+        filter.status = { $in: query.status };
+      } else {
+        filter.status = query.status;
+      }
     }
     // Giới hạn phân trang tối ưu Kafka payload
-    const limit = Math.min(Math.max(1, Number(query.limit) || 20), 100);
-    const skip = Math.max(0, (Number(query.page || 1) - 1) * limit);
+    const rawPage = Number(query.page);
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const rawLimit = Number(query.limit);
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
+    const skip = Math.max(0, (page - 1) * limit);
     return this.poModel
       .find(filter)
       .sort({ createdAt: -1 })
@@ -1605,11 +1652,25 @@ export class PurchaseService {
     return null;
   }
 
+  // Lấy danh sách phiếu nhập kho GRN (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang tối đa 100)
   async listGoodsReceiptNotes(query: any = {}): Promise<any> {
-    const limit = Math.min(Math.max(1, Number(query?.limit) || 20), 100);
-    const skip = Math.max(0, (Number(query?.page || 1) - 1) * limit);
+    const filter: any = {};
+    if (query?.status) {
+      if (typeof query.status === 'string' && query.status.includes(',')) {
+        filter.status = { $in: query.status.split(',').map((s: string) => s.trim()) };
+      } else if (Array.isArray(query.status)) {
+        filter.status = { $in: query.status };
+      } else {
+        filter.status = query.status;
+      }
+    }
+    const rawPage = Number(query?.page);
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const rawLimit = Number(query?.limit);
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
+    const skip = Math.max(0, (page - 1) * limit);
     const grns = await this.grnModel
-      .find()
+      .find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

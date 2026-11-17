@@ -98,3 +98,8 @@ export class GoodsReceiptNote extends Document {
 }
 
 export const GoodsReceiptNoteSchema = SchemaFactory.createForClass(GoodsReceiptNote);
+
+// Khai báo Index sắp xếp & lọc theo Rule 10 (Mandatory Sort Index Policy)
+GoodsReceiptNoteSchema.index({ status: 1, createdAt: -1 });
+GoodsReceiptNoteSchema.index({ createdAt: -1 });
+GoodsReceiptNoteSchema.index({ poId: 1 });
