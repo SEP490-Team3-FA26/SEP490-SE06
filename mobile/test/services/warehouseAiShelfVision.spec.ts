@@ -105,6 +105,26 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(po._id).toBe('6af6f744caefa79c40a05944');
       expect(po.items.length).toBe(1);
     });
+
+    it('TC-PO-NORM-02: getPurchaseOrders tự động truyền tham số lọc trạng thái chờ nhập và trần limit 100', async () => {
+      let queryUrl = '';
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string) => {
+        queryUrl = url;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => [
+            { _id: '6af6f744caefa79c40a05944', poCode: 'PO-A05944', status: 'RECEIVING' },
+          ],
+        });
+      });
+
+      const pos = await ApiService.getPurchaseOrders();
+      expect(Array.isArray(pos)).toBe(true);
+      expect(pos.length).toBe(1);
+      expect(queryUrl).toContain('status=');
+      expect(queryUrl).toContain('limit=100');
+    });
   });
 
   // =========================================================================
@@ -218,6 +238,32 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(Array.isArray(pos)).toBe(true);
       expect(pos.length).toBe(1);
       expect(pos[0]._id).toBe('po1');
+    });
+
+    it('TC-PO-ABNORM-04: getPurchaseOrderById tự động fallback sang Cloud khi mạng LAN bị ngắt kết nối', async () => {
+      let requestedUrls: string[] = [];
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string) => {
+        requestedUrls.push(url);
+        // LAN thất bại do ngắt mạng
+        if (!url.includes('abcpharmacy.store')) {
+          return Promise.reject(new Error('Network request failed'));
+        }
+        // Cloud Server trực tuyến phản hồi đơn PO
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            _id: '6af6f744caefa79c40a05944',
+            poCode: 'PO-A05944',
+            status: 'RECEIVING',
+          }),
+        });
+      });
+
+      const po = await ApiService.getPurchaseOrderById('6af6f744caefa79c40a05944');
+      expect(po).toBeDefined();
+      expect(po._id).toBe('6af6f744caefa79c40a05944');
+      expect(requestedUrls.some((u) => u.includes('abcpharmacy.store'))).toBe(true);
     });
   });
 });

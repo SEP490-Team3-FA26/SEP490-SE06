@@ -1,14 +1,14 @@
-import { Controller, Post, Get, Query, Param, Body, Inject, OnModuleInit, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Query, Param, Body, Inject, OnModuleInit, UseGuards, BadRequestException } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
 import { AppWebsocketGateway } from '../websocket/websocket.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../guards/optional-jwt-auth.guard';
 import { AuditLogAction } from '../decorators/audit-log.decorator';
 import { AutoRoutePoDto, ApprovePayPoDto, RejectPoDeliveryDto, ReceivePoDto } from '../dto/purchase-order.dto';
 
 @Controller('api/purchase-orders')
-@UseGuards(JwtAuthGuard)
 export class PurchaseOrderController implements OnModuleInit {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientKafka,
@@ -28,6 +28,7 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Post('auto-route')
+  @UseGuards(JwtAuthGuard)
   @AuditLogAction({
     actionCode: 'PO_AUTO_ROUTE',
     actionName: 'Tạo đơn đặt hàng NCC tự động',
@@ -97,6 +98,7 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Post('approve-pay')
+  @UseGuards(JwtAuthGuard)
   @AuditLogAction({
     actionCode: 'PO_APPROVE_PAY',
     actionName: 'Phê duyệt và thanh toán đơn đặt hàng',
@@ -117,6 +119,7 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Post('reject-delivery')
+  @UseGuards(JwtAuthGuard)
   @AuditLogAction({
     actionCode: 'PO_REJECT_DELIVERY',
     actionName: 'Từ chối nhận hàng đơn đặt hàng',
@@ -134,6 +137,7 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   async listPurchaseOrders(
     @Query('status') status?: string,
     @Query('limit') limit?: number,
@@ -147,11 +151,22 @@ export class PurchaseOrderController implements OnModuleInit {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   async getPurchaseOrderById(@Param('id') id: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.po.get_by_id', { id });
+    if (!id || typeof id !== 'string' || !id.trim()) {
+      throw new BadRequestException('Mã đơn hàng PO không được để trống');
+    }
+    const cleanId = id.trim();
+    // Chấp nhận MongoDB ObjectId 24 ký tự hex hoặc mã định danh PO (PO-..., #..., hoặc mã ngắn)
+    const isValidId = /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[a-zA-Z0-9#_-]{3,50}$/.test(cleanId);
+    if (!isValidId) {
+      throw new BadRequestException('Định dạng mã đơn PO không hợp lệ');
+    }
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.po.get_by_id', { id: cleanId });
   }
 
   @Post(':id/receive')
+  @UseGuards(JwtAuthGuard)
   async receivePurchaseOrder(@Param('id') id: string, @Body() data: ReceivePoDto) {
     return await sendKafkaMessage(this.inventoryClient, 'inventory.po.receive', {
       id,
