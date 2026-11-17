@@ -355,10 +355,23 @@ export class GoodsReceiptController implements OnModuleInit {
     @Param('itemId') itemId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('imageUrl') imageUrl?: string,
+    @Body('imageBase64') imageBase64?: string,
   ) {
     let fileBuffer = file?.buffer;
     let fileMimetype = file?.mimetype || 'image/jpeg';
     let fileName = file?.originalname || 'package.jpg';
+
+    // Hỗ trợ phân tích ảnh dạng Base64 gửi từ Mobile Client
+    if (!fileBuffer && imageBase64 && typeof imageBase64 === 'string') {
+      try {
+        const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+        fileBuffer = Buffer.from(cleanBase64, 'base64');
+        fileMimetype = 'image/jpeg';
+        fileName = 'inspection.jpg';
+      } catch (b64Err) {
+        console.warn('Lỗi giải mã base64 ảnh kiểm định:', b64Err);
+      }
+    }
 
     // Hỗ trợ phân tích ảnh mẫu từ remote URL khi mobile gửi đường dẫn ảnh
     if (!fileBuffer && imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
