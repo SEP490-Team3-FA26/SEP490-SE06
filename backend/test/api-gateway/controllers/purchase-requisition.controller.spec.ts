@@ -99,6 +99,27 @@ describe('PurchaseRequisitionController - Gateway Controller Unit Tests', () => 
         page: undefined,
       });
     });
+
+    it('TC-PR-NORM-05: KHÔNG tự động gán branchId khi role là warehouse hoặc CENTRAL_WH (Xem toàn chuỗi)', async () => {
+      mockKafkaClient.send.mockReturnValue(of([]));
+      const reqWarehouse = { user: { role: 'warehouse', branchId: 'CENTRAL_WH' } };
+      await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, reqWarehouse);
+      expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
+        status: undefined,
+        branchId: undefined,
+        limit: 100,
+        page: undefined,
+      });
+
+      const reqAdmin = { user: { role: 'admin', branchId: 'CENTRAL_WH' } };
+      await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, reqAdmin);
+      expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
+        status: undefined,
+        branchId: undefined,
+        limit: 100,
+        page: undefined,
+      });
+    });
   });
 
   // =========================================================================
