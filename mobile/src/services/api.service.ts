@@ -2282,12 +2282,22 @@ export class ApiService {
 
     let bodyPayload: any = null;
     const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
+    const isDataUri = typeof imageInput === 'string' && imageInput.startsWith('data:');
 
     if (isRemoteUrl) {
       bodyPayload = {
         api_key: roboflowApiKey,
         inputs: {
           image: { type: 'url', value: imageInput },
+          classes: ['medicine', 'medicine box', 'Medicine', 'box', 'package', 'pharmaceutical box', 'carton', 'drugs', 'item'],
+        },
+      };
+    } else if (isDataUri) {
+      const cleanBase64 = imageInput.split(',')[1] || imageInput;
+      bodyPayload = {
+        api_key: roboflowApiKey,
+        inputs: {
+          image: { type: 'base64', value: cleanBase64 },
           classes: ['medicine', 'medicine box', 'Medicine', 'box', 'package', 'pharmaceutical box', 'carton', 'drugs', 'item'],
         },
       };
@@ -2361,24 +2371,48 @@ export class ApiService {
     imageInput: string | FormData
   ): Promise<any> {
     try {
+      const cleanReceiptId = String(receiptId || 'default').trim();
+      const cleanItemId = String(receiptItemId || 'item_0').trim();
+
       let formData: FormData | null = null;
+      let base64Image: string | null = null;
       const isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
+      const isDataUri = typeof imageInput === 'string' && imageInput.startsWith('data:');
 
       if (typeof imageInput === 'string') {
         formData = new FormData();
-        if (!isRemoteUrl) {
+        if (isRemoteUrl) {
+          // Ảnh từ remote URL (ảnh mẫu hiển thị sẵn trên màn hình)
+          formData.append('imageUrl', imageInput);
+        } else if (isDataUri) {
+          base64Image = imageInput;
+          formData.append('imageBase64', imageInput);
+        } else {
           // Ảnh chụp trực tiếp từ camera hoặc thư viện máy (file:// hoặc content://)
           const filename = imageInput.split('/').pop() || 'package.jpg';
           const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
           const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-          formData.append('file', {
-            uri: imageInput,
-            name: filename,
-            type,
-          } as any);
-        } else {
-          // Ảnh từ remote URL (ảnh mẫu hiển thị sẵn trên màn hình)
-          formData.append('imageUrl', imageInput);
+
+          // Đọc file thành Web Blob chuẩn W3C để tương thích 100% Expo WinterCG fetch (tránh lỗi Unsupported FormDataPart)
+          let blobAppended = false;
+          try {
+            const blobRes = await fetch(imageInput);
+            if (blobRes && blobRes.ok) {
+              const blob = await blobRes.blob();
+              formData.append('file', blob, filename);
+              blobAppended = true;
+            }
+          } catch (blobErr) {
+            console.warn('Không thể tạo Web Blob từ file URI:', blobErr);
+          }
+
+          if (!blobAppended) {
+            formData.append('file', {
+              uri: imageInput,
+              name: filename,
+              type,
+            } as any);
+          }
         }
       } else {
         formData = imageInput;
@@ -2405,7 +2439,7 @@ export class ApiService {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 12000);
         gwRes = await fetch(
-          `${this.baseUrl}/api/goods-receipts/${receiptId}/items/${receiptItemId}/inspection`,
+          `${this.baseUrl}/api/goods-receipts/${cleanReceiptId}/items/${cleanItemId}/inspection`,
           {
             method: 'POST',
             headers,

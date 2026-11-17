@@ -621,11 +621,45 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
   };
 
   const handleStartInspection = (receipt: any) => {
-    setSelectedReceiptForInspection(receipt);
+    if (!receipt) return;
+    // Chuẩn hóa toàn diện dữ liệu của phiếu nhập và từng mặt hàng bên trong
+    const normalizedReceipt = {
+      ...receipt,
+      id: receipt.id || receipt.receiptNumber || receipt._id || receipt.poCode || 'GRN-01',
+      _id: receipt._id || receipt.id,
+      poCode: receipt.poCode || receipt.poId || 'PO',
+      supplier: receipt.supplier || receipt.supplierName || receipt.po?.supplierName || 'Nhà cung cấp đối tác',
+      status: receipt.status || 'INSPECTING',
+      items: (receipt.items || []).map((it: any, idx: number) => {
+        const med = getMedicineForItem(it);
+        const medName = it.name || it.medicineName || it.medName || med?.name || `Thuốc #${idx + 1}`;
+        const expected = Number(it.expected ?? it.quantity ?? it.expectedQty ?? 10);
+        const actual = Number(it.actual ?? it.actualQty ?? 0);
+        const unit = it.unit || med?.baseUnit || med?.unit || 'Hộp';
+        return {
+          ...it,
+          id: it.id || it._id || it.medicineId || `item_${idx}`,
+          _id: it._id || it.id || it.medicineId,
+          medicineId: it.medicineId || it.id || it._id,
+          name: medName,
+          medicineName: medName,
+          medName: medName,
+          expected,
+          quantity: expected,
+          actual,
+          unit,
+          status: it.status || 'PENDING',
+          batchNo: it.batchNo || '',
+          expDate: it.expDate || '',
+        };
+      }),
+    };
+
+    setSelectedReceiptForInspection(normalizedReceipt);
     setSelectedItemIndex(0);
     setAiScanResult(null);
-    const firstItem = receipt.items?.[0];
-    setActualCountInput(String(firstItem?.actual ?? firstItem?.expected ?? '10'));
+    const firstItem = normalizedReceipt.items?.[0];
+    setActualCountInput(String(firstItem?.actual ? firstItem.actual : (firstItem?.expected ?? '10')));
     setSelectedInspectionImage(getItemImage(firstItem));
     setInspectModalVisible(true);
   };
@@ -644,10 +678,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
-        const photoUri = res.assets[0].uri;
-        setSelectedInspectionImage(photoUri);
+        const asset = res.assets[0];
+        const photoData = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setSelectedInspectionImage(asset.uri);
         // Tự động kích hoạt kiểm định AI Vision ngay sau khi chụp ảnh
-        handleRunAiInspection(photoUri);
+        handleRunAiInspection(photoData);
       }
     } catch (e) {
       console.warn('Lỗi chụp ảnh kiểm hàng:', e);
@@ -663,10 +698,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
-        const galleryUri = res.assets[0].uri;
-        setSelectedInspectionImage(galleryUri);
+        const asset = res.assets[0];
+        const galleryData = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setSelectedInspectionImage(asset.uri);
         // Tự động kích hoạt kiểm định AI Vision ngay sau khi chọn ảnh
-        handleRunAiInspection(galleryUri);
+        handleRunAiInspection(galleryData);
       }
     } catch (e) {
       console.warn('Lỗi chọn ảnh thư viện:', e);
@@ -704,9 +740,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
     try {
       const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
+      const receiptId = selectedReceiptForInspection.id || selectedReceiptForInspection._id || selectedReceiptForInspection.poCode || 'GRN-01';
+      const itemId = currentItem?.id || currentItem?._id || currentItem?.medicineId || String(selectedItemIndex);
       const res = await ApiService.inspectReceiptItemAI(
-        selectedReceiptForInspection.id || selectedReceiptForInspection._id,
-        currentItem.id || String(selectedItemIndex),
+        receiptId,
+        itemId,
         targetImage
       );
 
@@ -2561,7 +2599,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                 <Text style={styles.inspectModalTitle} numberOfLines={1}>Kiểm Định AI Vision</Text>
               </View>
               <Text style={styles.inspectModalSub} numberOfLines={1}>
-                Phiếu #{selectedReceiptForInspection?.id} • {selectedReceiptForInspection?.supplier}
+                Phiếu #{selectedReceiptForInspection?.id || selectedReceiptForInspection?._id || selectedReceiptForInspection?.poCode || 'GRN-01'} • {selectedReceiptForInspection?.supplier || selectedReceiptForInspection?.supplierName || 'Nhà cung cấp đối tác'}
               </Text>
             </View>
             <AnimatedTouchable onPress={() => setInspectModalVisible(false)} style={styles.inspectCloseBtn}>
@@ -2637,10 +2675,10 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
               </View>
 
               <Text style={styles.inspectCurrentMedName} numberOfLines={2}>
-                {selectedReceiptForInspection?.items[selectedItemIndex]?.name}
+                {selectedReceiptForInspection?.items[selectedItemIndex]?.name || selectedReceiptForInspection?.items[selectedItemIndex]?.medicineName || selectedReceiptForInspection?.items[selectedItemIndex]?.medName || 'Dược phẩm'}
               </Text>
               <Text style={styles.inspectCurrentPoQty}>
-                Số lượng theo PO: {selectedReceiptForInspection?.items[selectedItemIndex]?.expected}{' '}
+                Số lượng theo PO: {selectedReceiptForInspection?.items[selectedItemIndex]?.expected ?? selectedReceiptForInspection?.items[selectedItemIndex]?.quantity ?? 10}{' '}
                 {selectedReceiptForInspection?.items[selectedItemIndex]?.unit || 'Hộp'}
               </Text>
             </View>

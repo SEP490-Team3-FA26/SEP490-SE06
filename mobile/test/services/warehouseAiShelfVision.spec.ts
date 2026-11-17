@@ -72,6 +72,28 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res.confidence).toBeGreaterThan(90);
     });
 
+    it('TC-VISION-NORM-03: Nhận diện thành công ảnh chụp kiện hàng dạng Base64 qua Roboflow Direct', async () => {
+      (globalThis as any).fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          outputs: [
+            {
+              predictions: {
+                predictions: [
+                  { x: 10, y: 10, width: 20, height: 20, confidence: 0.96, class: 'Medicine' },
+                ],
+              },
+            },
+          ],
+        }),
+      } as any);
+
+      const res = await ApiService.inspectWithRoboflowDirect('data:image/jpeg;base64,sample_base64_photo_bytes');
+      expect(res.success).toBe(true);
+      expect(res.detectedCount).toBeGreaterThanOrEqual(1);
+      expect(res.confidence).toBeGreaterThanOrEqual(95);
+    });
+
     it('TC-SHELF-NORM-02: Lấy chi tiết tầng kệ thành công khi Backend trả về danh sách lô hàng hợp lệ', async () => {
       const mockBatches = [
         { id: 'b1', medicineName: 'Amoxicillin 500mg', stock: 100, batchNo: 'LOT-01' },
@@ -164,6 +186,22 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(po).toBeDefined();
       expect(requestedUrl).toContain('6af6f744caefa79c40a05944');
     });
+
+    it('TC-VISION-BOUND-03: inspectReceiptItemAI với receiptId hoặc itemId rỗng vẫn gửi request an toàn', async () => {
+      let callUrl = '';
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string) => {
+        callUrl = url;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true, aiCount: 10, confidence: 96 }),
+        });
+      });
+
+      const res = await ApiService.inspectReceiptItemAI('', '', 'https://example.com/test.jpg');
+      expect(res.success).toBe(true);
+      expect(callUrl).toContain('/api/goods-receipts/default/items/item_0/inspection');
+    });
   });
 
   // =========================================================================
@@ -198,6 +236,35 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res.success).toBe(true);
       expect(res.aiCount).toBeGreaterThanOrEqual(1);
       expect(res.status).toBe('MATCHED');
+    });
+
+    it('TC-VISION-ABNORM-05: Gateway ném Unsupported FormDataPart implementation tự động kích hoạt Self-Healing an toàn', async () => {
+      (globalThis as any).fetch = jest.fn()
+        .mockRejectedValueOnce(new Error('Unsupported FormDataPart implementation'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            outputs: [
+              {
+                predictions: {
+                  predictions: [
+                    { x: 10, y: 10, width: 20, height: 20, confidence: 0.96, class: 'Medicine' },
+                  ],
+                },
+              },
+            ],
+          }),
+        } as any);
+
+      const res = await ApiService.inspectReceiptItemAI(
+        'GRN-A05944',
+        'item_0',
+        'data:image/jpeg;base64,sample_photo'
+      );
+
+      expect(res.success).toBe(true);
+      expect(res.aiCount).toBe(1);
+      expect(res.confidence).toBeGreaterThanOrEqual(95);
     });
 
     it('TC-SHELF-ABNORM-02: Lỗi mạng khi gọi getShelfDetail không văng crash, trả về cấu trúc rỗng an toàn', async () => {

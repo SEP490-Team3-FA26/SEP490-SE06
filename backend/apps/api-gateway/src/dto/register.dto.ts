@@ -3,9 +3,11 @@ import { IsEmail, IsString, MinLength, MaxLength, IsEnum, IsOptional } from 'cla
 
 export enum UserRole {
   ADMIN = 'admin',
-  MANAGER = 'manager',
-  STAFF = 'staff',
+  DIRECTOR = 'director',
+  HEAD_BRANCH = 'head_branch',
   WAREHOUSE = 'warehouse',
+  BRANCH = 'branch',
+  PHARMACIST = 'pharmacist',
   CUSTOMER = 'customer',
   USER = 'user',
   MOH_INSPECTOR = 'moh_inspector',
