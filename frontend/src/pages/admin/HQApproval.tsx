@@ -96,9 +96,11 @@ export function HQApproval() {
 
       setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
 
-      setUrgentPrs(prData || []);
+      // Trích xuất an toàn danh sách PR kể cả khi backend trả về dạng phân trang { data: [...] } hoặc mảng thuần
+      const prListRaw = Array.isArray(prData?.data) ? prData.data : (Array.isArray(prData) ? prData : []);
+      setUrgentPrs(prListRaw);
       // Nếu không có đơn hỏa tốc nào và đang ở tab URGENT, tự chuyển về PENDING_APPROVAL
-      if ((!prData || prData.length === 0) && tab === "URGENT") {
+      if (prListRaw.length === 0 && tab === "URGENT") {
         setTab("PENDING_APPROVAL");
       }
 
@@ -201,13 +203,13 @@ export function HQApproval() {
     return s ? s.name : id?.slice(-6) || "N/A";
   };
 
-  const filteredPos = poList.filter(po =>
+  const filteredPos = (Array.isArray(poList) ? poList : []).filter(po =>
     (po._id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     getSupplierName(po.supplierId).toLowerCase().includes(searchQuery.toLowerCase()) ||
     (po.linkedPrCodes && po.linkedPrCodes.some((code: string) => code.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
-  const filteredPrs = urgentPrs.filter(pr =>
+  const filteredPrs = (Array.isArray(urgentPrs) ? urgentPrs : []).filter(pr =>
     (pr.prCode || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     (pr.branchName || "").toLowerCase().includes(searchQuery.toLowerCase())
   );

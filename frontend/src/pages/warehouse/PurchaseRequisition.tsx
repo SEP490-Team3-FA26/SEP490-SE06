@@ -63,9 +63,10 @@ export function PurchaseRequisition() {
   const fetchData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const data = await purchaseRequisitionService.getPurchaseRequisitions(tab);
-      setPrList(data);
-      setCachedPrList(tab, data);
+      const res = await purchaseRequisitionService.getPurchaseRequisitions(tab);
+      const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      setPrList(items);
+      setCachedPrList(tab, items);
     } catch (err: any) {
       console.error('PR fetch error:', err);
     } finally { setLoading(false); }

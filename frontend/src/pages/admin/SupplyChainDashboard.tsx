@@ -870,8 +870,8 @@ export function SupplyChainDashboard() {
       });
       setMapBranches(dynamicBranches.length > 0 ? dynamicBranches : BRANCHES_GEOGRAPHY);
 
-      // Real-time Safe Stock Chain (Lấy tối đa 1000 sản phẩm toàn hệ thống)
-      const stockRes = await getSafeStockChain({ serviceLevel, periodDays, page, limit: 1000 });
+      // Real-time Safe Stock Chain (Lấy tối đa 100 sản phẩm theo phân trang trần tải Kafka 1MB)
+      const stockRes = await getSafeStockChain({ serviceLevel, periodDays, page, limit: 100 });
       setStockData(stockRes.data || []);
       setStockTotal(stockRes.total || 0);
       setStockPage(page);

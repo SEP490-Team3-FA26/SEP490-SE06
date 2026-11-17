@@ -90,11 +90,35 @@ describe('PurchaseRequisitionController - Gateway Controller Unit Tests', () => 
 
     it('TC-PR-NORM-04: Tự động gán branchId của Quản lý chi nhánh khi không truyền branchId', async () => {
       mockKafkaClient.send.mockReturnValue(of([]));
-      const req = { user: { role: 'BRANCH_MANAGER', branchId: 'BR-001' } };
+      const req = { user: { role: 'branch', branchId: 'BR-001' } };
       await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, req);
       expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
         status: undefined,
         branchId: 'BR-001',
+        limit: 100,
+        page: undefined,
+      });
+    });
+
+    it('TC-PR-NORM-05: Thủ kho tổng (role: warehouse, branchId: CENTRAL_WH) không bị gán cứng branchId để xem được PR toàn chuỗi', async () => {
+      mockKafkaClient.send.mockReturnValue(of([]));
+      const req = { user: { role: 'warehouse', branchId: 'CENTRAL_WH' } };
+      await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, req);
+      expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
+        status: undefined,
+        branchId: undefined,
+        limit: 100,
+        page: undefined,
+      });
+    });
+
+    it('TC-PR-NORM-06: Giám đốc điều hành (role: head_branch) không bị gán cứng branchId', async () => {
+      mockKafkaClient.send.mockReturnValue(of([]));
+      const req = { user: { role: 'head_branch', branchId: 'CENTRAL_WH' } };
+      await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, req);
+      expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
+        status: undefined,
+        branchId: undefined,
         limit: 100,
         page: undefined,
       });

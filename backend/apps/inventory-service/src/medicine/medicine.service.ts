@@ -2079,8 +2079,11 @@ export class MedicineService implements OnModuleInit {
       const serviceLevel = query.serviceLevel ? Number(query.serviceLevel) : 0.95;
       const periodDays = query.periodDays ? Number(query.periodDays) : 30;
       const branchId = query.branchId;
-      const page = query.page ? Number(query.page) : 1;
-      const limit = query.limit ? Number(query.limit) : 20;
+      const rawPage = Number(query.page);
+      const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+      // Giới hạn phân trang: Mặc định 20, trần tối đa 100 theo Rule 9 tránh tràn tải Kafka gây lỗi HTTP 504
+      const rawLimit = Number(query.limit);
+      const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
       const skip = (page - 1) * limit;
 
       const endDate = new Date();

@@ -117,7 +117,11 @@ export class PurchaseRequisitionController implements OnModuleInit {
     @Req() req?: any,
   ) {
     let effectiveBranchId = branchId;
-    if (!effectiveBranchId && req?.user?.branchId && req?.user?.role !== 'ADMIN' && req?.user?.role !== 'WAREHOUSE_MANAGER') {
+    const userRole = (req?.user?.role || '').toLowerCase();
+    // Chỉ tự động giới hạn branchId đối với nhân viên / quản lý chi nhánh bán lẻ thông thường
+    // Các vai trò quản trị chuỗi (admin, thủ kho tổng, giám đốc) xem được toàn bộ yêu cầu từ các chi nhánh
+    const isGlobalManager = ['admin', 'warehouse', 'warehouse_manager', 'director', 'head_branch'].includes(userRole);
+    if (!effectiveBranchId && req?.user?.branchId && req?.user?.branchId !== 'CENTRAL_WH' && !isGlobalManager) {
       effectiveBranchId = req.user.branchId;
     }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.list', {
