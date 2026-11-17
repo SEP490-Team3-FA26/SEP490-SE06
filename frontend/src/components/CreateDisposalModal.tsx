@@ -9,9 +9,10 @@ export interface CreateDisposalModalProps {
   onClose: () => void;
   onSuccess: (message?: string) => void;
   prefillItem?: any;
+  branchId?: string;
 }
 
-export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateDisposalModalProps) {
+export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId }: CreateDisposalModalProps) {
   const [medicines, setMedicines] = useState<any[]>([]);
   const [disposalCart, setDisposalCart] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -86,19 +87,22 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
     return diffDays > 0 && diffDays <= 60 && (b.stock > 0 || b.quantity > 0);
   };
 
-  // Nạp dữ liệu thuốc và các lô hết hạn thực tế từ kho CENTRAL_WH
+  // Nạp dữ liệu thuốc và các lô hết hạn thực tế từ kho (hỗ trợ cả Kho Tổng và Kho Chi Nhánh)
   const loadMedicinesData = async () => {
     setIsLoadingMedicines(true);
     setLoadError(null);
     try {
-      // 1. Lấy báo cáo các lô hết hạn/cận hạn từ kho CENTRAL_WH (truy vấn nhanh trực tiếp từ batches collection)
-      const expPromise = medicineService.getExpirationReport('CENTRAL_WH').catch(err => {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const effectiveBranchId = branchId || storedUser?.branchId || 'CENTRAL_WH';
+
+      // 1. Lấy báo cáo các lô hết hạn/cận hạn kèm hình ảnh từ kho tương ứng
+      const expPromise = medicineService.getExpirationReport(effectiveBranchId).catch(err => {
         console.warn("Lỗi khi tải báo cáo hết hạn:", err);
         return [];
       });
 
       // 2. Lấy danh mục thuốc tổng thể (giới hạn 100 để tải nhanh, không bị 504)
-      const medPromise = medicineService.getMedicines({ limit: 100 }).catch(err => {
+      const medPromise = medicineService.getMedicines({ limit: 100, branchId: effectiveBranchId }).catch(err => {
         console.warn("Lỗi khi tải danh mục thuốc:", err);
         return { data: [] };
       });
@@ -122,6 +126,13 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
             unit: b.unit || 'Hộp',
             price: b.price || 0,
             stock: b.stock || 0,
+            image: b.image || (Array.isArray(b.images) && b.images[0]) || '',
+            images: b.images || (b.image ? [b.image] : []),
+            active_ingredient: b.active_ingredient || '',
+            registrationNumber: b.registrationNumber || b.registration_number || '',
+            barcode: b.barcode || '',
+            brand: b.brand || '',
+            country: b.country || '',
             location: b.location,
             batches: [],
           });
@@ -148,9 +159,10 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
           combinedMedList.push(m);
         } else {
           // Bổ sung thông tin chi tiết (ảnh, hoạt chất, số đăng ký) nếu có
-          const target = combinedMedList.find(x => x.id === mId);
+          const target = combinedMedList.find(x => x.id === mId || x._id === mId);
           if (target) {
-            target.image = m.image || target.image;
+            target.image = target.image || m.image || (Array.isArray(m.images) && m.images[0]);
+            target.images = target.images?.length > 0 ? target.images : (m.images || (m.image ? [m.image] : []));
             target.active_ingredient = m.active_ingredient || target.active_ingredient;
             target.registrationNumber = m.registration_number || m.registrationNumber || target.registrationNumber;
             target.brand = m.brand || target.brand;
@@ -423,6 +435,9 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
 
     setIsSubmitting(true);
     try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const effectiveBranchId = branchId || storedUser?.branchId || 'CENTRAL_WH';
+
       // Thực hiện gửi yêu cầu xuất hủy thuốc
       for (const item of disposalCart) {
         const batchId = item.selectedBatch?.id || item.selectedBatch?._id;
@@ -434,6 +449,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem }: CreateD
           quantity: item.quantity,
           notes: `[Lý do: ${disposalReason}] ${disposalNotes ? `- Ghi chú: ${disposalNotes}` : ''} - Phương pháp: ${disposalMethod}`,
           performedBy: disposalPerformedBy,
+          branchId: effectiveBranchId,
         });
       }
 

@@ -106,7 +106,8 @@ export class PurchaseRequisitionController implements OnModuleInit {
 
   /**
    * Danh sách PR (hỗ trợ lọc status, branchId, phân trang mặc định 100 bản ghi)
-   * Tự động gán branchId của Quản lý chi nhánh nếu không truyền branchId cụ thể
+   * Tự động gán branchId của Quản lý chi nhánh nếu không truyền branchId cụ thể.
+   * KHÔNG áp dụng cho Admin, Director, Kho Tổng (warehouse) hoặc khi branchId là CENTRAL_WH.
    */
   @Get()
   async listPurchaseRequisitions(
@@ -117,7 +118,9 @@ export class PurchaseRequisitionController implements OnModuleInit {
     @Req() req?: any,
   ) {
     let effectiveBranchId = branchId;
-    if (!effectiveBranchId && req?.user?.branchId && req?.user?.role !== 'ADMIN' && req?.user?.role !== 'WAREHOUSE_MANAGER') {
+    const role = (req?.user?.role || '').toLowerCase();
+    const isGlobalRole = role === 'admin' || role === 'director' || role === 'warehouse' || role === 'warehouse_manager';
+    if (!effectiveBranchId && req?.user?.branchId && !isGlobalRole && req.user.branchId !== 'CENTRAL_WH') {
       effectiveBranchId = req.user.branchId;
     }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.list', {
@@ -130,11 +133,18 @@ export class PurchaseRequisitionController implements OnModuleInit {
 
   /**
    * Thống kê số lượng PR theo từng trạng thái (phục vụ hiển thị badge sub-tab)
+   * Tự động gán branchId tương tự cho chi nhánh để badge khớp với danh sách.
    * Khai báo trước route động @Get(':id') theo Rule 11
    */
   @Get('status-counts')
-  async getStatusCounts(@Query('branchId') branchId?: string) {
-    return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.status_counts', { branchId });
+  async getStatusCounts(@Query('branchId') branchId?: string, @Req() req?: any) {
+    let effectiveBranchId = branchId;
+    const role = (req?.user?.role || '').toLowerCase();
+    const isGlobalRole = role === 'admin' || role === 'director' || role === 'warehouse' || role === 'warehouse_manager';
+    if (!effectiveBranchId && req?.user?.branchId && !isGlobalRole && req.user.branchId !== 'CENTRAL_WH') {
+      effectiveBranchId = req.user.branchId;
+    }
+    return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.status_counts', { branchId: effectiveBranchId });
   }
 
   /**

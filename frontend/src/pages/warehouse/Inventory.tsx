@@ -216,7 +216,8 @@ export function Inventory() {
         quantity: expirationQty,
         notes: expirationNotes,
         discountPrice: expirationAction === 'DISCOUNT' ? expirationDiscountPrice : undefined,
-        performedBy: "Quản lý"
+        performedBy: "Quản lý",
+        branchId: selectedExpirationBatch.branchId || 'CENTRAL_WH',
       });
       showToast("Xử lý đề xuất xử lý thuốc hết hạn thành công!", "success");
       setExpirationActionModalOpen(false);

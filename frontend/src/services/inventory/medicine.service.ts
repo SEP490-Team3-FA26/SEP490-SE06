@@ -192,6 +192,7 @@ export const medicineService = {
     notes?: string;
     discountPrice?: number;
     performedBy?: string;
+    branchId?: string;
   }) {
     const response = await api.post(API_ENDPOINTS.MEDICINES.EXPIRATION_ACTION, payload);
     return response.data;

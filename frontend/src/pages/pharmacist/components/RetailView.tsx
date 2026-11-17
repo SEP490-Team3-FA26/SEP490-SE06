@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingCart, Minus, Plus, SearchIcon, Sparkles, XCircle, AlertTriangle, ShieldAlert,
   Banknote, QrCode, Printer, CheckCircle2, Mic, Square, Check, Loader2, X, Filter, ScanBarcode, Tag, Zap, Wifi,
-  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck, UserPlus, AlertCircle, Camera
+  Crown, HeartPulse, Gift, ShieldCheck, FileCheck2, BadgeCheck, UserCheck, UserPlus, AlertCircle, Camera, Trash2
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { orderService } from "../../../services/sales/order.service";
@@ -2377,12 +2377,16 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                       </div>
                     )}
 
-                    {/* Dòng 1: Thông tin cơ bản, Quy đổi đơn vị & Số lượng */}
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-slate-900 text-[15px]">{it.name}</span>
-                          <span className="text-[11px] text-slate-500 font-medium">({it.active_ingredient || "N/A"})</span>
+                    {/* Dòng 1: Thông tin thuốc & Hoạt chất & Badges (Trải rộng 100% không gian, không bị co ép như khi zoom 90%) */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-black text-slate-900 text-[15px] leading-snug">{it.name}</span>
+                          {it.active_ingredient && (
+                            <span className="text-[12px] text-slate-500 font-medium leading-relaxed">
+                              ({it.active_ingredient})
+                            </span>
+                          )}
                           {it.aiSuggested && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
                               <Sparkles size={10} className="text-sky-600" /> AI Tư vấn • Đã duyệt GPP
@@ -2394,8 +2398,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                          <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+
+                        {/* Badges Kho tồn & Lô FEFO */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
                             📦 Kho: {unopenedBoxes} {it.unit || 'Hộp'} nguyên
                           </span>
                           {boxCap > 1 && (
@@ -2412,7 +2418,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                               : "text-sky-800 bg-sky-50 border-sky-200";
                             const iconClass = diffDays !== null && diffDays <= 90 ? "text-amber-600" : "text-sky-600";
                             return (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${badgeClass}`}>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 shadow-2xs ${badgeClass}`}>
                                 <Zap size={11} className={iconClass} />
                                 Lô FEFO: {it.fefoBatchNo} {it.fefoExpDate ? `(HSD: ${new Date(it.fefoExpDate).toLocaleDateString('vi-VN')}${diffDays !== null ? ` · còn ${diffDays} ngày` : ''})` : ''}
                                 {diffDays !== null && diffDays <= 180 && (
@@ -2424,13 +2430,26 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         </div>
                       </div>
 
-                      {/* Bộ chọn Đơn vị quy đổi */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500">Đơn vị bán:</span>
+                      {/* Nút xóa thuốc khỏi giỏ hàng */}
+                      <button
+                        type="button"
+                        onClick={() => updateQty(it.id, -it.quantity)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Xóa thuốc khỏi giỏ hàng"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {/* Dòng 2: Thanh thao tác bán hàng tinh gọn (Đơn vị bán, Số lượng, Đơn giá & Thành tiền) */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200/70">
+                      {/* Đơn vị bán: Tinh gọn, không chiếm dụng diện tích */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-500 shrink-0">Đơn vị:</span>
                         <select
                           value={it.selectedUnit || it.unit || "Hộp"}
                           onChange={(e) => handleUnitChange(it.id, e.target.value)}
-                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-sm min-w-[85px]"
+                          className="px-2.5 py-1.5 bg-white border border-slate-300 hover:border-[#0057cd] rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-[#0057cd] cursor-pointer shadow-xs max-w-[200px] truncate transition-colors"
                         >
                           {(it.unitOptions && it.unitOptions.length > 0 ? it.unitOptions : buildUnitOptions(it)).map((u: any) => (
                             <option key={u.unitName} value={u.unitName}>
@@ -2440,30 +2459,35 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                         </select>
                       </div>
 
-                      {/* Tăng giảm số lượng */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-sm overflow-hidden">
+                      {/* Bộ đếm số lượng & Thành tiền */}
+                      <div className="flex items-center gap-4 ml-auto">
+                        {/* Tăng giảm số lượng */}
+                        <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-xs overflow-hidden">
                           <button
+                            type="button"
                             onClick={() => updateQty(it.id, -1, it.stock)}
-                            className="p-2 hover:bg-slate-100 text-slate-600 transition-colors"
+                            className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
                           >
                             <Minus size={14} />
                           </button>
-                          <span className="font-black text-[14px] text-slate-900 px-3 min-w-[32px] text-center">
+                          <span className="font-black text-[13px] text-slate-900 px-2.5 min-w-[30px] text-center">
                             {it.quantity}
                           </span>
                           <button
+                            type="button"
                             onClick={() => updateQty(it.id, 1, it.stock)}
-                            className="p-2 hover:bg-slate-100 text-slate-600 transition-colors"
+                            className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
                           >
                             <Plus size={14} />
                           </button>
                         </div>
-                        <div className="text-right min-w-[100px]">
-                          <div className="font-black text-[#0057cd] text-[16px]">
+
+                        {/* Đơn giá & Thành tiền */}
+                        <div className="text-right min-w-[105px]">
+                          <div className="font-black text-[#0057cd] text-[16px] leading-tight">
                             {(it.price * it.quantity).toLocaleString()}₫
                           </div>
-                          <span className="text-[10px] text-slate-400 font-bold">
+                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
                             {it.price.toLocaleString()}₫ / {it.selectedUnit || it.unit}
                           </span>
                         </div>

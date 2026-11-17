@@ -281,12 +281,14 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
 
     setDisposalLoading(true);
     try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
       await medicineService.handleExpirationAction({
         batchId: selectedBatch.id || selectedBatch._id,
         action: 'DISPOSE',
         quantity: disposalQty,
         notes: `[Lý do: ${disposalReason}] ${disposalNotes ? `- Ghi chú: ${disposalNotes}` : ''} - Phương pháp: ${disposalMethod}`,
         performedBy: disposalPerformedBy,
+        branchId: selectedBatch.branchId || storedUser?.branchId || 'CENTRAL_WH',
       });
 
       setApprovalNotice({
@@ -1441,6 +1443,7 @@ export function InventoryHistory({ type }: InventoryHistoryProps) {
         {isCreateDisposalOpen && (
           <CreateDisposalModal
             prefillItem={prefillDisposalItem}
+            branchId={prefillDisposalItem?.branchId}
             onClose={() => {
               setIsCreateDisposalOpen(false);
               setPrefillDisposalItem(null);
