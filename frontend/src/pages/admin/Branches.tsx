@@ -44,10 +44,27 @@ export function Branches() {
       try {
          setLoading(true);
          const data = await branchService.getBranches();
-         const mapped = data.map((b: any) => ({
-            ...b,
-            id: b.branchCode,
-         }));
+         const rawList = Array.isArray(data) ? data : (data?.data || []);
+         const mapped = rawList
+            .filter((b: any) => Boolean(b))
+            .map((b: any) => ({
+               ...b,
+               id: b.branchCode || b._id || "",
+               branchCode: b.branchCode || b.id || "",
+               name: b.name || "Chi nhánh chưa đặt tên",
+               address: b.address || "Chưa cập nhật địa chỉ",
+               image: b.image || "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60",
+               status: b.status || "active",
+               manager: b.manager || "Chưa gán quản lý",
+               contact: b.contact || b.phone || "",
+               stats: {
+                  employees: Number(b.stats?.employees) || 0,
+                  totalStock: Number(b.stats?.totalStock) || 0,
+                  lowStock: Number(b.stats?.lowStock) || 0,
+                  expiring: Number(b.stats?.expiring) || 0,
+               },
+               alerts: Array.isArray(b.alerts) ? b.alerts : [],
+            }));
          setBranches(mapped);
          setError(null);
       } catch (err: any) {
@@ -105,10 +122,15 @@ export function Branches() {
       }
    };
 
-   const filteredBranches = branches.filter(branch =>
-      branch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      branch.address.toLowerCase().includes(searchTerm.toLowerCase())
-   );
+   const searchKey = (searchTerm || "").trim().toLowerCase();
+   const filteredBranches = branches.filter((branch) => {
+      if (!branch) return false;
+      const name = (branch.name || "").toLowerCase();
+      const address = (branch.address || "").toLowerCase();
+      const code = (branch.branchCode || branch.id || "").toLowerCase();
+      const manager = (branch.manager || "").toLowerCase();
+      return !searchKey || name.includes(searchKey) || address.includes(searchKey) || code.includes(searchKey) || manager.includes(searchKey);
+   });
 
    return (
       <div className="space-y-6 flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
@@ -173,10 +195,10 @@ export function Branches() {
                               {branch.status === 'active' ? 'Hoạt động' : 'Bảo trì / Sửa chữa'}
                            </span>
                         </div>
-                        {(branch.stats.lowStock > 0 || branch.stats.expiring > 0) && (
+                        {((branch.stats?.lowStock || 0) > 0 || (branch.stats?.expiring || 0) > 0) && (
                            <div className="absolute top-3 left-3 bg-rose-500/90 text-white px-2.5 py-1 text-[11px] font-bold rounded-lg shadow-sm backdrop-blur-md flex items-center gap-1.5">
                               <Bell size={12} className="animate-pulse" />
-                              {branch.stats.lowStock + branch.stats.expiring} Cảnh báo
+                              {(branch.stats?.lowStock || 0) + (branch.stats?.expiring || 0)} Cảnh báo
                            </div>
                         )}
                      </div>
@@ -193,11 +215,11 @@ export function Branches() {
                            <div className="mt-5 grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 content-end">
                               <div className="flex flex-col">
                                  <span className="text-xs text-slate-500 font-medium font-mono mb-1 flex items-center gap-1"><Users size={12} /> Nhân sự</span>
-                                 <span className="font-bold text-slate-800">{branch.stats.employees} người</span>
+                                 <span className="font-bold text-slate-800">{branch.stats?.employees ?? 0} người</span>
                               </div>
                               <div className="flex flex-col">
                                  <span className="text-xs text-slate-500 font-medium font-mono mb-1 flex items-center gap-1"><Package size={12} /> Tồn kho</span>
-                                 <span className="font-bold text-slate-800">{branch.stats.totalStock.toLocaleString()} SP</span>
+                                 <span className="font-bold text-slate-800">{(branch.stats?.totalStock || 0).toLocaleString()} SP</span>
                               </div>
                            </div>
                         </div>

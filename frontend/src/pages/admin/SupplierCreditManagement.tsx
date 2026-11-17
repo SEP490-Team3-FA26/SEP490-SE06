@@ -203,8 +203,9 @@ export function SupplierCreditManagement() {
       }));
   };
 
+  const query = (searchQuery || "").trim().toLowerCase();
   const filteredSuppliers = summaryData?.suppliers?.filter((s: any) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (s?.name || "").toLowerCase().includes(query)
   ) || [];
 
   return (
