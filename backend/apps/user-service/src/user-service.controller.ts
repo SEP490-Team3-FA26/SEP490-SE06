@@ -90,20 +90,102 @@ export class UserServiceController {
 
   @MessagePattern('user.branch.create')
   async handleCreateBranch(@Payload() data: any) {
+    // Trường hợp 1: Admin chọn cấp tài khoản Quản lý mới ngay khi tạo chi nhánh
+    if (data.newManager) {
+      const { fullName, email, password, phone } = data.newManager;
+      if (!fullName || !fullName.trim()) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Vui lòng cung cấp họ và tên cho Quản lý chi nhánh mới',
+        });
+      }
+      if (!email || !email.trim()) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'Vui lòng cung cấp email đăng nhập cho Quản lý chi nhánh mới',
+        });
+      }
+
+      // Đặt tên quản lý và số điện thoại liên hệ vào dữ liệu chi nhánh
+      data.manager = fullName.trim();
+      if (!data.contact && phone) {
+        data.contact = phone.trim();
+      }
+
+      // Tạo chi nhánh trước để sinh mã branchCode chính thức (BR-xxx)
+      const newBranch: any = await this.branchService.create(data);
+
+      // Tiến hành tạo tài khoản người dùng mới với vai trò Quản lý chi nhánh ('branch')
+      const rawPassword = password && password.trim().length >= 6 ? password.trim() : '123456';
+      const createdUser: any = await this.userService.createEmployee({
+        email: email.trim().toLowerCase(),
+        password: rawPassword,
+        fullName: fullName.trim(),
+        phone: phone ? phone.trim() : undefined,
+        role: 'branch',
+        branchId: newBranch.branchCode,
+      });
+
+      if (createdUser && createdUser.error) {
+        // Rollback: Xóa chi nhánh vừa tạo nếu tạo tài khoản thất bại (ví dụ trùng email/SĐT)
+        await this.branchService.delete(newBranch._id.toString());
+        throw new RpcException({
+          statusCode: createdUser.statusCode || 400,
+          message: createdUser.message || 'Không thể tạo tài khoản quản lý mới',
+        });
+      }
+
+      // Đồng bộ managerId vào chi nhánh vừa tạo
+      const managerId = createdUser._id ? createdUser._id.toString() : createdUser.id;
+      const updatedBranch: any = await this.branchService.update(newBranch._id.toString(), {
+        managerId,
+        manager: createdUser.fullName,
+      });
+
+      return {
+        ...(updatedBranch && updatedBranch.toObject ? updatedBranch.toObject() : (updatedBranch || newBranch)),
+        managerId,
+        manager: createdUser.fullName,
+        newManagerAccount: {
+          email: createdUser.email,
+          password: rawPassword,
+          fullName: createdUser.fullName,
+          branchCode: newBranch.branchCode,
+        },
+      };
+    }
+
+    // Trường hợp 2: Admin chọn Quản lý có sẵn trong danh sách
     if (data.managerId) {
-      // Xác thực tài khoản quản lý tồn tại và có vai trò branch trước khi tạo
+      // Xác thực tài khoản quản lý tồn tại
       const managerUser: any = await this.userService.getEmployeeById(data.managerId);
       if (!managerUser || managerUser.error) {
-        throw new RpcException(`Tài khoản quản lý ID ${data.managerId} không tồn tại`);
+        throw new RpcException({
+          statusCode: 404,
+          message: `Tài khoản quản lý ID ${data.managerId} không tồn tại`,
+        });
       }
-      if (managerUser.role !== 'branch') {
-        throw new RpcException(`Tài khoản ${managerUser.fullName || managerUser.email} không có vai trò Quản lý chi nhánh (role: branch)`);
+      if (!data.manager) {
+        data.manager = managerUser.fullName;
+      }
+      if (!data.contact && managerUser.phone) {
+        data.contact = managerUser.phone;
       }
     }
-    const newBranch = await this.branchService.create(data);
+
+    const newBranch: any = await this.branchService.create(data);
+
+    // Cập nhật branchId và đảm bảo role 'branch' cho tài khoản được gán
     if (data.managerId && newBranch.branchCode) {
-      await this.userService.updateEmployee(data.managerId, { branchId: newBranch.branchCode });
+      await this.userService.updateEmployee(data.managerId, {
+        branchId: newBranch.branchCode,
+        role: 'branch',
+      });
+      await this.branchService.update(newBranch._id.toString(), {
+        managerId: data.managerId,
+      });
     }
+
     return newBranch;
   }
 
@@ -114,10 +196,27 @@ export class UserServiceController {
 
   @MessagePattern('user.branch.update')
   async handleUpdateBranch(@Payload() data: { id: string; updateData: any }) {
-    const updated = await this.branchService.update(data.id, data.updateData);
-    if (data.updateData?.managerId && updated?.branchCode) {
-      await this.userService.updateEmployee(data.updateData.managerId, { branchId: updated.branchCode });
+    // Nếu cập nhật Quản lý từ danh sách, tự động lấy họ tên và SĐT
+    if (data.updateData?.managerId) {
+      const managerUser: any = await this.userService.getEmployeeById(data.updateData.managerId);
+      if (managerUser && !managerUser.error) {
+        data.updateData.manager = managerUser.fullName;
+        if (!data.updateData.contact && managerUser.phone) {
+          data.updateData.contact = managerUser.phone;
+        }
+      }
     }
+
+    const updated: any = await this.branchService.update(data.id, data.updateData);
+
+    // Đồng bộ branchId và vai trò 'branch' cho quản lý mới được gán
+    if (data.updateData?.managerId && updated?.branchCode) {
+      await this.userService.updateEmployee(data.updateData.managerId, {
+        branchId: updated.branchCode,
+        role: 'branch',
+      });
+    }
+
     return updated;
   }
 

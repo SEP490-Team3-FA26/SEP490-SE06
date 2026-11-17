@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Loader2, Search, MapPin, Users, Package, AlertTriangle, Clock, X, ChevronRight, Activity, RotateCcw, Building2, Bell, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, MapPin, Users, Package, AlertTriangle, Clock, X, ChevronRight, Activity, RotateCcw, Building2, Bell, CheckCircle2, UserPlus, Key, Mail, Lock, Copy, Check, Eye, EyeOff } from "lucide-react";
 import { branchService } from "../../services/admin/branch.service";
 import { employeeService, Employee } from "../../services/admin/employee.service";
 interface Branch {
@@ -11,6 +11,7 @@ interface Branch {
    image: string;
    status: 'preparing' | 'active' | 'maintenance';
    manager: string;
+   managerId?: string;
    contact: string;
    gppNumber?: string;
    gppExpiryDate?: string;
@@ -39,15 +40,39 @@ export function Branches() {
    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
    const [isCreateOpen, setIsCreateOpen] = useState(false);
    const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+   const [createdAccount, setCreatedAccount] = useState<{
+      email: string;
+      password?: string;
+      fullName: string;
+      branchCode?: string;
+      branchName?: string;
+   } | null>(null);
 
    const fetchBranches = async () => {
       try {
          setLoading(true);
          const data = await branchService.getBranches();
-         const mapped = data.map((b: any) => ({
-            ...b,
-            id: b.branchCode,
-         }));
+         const rawList = Array.isArray(data) ? data : (data?.data || []);
+         const mapped = rawList
+            .filter((b: any) => Boolean(b))
+            .map((b: any) => ({
+               ...b,
+               id: b.branchCode || b._id || "",
+               branchCode: b.branchCode || b.id || "",
+               name: b.name || "Chi nhánh chưa đặt tên",
+               address: b.address || "Chưa cập nhật địa chỉ",
+               image: b.image || "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60",
+               status: b.status || "active",
+               manager: b.manager || "Chưa gán quản lý",
+               contact: b.contact || b.phone || "",
+               stats: {
+                  employees: Number(b.stats?.employees) || 0,
+                  totalStock: Number(b.stats?.totalStock) || 0,
+                  lowStock: Number(b.stats?.lowStock) || 0,
+                  expiring: Number(b.stats?.expiring) || 0,
+               },
+               alerts: Array.isArray(b.alerts) ? b.alerts : [],
+            }));
          setBranches(mapped);
          setError(null);
       } catch (err: any) {
@@ -68,9 +93,20 @@ export function Branches() {
          const mapped = {
             ...created,
             id: created.branchCode,
+            stats: created.stats || { employees: 0, totalStock: 0, lowStock: 0, expiring: 0 },
+            alerts: Array.isArray(created.alerts) ? created.alerts : [],
          };
          setBranches((prev) => [...prev, mapped]);
          setIsCreateOpen(false);
+
+         // Nếu backend trả về thông tin tài khoản Quản lý chi nhánh vừa cấp mới
+         if (created.newManagerAccount) {
+            setCreatedAccount({
+               ...created.newManagerAccount,
+               branchCode: created.branchCode,
+               branchName: created.name,
+            });
+         }
       } catch (err: any) {
          alert(err.response?.data?.message || err.message || "Lỗi khi tạo chi nhánh");
       }
@@ -105,10 +141,15 @@ export function Branches() {
       }
    };
 
-   const filteredBranches = branches.filter(branch =>
-      branch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      branch.address.toLowerCase().includes(searchTerm.toLowerCase())
-   );
+   const searchKey = (searchTerm || "").trim().toLowerCase();
+   const filteredBranches = branches.filter((branch) => {
+      if (!branch) return false;
+      const name = (branch.name || "").toLowerCase();
+      const address = (branch.address || "").toLowerCase();
+      const code = (branch.branchCode || branch.id || "").toLowerCase();
+      const manager = (branch.manager || "").toLowerCase();
+      return !searchKey || name.includes(searchKey) || address.includes(searchKey) || code.includes(searchKey) || manager.includes(searchKey);
+   });
 
    return (
       <div className="space-y-6 flex flex-col min-h-full bg-[#faf8ff] p-6 lg:p-8 pb-12">
@@ -173,10 +214,10 @@ export function Branches() {
                               {branch.status === 'active' ? 'Hoạt động' : 'Bảo trì / Sửa chữa'}
                            </span>
                         </div>
-                        {(branch.stats.lowStock > 0 || branch.stats.expiring > 0) && (
+                        {((branch.stats?.lowStock || 0) > 0 || (branch.stats?.expiring || 0) > 0) && (
                            <div className="absolute top-3 left-3 bg-rose-500/90 text-white px-2.5 py-1 text-[11px] font-bold rounded-lg shadow-sm backdrop-blur-md flex items-center gap-1.5">
                               <Bell size={12} className="animate-pulse" />
-                              {branch.stats.lowStock + branch.stats.expiring} Cảnh báo
+                              {(branch.stats?.lowStock || 0) + (branch.stats?.expiring || 0)} Cảnh báo
                            </div>
                         )}
                      </div>
@@ -193,11 +234,11 @@ export function Branches() {
                            <div className="mt-5 grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 content-end">
                               <div className="flex flex-col">
                                  <span className="text-xs text-slate-500 font-medium font-mono mb-1 flex items-center gap-1"><Users size={12} /> Nhân sự</span>
-                                 <span className="font-bold text-slate-800">{branch.stats.employees} người</span>
+                                 <span className="font-bold text-slate-800">{branch.stats?.employees ?? 0} người</span>
                               </div>
                               <div className="flex flex-col">
                                  <span className="text-xs text-slate-500 font-medium font-mono mb-1 flex items-center gap-1"><Package size={12} /> Tồn kho</span>
-                                 <span className="font-bold text-slate-800">{branch.stats.totalStock.toLocaleString()} SP</span>
+                                 <span className="font-bold text-slate-800">{(branch.stats?.totalStock || 0).toLocaleString()} SP</span>
                               </div>
                            </div>
                         </div>
@@ -251,6 +292,13 @@ export function Branches() {
                branch={editingBranch}
                onClose={() => setEditingBranch(null)}
                onUpdate={handleUpdate}
+            />
+         )}
+
+         {createdAccount && (
+            <CreatedAccountModal
+               account={createdAccount}
+               onClose={() => setCreatedAccount(null)}
             />
          )}
       </div>
@@ -447,18 +495,29 @@ function BranchDetailModal({ branch, onClose, onDelete }: { branch: Branch, onCl
 function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: any) => void }) {
    const [name, setName] = useState("");
    const [address, setAddress] = useState("");
+   const [managerMode, setManagerMode] = useState<"select" | "new">("select");
+
+   // Trạng thái chọn quản lý có sẵn
    const [manager, setManager] = useState("");
    const [managerId, setManagerId] = useState("");
    const [contact, setContact] = useState("");
+   const [unassignedManagers, setUnassignedManagers] = useState<Employee[]>([]);
+   const [isManualInput, setIsManualInput] = useState(false);
+
+   // Trạng thái cấp tài khoản quản lý mới
+   const [newManagerName, setNewManagerName] = useState("");
+   const [newManagerEmail, setNewManagerEmail] = useState("");
+   const [newManagerPassword, setNewManagerPassword] = useState("123456");
+   const [newManagerPhone, setNewManagerPhone] = useState("");
+   const [showNewPassword, setShowNewPassword] = useState(false);
+
    const [status, setStatus] = useState<"preparing" | "active" | "maintenance">("preparing");
    const [gppNumber, setGppNumber] = useState("");
    const [gppExpiryDate, setGppExpiryDate] = useState("");
    const [image, setImage] = useState("");
-   const [unassignedManagers, setUnassignedManagers] = useState<Employee[]>([]);
-   const [isManualInput, setIsManualInput] = useState(false);
 
    useEffect(() => {
-      // Strictly query and display only accounts with branch manager role
+      // Tải danh sách các tài khoản có vai trò Quản lý chi nhánh
       employeeService.getEmployees({ role: 'branch' })
          .then((data: any) => {
             const list = Array.isArray(data) ? data : data?.data || [];
@@ -473,34 +532,76 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
 
    const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!name.trim() || !address.trim() || !manager.trim() || !contact.trim()) {
-         alert("Vui lòng điền đầy đủ các thông tin bắt buộc!");
+      if (!name.trim() || !address.trim()) {
+         alert("Vui lòng điền đầy đủ tên và địa chỉ chi nhánh!");
          return;
       }
-      onCreate({
-         name,
-         address,
-         manager,
-         managerId,
-         contact,
-         status,
-         gppNumber: gppNumber.trim() || undefined,
-         gppExpiryDate: gppExpiryDate || undefined,
-         image: image.trim() || undefined,
-      });
+
+      if (managerMode === "new") {
+         if (!newManagerName.trim()) {
+            alert("Vui lòng nhập họ và tên Quản lý mới!");
+            return;
+         }
+         if (!newManagerEmail.trim() || !newManagerEmail.includes("@")) {
+            alert("Vui lòng nhập email đăng nhập hợp lệ cho Quản lý mới!");
+            return;
+         }
+         if (!newManagerPassword || newManagerPassword.length < 6) {
+            alert("Mật khẩu quản lý phải có ít nhất 6 ký tự!");
+            return;
+         }
+         onCreate({
+            name,
+            address,
+            contact: newManagerPhone.trim() || contact.trim() || undefined,
+            status,
+            gppNumber: gppNumber.trim() || undefined,
+            gppExpiryDate: gppExpiryDate || undefined,
+            image: image.trim() || undefined,
+            newManager: {
+               fullName: newManagerName.trim(),
+               email: newManagerEmail.trim().toLowerCase(),
+               password: newManagerPassword.trim(),
+               phone: newManagerPhone.trim() || undefined,
+            },
+         });
+      } else {
+         if (!manager.trim()) {
+            alert("Vui lòng chọn hoặc nhập họ tên Quản lý!");
+            return;
+         }
+         if (!contact.trim()) {
+            alert("Vui lòng nhập số điện thoại liên hệ chi nhánh!");
+            return;
+         }
+         onCreate({
+            name,
+            address,
+            manager,
+            managerId: managerId || undefined,
+            contact: contact.trim(),
+            status,
+            gppNumber: gppNumber.trim() || undefined,
+            gppExpiryDate: gppExpiryDate || undefined,
+            image: image.trim() || undefined,
+         });
+      }
    };
 
    return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden transform transition-all">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-               <h2 className="text-xl font-bold text-slate-900">Thêm chi nhánh mới</h2>
+         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] overflow-hidden transform transition-all">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="text-[#0057cd]" size={22} />
+                  Thêm chi nhánh mới
+               </h2>
                <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
                   <X size={20} />
                </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tên chi nhánh *</label>
                   <input
@@ -523,70 +624,180 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
                   />
                </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <div>
-                     <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Quản lý *</label>
-                        <button
-                           type="button"
-                           onClick={() => {
-                              setIsManualInput(!isManualInput);
-                              setManagerId("");
-                           }}
-                           className="text-[11px] font-semibold text-[#0057cd] hover:underline"
-                        >
-                           {isManualInput ? "Chọn danh sách" : "Nhập tay tên"}
-                        </button>
+
+               {/* Chế độ Quản lý chi nhánh: Chọn có sẵn vs Cấp tài khoản mới */}
+               <div className="pt-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nhân sự Quản lý chi nhánh *</label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl mb-3">
+                     <button
+                        type="button"
+                        onClick={() => setManagerMode("select")}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                           managerMode === "select"
+                              ? "bg-white text-[#0057cd] shadow-sm"
+                              : "text-slate-600 hover:text-slate-900"
+                        }`}
+                     >
+                        <Users size={14} />
+                        Chọn quản lý có sẵn
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => setManagerMode("new")}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                           managerMode === "new"
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "text-slate-600 hover:text-slate-900"
+                        }`}
+                     >
+                        <UserPlus size={14} />
+                        + Cấp tài khoản mới
+                     </button>
+                  </div>
+
+                  {managerMode === "new" ? (
+                     <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                           <Key size={14} className="text-emerald-600" />
+                           Thông tin tài khoản Quản lý cấp mới
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Họ và tên Quản lý *</label>
+                              <input
+                                 type="text"
+                                 required
+                                 value={newManagerName}
+                                 onChange={(e) => {
+                                    setNewManagerName(e.target.value);
+                                    setManager(e.target.value);
+                                 }}
+                                 placeholder="VD: Nguyễn Văn An"
+                                 className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                           </div>
+                           <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Số điện thoại *</label>
+                              <input
+                                 type="text"
+                                 required
+                                 value={newManagerPhone}
+                                 onChange={(e) => {
+                                    setNewManagerPhone(e.target.value);
+                                    setContact(e.target.value);
+                                 }}
+                                 placeholder="VD: 0987654321"
+                                 className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                           </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Email đăng nhập *</label>
+                              <input
+                                 type="email"
+                                 required
+                                 value={newManagerEmail}
+                                 onChange={(e) => setNewManagerEmail(e.target.value)}
+                                 placeholder="manager.cnX@abcpharmacy.vn"
+                                 className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                           </div>
+                           <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mật khẩu đăng nhập *</label>
+                              <div className="relative">
+                                 <input
+                                    type={showNewPassword ? "text" : "password"}
+                                    required
+                                    value={newManagerPassword}
+                                    onChange={(e) => setNewManagerPassword(e.target.value)}
+                                    placeholder="Mật khẩu tối thiểu 6 ký tự"
+                                    className="w-full pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                 />
+                                 <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                                 >
+                                    {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+                        <p className="text-[11px] text-emerald-700 italic">
+                           💡 Hệ thống sẽ tự động tạo tài khoản role "branch", gán vào chi nhánh mới và cấp quyền đăng nhập ngay lập tức.
+                        </p>
                      </div>
-                     {isManualInput || unassignedManagers.length === 0 ? (
-                        <input
-                           type="text"
-                           required
-                           value={manager}
-                           onChange={(e) => setManager(e.target.value)}
-                           placeholder="Nhập họ tên Quản lý..."
-                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
-                        />
-                     ) : (
-                        <select
-                           required
-                           value={managerId}
-                           onChange={(e) => {
-                              const selectedId = e.target.value;
-                              const selectedEmp = unassignedManagers.find(emp => emp._id === selectedId);
-                              if (selectedEmp) {
-                                 setManagerId(selectedId);
-                                 setManager(selectedEmp.fullName);
-                                 setContact(selectedEmp.phone || selectedEmp.phoneNumber || selectedEmp.email || "");
-                              } else {
-                                 setManagerId("");
-                                 setManager("");
-                                 setContact("");
-                              }
-                           }}
-                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
-                        >
-                           <option value="">-- Chọn Quản lý ({unassignedManagers.length} quản lý) --</option>
-                           {unassignedManagers.map(emp => (
-                              <option key={emp._id} value={emp._id}>
-                                 {emp.fullName} ({emp.email}){emp.branchId ? ` - [${emp.branchId}]` : ' - [Chưa gán]'}
-                              </option>
-                           ))}
-                        </select>
-                     )}
-                  </div>
-                  <div>
-                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số điện thoại *</label>
-                     <input
-                        type="text"
-                        required
-                        value={contact}
-                        onChange={(e) => setContact(e.target.value)}
-                        placeholder="Liên hệ..."
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
-                     />
-                  </div>
+                  ) : (
+                     <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Chọn Quản lý *</label>
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       setIsManualInput(!isManualInput);
+                                       setManagerId("");
+                                    }}
+                                    className="text-[11px] font-semibold text-[#0057cd] hover:underline"
+                                 >
+                                    {isManualInput ? "Chọn danh sách" : "Nhập tay tên"}
+                                 </button>
+                              </div>
+                              {isManualInput || unassignedManagers.length === 0 ? (
+                                 <input
+                                    type="text"
+                                    required
+                                    value={manager}
+                                    onChange={(e) => setManager(e.target.value)}
+                                    placeholder="Nhập họ tên Quản lý..."
+                                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                                 />
+                              ) : (
+                                 <select
+                                    required
+                                    value={managerId}
+                                    onChange={(e) => {
+                                       const selectedId = e.target.value;
+                                       const selectedEmp = unassignedManagers.find(emp => emp._id === selectedId);
+                                       if (selectedEmp) {
+                                          setManagerId(selectedId);
+                                          setManager(selectedEmp.fullName);
+                                          setContact(selectedEmp.phone || selectedEmp.phoneNumber || selectedEmp.email || "");
+                                       } else {
+                                          setManagerId("");
+                                          setManager("");
+                                          setContact("");
+                                       }
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
+                                 >
+                                    <option value="">-- Chọn Quản lý ({unassignedManagers.length} quản lý) --</option>
+                                    {unassignedManagers.map(emp => (
+                                       <option key={emp._id} value={emp._id}>
+                                          {emp.fullName} ({emp.email}){emp.branchId ? ` - [${emp.branchId}]` : ' - [Chưa gán]'}
+                                       </option>
+                                    ))}
+                                 </select>
+                              )}
+                           </div>
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số điện thoại *</label>
+                              <input
+                                 type="text"
+                                 required
+                                 value={contact}
+                                 onChange={(e) => setContact(e.target.value)}
+                                 placeholder="Liên hệ chi nhánh..."
+                                 className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                              />
+                           </div>
+                        </div>
+                     </div>
+                  )}
                </div>
+
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số Giấy Chứng Nhận GPP</label>
@@ -642,8 +853,9 @@ function CreateBranchModal({ onClose, onCreate }: { onClose: () => void; onCreat
                   </button>
                   <button
                      type="submit"
-                     className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl text-sm hover:bg-[#00419e] transition-colors"
+                     className="px-5 py-2.5 bg-[#0057cd] text-white font-bold rounded-xl text-sm hover:bg-[#00419e] transition-colors flex items-center gap-2"
                   >
+                     <Building2 size={16} />
                      Lưu chi nhánh
                   </button>
                </div>
@@ -657,11 +869,28 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
    const [name, setName] = useState(branch.name);
    const [address, setAddress] = useState(branch.address);
    const [manager, setManager] = useState(branch.manager);
+   const [managerId, setManagerId] = useState(branch.managerId || "");
    const [contact, setContact] = useState(branch.contact);
    const [status, setStatus] = useState<"active" | "maintenance" | "preparing">(branch.status);
    const [gppNumber, setGppNumber] = useState(branch.gppNumber || "");
    const [gppExpiryDate, setGppExpiryDate] = useState(branch.gppExpiryDate || "");
    const [image, setImage] = useState(branch.image);
+   const [managers, setManagers] = useState<Employee[]>([]);
+   const [isManualInput, setIsManualInput] = useState(false);
+
+   useEffect(() => {
+      // Tải danh sách quản lý để cho phép phân công lại
+      employeeService.getEmployees({ role: 'branch' })
+         .then((data: any) => {
+            const list = Array.isArray(data) ? data : data?.data || [];
+            const managersOnly = list.filter((e: any) => e.role === 'branch' || e.role === 'manager');
+            setManagers(managersOnly);
+         })
+         .catch((err) => {
+            console.error("Failed to load branch managers for edit:", err);
+            setIsManualInput(true);
+         });
+   }, []);
 
    const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -674,6 +903,7 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
             name,
             address,
             manager,
+            managerId: managerId || undefined,
             contact,
             status,
             gppNumber: gppNumber.trim() || undefined,
@@ -686,14 +916,17 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
    return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden transform transition-all">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-               <h2 className="text-xl font-bold text-slate-900">Chỉnh sửa thông tin chi nhánh</h2>
+         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] overflow-hidden transform transition-all">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="text-[#0057cd]" size={22} />
+                  Chỉnh sửa thông tin chi nhánh
+               </h2>
                <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
                   <X size={20} />
                </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tên chi nhánh *</label>
                   <input
@@ -716,14 +949,53 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
-                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Quản lý *</label>
-                     <input
-                        type="text"
-                        required
-                        value={manager}
-                        onChange={(e) => setManager(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
-                     />
+                     <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Quản lý *</label>
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setIsManualInput(!isManualInput);
+                              setManagerId("");
+                           }}
+                           className="text-[11px] font-semibold text-[#0057cd] hover:underline"
+                        >
+                           {isManualInput ? "Chọn danh sách" : "Nhập tay tên"}
+                        </button>
+                     </div>
+                     {isManualInput || managers.length === 0 ? (
+                        <input
+                           type="text"
+                           required
+                           value={manager}
+                           onChange={(e) => setManager(e.target.value)}
+                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] transition-all"
+                        />
+                     ) : (
+                        <select
+                           value={managerId}
+                           onChange={(e) => {
+                              const selectedId = e.target.value;
+                              const selectedEmp = managers.find(emp => emp._id === selectedId);
+                              if (selectedEmp) {
+                                 setManagerId(selectedId);
+                                 setManager(selectedEmp.fullName);
+                                 if (selectedEmp.phone || selectedEmp.phoneNumber) {
+                                    setContact(selectedEmp.phone || selectedEmp.phoneNumber || "");
+                                 }
+                              } else {
+                                 setManagerId("");
+                              }
+                           }}
+                           className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0057cd] bg-white transition-all"
+                        >
+                           <option value="">-- {manager ? `Hiện tại: ${manager}` : 'Chọn Quản lý'} --</option>
+                           {managers.map(emp => (
+                              <option key={emp._id} value={emp._id}>
+                                 {emp.fullName} ({emp.email}){emp.branchId ? ` - [${emp.branchId}]` : ' - [Chưa gán]'}
+                              </option>
+                           ))}
+                        </select>
+                     )}
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số điện thoại *</label>
@@ -796,6 +1068,101 @@ function EditBranchModal({ branch, onClose, onUpdate }: { branch: Branch; onClos
                   </button>
                </div>
             </form>
+         </div>
+      </div>
+   );
+}
+
+function CreatedAccountModal({
+   account,
+   onClose,
+}: {
+   account: {
+      email: string;
+      password?: string;
+      fullName: string;
+      branchCode?: string;
+      branchName?: string;
+   };
+   onClose: () => void;
+}) {
+   const [copied, setCopied] = useState(false);
+
+   const copyCredentials = () => {
+      const text = `HỆ THỐNG ABC PHARMACY - THÔNG TIN TÀI KHOẢN QUẢN LÝ CHI NHÁNH
+Chi nhánh: ${account.branchName || ''} (${account.branchCode || ''})
+Họ và tên: ${account.fullName}
+Email đăng nhập: ${account.email}
+Mật khẩu: ${account.password || '123456'}
+Đăng nhập tại: ${window.location.origin}/login`;
+
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+   };
+
+   return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+         <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden border border-emerald-100">
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white text-center relative">
+               <div className="w-16 h-16 bg-white/20 rounded-2xl mx-auto flex items-center justify-center mb-3 backdrop-blur-md">
+                  <UserPlus size={32} className="text-white" />
+               </div>
+               <h3 className="text-xl font-bold">Cấp tài khoản Quản lý thành công!</h3>
+               <p className="text-emerald-100 text-xs mt-1">
+                  Đã tự động liên kết tài khoản với chi nhánh {account.branchCode}
+               </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+               <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div>
+                     <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Chi nhánh quản lý</span>
+                     <p className="text-sm font-bold text-slate-800">{account.branchName} ({account.branchCode})</p>
+                  </div>
+                  <div className="h-px bg-slate-200/60" />
+                  <div>
+                     <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Họ và tên Quản lý</span>
+                     <p className="text-sm font-semibold text-slate-800">{account.fullName}</p>
+                  </div>
+                  <div className="h-px bg-slate-200/60" />
+                  <div>
+                     <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Email đăng nhập</span>
+                     <p className="text-sm font-mono font-bold text-[#0057cd] select-all">{account.email}</p>
+                  </div>
+                  <div className="h-px bg-slate-200/60" />
+                  <div>
+                     <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Mật khẩu đăng nhập</span>
+                     <p className="text-sm font-mono font-bold text-emerald-600 select-all">{account.password || '123456'}</p>
+                  </div>
+               </div>
+
+               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2.5">
+                  <CheckCircle2 size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                     <b>Cách đăng nhập:</b> Truy cập trang <b>/login</b>, nhập Email & Mật khẩu trên. Hệ thống sẽ tự động chuyển hướng vào màn hình làm việc của chi nhánh <b>{account.branchCode}</b>.
+                  </div>
+               </div>
+
+               <div className="flex gap-3 pt-2">
+                  <button
+                     type="button"
+                     onClick={copyCredentials}
+                     className="flex-1 py-2.5 px-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 border border-emerald-200"
+                  >
+                     {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                     {copied ? "Đã sao chép!" : "Sao chép thông tin"}
+                  </button>
+                  <button
+                     type="button"
+                     onClick={onClose}
+                     className="flex-1 py-2.5 px-4 bg-[#0057cd] text-white hover:bg-[#00419e] font-bold rounded-xl text-sm transition-all"
+                  >
+                     Đã hiểu
+                  </button>
+               </div>
+            </div>
          </div>
       </div>
    );

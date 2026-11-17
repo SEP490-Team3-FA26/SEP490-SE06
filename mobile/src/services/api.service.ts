@@ -62,24 +62,39 @@ export class ApiService {
   }
 
   // Tự động kiểm tra và duy trì phiên đăng nhập hợp lệ cho các tác vụ Kho / Quản trị
-  public static async ensureAuthToken(): Promise<string> {
-    if (this.currentToken) return this.currentToken;
-    try {
-      const saved = await AsyncStorage.getItem('auth_token');
-      if (saved) {
-        this.currentToken = saved;
-        return saved;
-      }
-    } catch (_) {}
+  public static async ensureAuthToken(forceRefresh = false): Promise<string> {
+    if (this.currentToken && !forceRefresh) return this.currentToken;
+    if (!forceRefresh) {
+      try {
+        const saved = await AsyncStorage.getItem('auth_token');
+        if (saved) {
+          this.currentToken = saved;
+          return saved;
+        }
+      } catch (_) {}
+    } else {
+      await AsyncStorage.removeItem('auth_token').catch(() => {});
+      this.currentToken = '';
+    }
 
     // Tự động cấp phiên làm việc kho dev/test nếu chưa đăng nhập để không chặn luồng kiểm kho
     try {
-      const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+      let res = await fetch(`${this.baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ email: 'warehouse@vinapharmacy.com', password: '123456' }),
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      // Nếu baseUrl thất bại hoặc không phải cloud, tự động fallback đăng nhập sang Cloud Server
+      if ((!res || !res.ok) && this.baseUrl !== 'https://abcpharmacy.store') {
+        res = await fetch('https://abcpharmacy.store/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: 'warehouse@vinapharmacy.com', password: '123456' }),
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         const autoToken = data.access_token || data.token;
         if (autoToken) {
@@ -2224,17 +2239,31 @@ export class ApiService {
   public static async getGoodsReceipts(): Promise<any[]> {
     try {
       await this.ensureAuthToken();
-      let res = await fetch(`${this.baseUrl}/api/goods-receipts`, {
+      let res = await fetch(`${this.baseUrl}/api/goods-receipts?limit=100`, {
         headers: this.authHeaders,
-      });
-      if (res.status === 401) {
-        this.currentToken = '';
-        await this.ensureAuthToken();
-        res = await fetch(`${this.baseUrl}/api/goods-receipts`, {
+      }).catch(() => null);
+      if (res && res.status === 401) {
+        await this.ensureAuthToken(true);
+        res = await fetch(`${this.baseUrl}/api/goods-receipts?limit=100`, {
           headers: this.authHeaders,
-        });
+        }).catch(() => null);
       }
-      if (res.ok) {
+      // Dự phòng truy vấn Cloud nếu mạng LAN không phản hồi
+      if ((!res || !res.ok) && this.baseUrl !== 'https://abcpharmacy.store') {
+        let cloudRes = await fetch('https://abcpharmacy.store/api/goods-receipts?limit=100', {
+          headers: this.authHeaders,
+        }).catch(() => null);
+        if (cloudRes && cloudRes.status === 401) {
+          await this.ensureAuthToken(true);
+          cloudRes = await fetch('https://abcpharmacy.store/api/goods-receipts?limit=100', {
+            headers: this.authHeaders,
+          }).catch(() => null);
+        }
+        if (cloudRes && cloudRes.ok) {
+          res = cloudRes;
+        }
+      }
+      if (res && res.ok) {
         const decoded = await res.json();
         return Array.isArray(decoded) ? decoded : decoded?.data || [];
       }
@@ -2493,18 +2522,37 @@ export class ApiService {
   }
 
   // --- PURCHASE ORDERS (PO) & REQUISITIONS (PR) ---
-  public static async getPurchaseOrders(): Promise<any[]> {
+  public static async getPurchaseOrders(params?: { status?: string; limit?: number; page?: number }): Promise<any[]> {
     try {
       await this.ensureAuthToken();
 
-      let res = await fetch(`${this.baseUrl}/api/purchase-orders`, { headers: this.authHeaders });
-      if (res.status === 401) {
-        this.currentToken = '';
-        await this.ensureAuthToken();
-        res = await fetch(`${this.baseUrl}/api/purchase-orders`, { headers: this.authHeaders });
+      const queryParts: string[] = [];
+      const statusParam = params?.status || 'SHIPPING,RECEIVING,PARTIAL_RECEIVED,APPROVED,ORDERED,DELIVERING,PENDING_APPROVAL';
+      if (statusParam) queryParts.push(`status=${encodeURIComponent(statusParam)}`);
+      const limitParam = params?.limit || 100;
+      queryParts.push(`limit=${limitParam}`);
+      if (params?.page) queryParts.push(`page=${params.page}`);
+      const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+      let res = await fetch(`${this.baseUrl}/api/purchase-orders${qs}`, { headers: this.authHeaders }).catch(() => null);
+      if (res && res.status === 401) {
+        await this.ensureAuthToken(true);
+        res = await fetch(`${this.baseUrl}/api/purchase-orders${qs}`, { headers: this.authHeaders }).catch(() => null);
       }
 
-      if (res.ok) {
+      // Dự phòng truy vấn Cloud nếu mạng LAN không phản hồi
+      if ((!res || !res.ok) && this.baseUrl !== 'https://abcpharmacy.store') {
+        let cloudRes = await fetch(`https://abcpharmacy.store/api/purchase-orders${qs}`, { headers: this.authHeaders }).catch(() => null);
+        if (cloudRes && cloudRes.status === 401) {
+          await this.ensureAuthToken(true);
+          cloudRes = await fetch(`https://abcpharmacy.store/api/purchase-orders${qs}`, { headers: this.authHeaders }).catch(() => null);
+        }
+        if (cloudRes && cloudRes.ok) {
+          res = cloudRes;
+        }
+      }
+
+      if (res && res.ok) {
         const decoded = await res.json();
         return Array.isArray(decoded) ? decoded : decoded?.data || [];
       }
@@ -2530,14 +2578,25 @@ export class ApiService {
       }
       const cleanId = encodeURIComponent(rawId);
 
-      let res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers: this.authHeaders });
-      if (res.status === 401) {
-        this.currentToken = '';
-        await this.ensureAuthToken();
-        res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers: this.authHeaders });
+      let res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers: this.authHeaders }).catch(() => null);
+      if (res && res.status === 401) {
+        await this.ensureAuthToken(true);
+        res = await fetch(`${this.baseUrl}/api/purchase-orders/${cleanId}`, { headers: this.authHeaders }).catch(() => null);
       }
 
-      if (res.ok) {
+      // Dự phòng truy vấn Cloud nếu mạng LAN không phản hồi
+      if ((!res || !res.ok) && this.baseUrl !== 'https://abcpharmacy.store') {
+        let cloudRes = await fetch(`https://abcpharmacy.store/api/purchase-orders/${cleanId}`, { headers: this.authHeaders }).catch(() => null);
+        if (cloudRes && cloudRes.status === 401) {
+          await this.ensureAuthToken(true);
+          cloudRes = await fetch(`https://abcpharmacy.store/api/purchase-orders/${cleanId}`, { headers: this.authHeaders }).catch(() => null);
+        }
+        if (cloudRes && cloudRes.ok) {
+          res = cloudRes;
+        }
+      }
+
+      if (res && res.ok) {
         const decoded = await res.json();
         return decoded?.data || decoded;
       }

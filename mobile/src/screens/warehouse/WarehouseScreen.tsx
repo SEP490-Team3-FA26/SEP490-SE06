@@ -459,21 +459,24 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         }
 
         if (matchedPo) {
+          const poCodeDisplay = matchedPo.poCode || (matchedPo._id ? `PO-${String(matchedPo._id).slice(-6).toUpperCase()}` : 'PO');
           const poReceipt = {
-            id: `GRN-${matchedPo.poCode || (matchedPo._id ? matchedPo._id.slice(-6).toUpperCase() : 'PO')}`,
-            poCode: matchedPo.poCode || matchedPo._id,
+            id: `GRN-${poCodeDisplay.replace('#', '')}`,
+            poCode: poCodeDisplay,
             poId: matchedPo._id,
-            supplier: matchedPo.supplierName || 'Nhà cung cấp',
+            supplier: matchedPo.supplierName || (matchedPo.supplier?.name || matchedPo.supplier) || 'Nhà cung cấp đối tác',
             status: 'INSPECTING',
             items: (matchedPo.items || []).map((it: any, idx: number) => ({
               medicineId: it.medicineId || it.id || `item_${idx}`,
               name: it.medicineName || it.name || `Thuốc #${idx + 1}`,
-              expected: Number(it.quantity) || 100,
+              expected: Number(it.quantity || it.expected) || 100,
               actual: 0,
               unit: it.unit || 'Hộp',
               status: 'PENDING',
               batchNo: it.batchNo || '',
               expDate: it.expDate || '',
+              barcode: it.barcode || '',
+              sku: it.sku || '',
             })),
           };
           // Đảm bảo đưa phiếu PO vào danh sách receipts để không bị mất khi thoát hoặc hoàn tất

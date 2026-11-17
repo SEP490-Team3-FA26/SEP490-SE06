@@ -77,6 +77,9 @@ export class Branch {
   @Prop({ required: true })
   manager: string;
 
+  @Prop({ type: String, required: false })
+  managerId?: string; // ID tài khoản Quản lý chi nhánh trong bảng User
+
   @Prop({ required: true })
   contact: string;
 

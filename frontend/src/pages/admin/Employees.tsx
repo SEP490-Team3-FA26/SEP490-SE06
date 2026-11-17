@@ -58,10 +58,13 @@ export function Employees() {
     return employees;
   })();
 
-  const filteredEmployees = baseFiltered.filter(emp =>
-    emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const searchKey = (searchTerm || "").trim().toLowerCase();
+  const filteredEmployees = baseFiltered.filter((emp) => {
+    if (!emp) return false;
+    const name = (emp.fullName || "").toLowerCase();
+    const email = (emp.email || "").toLowerCase();
+    return !searchKey || name.includes(searchKey) || email.includes(searchKey);
+  });
 
   const handleOpenModal = (employee?: Employee) => {
     setModalError(null);
