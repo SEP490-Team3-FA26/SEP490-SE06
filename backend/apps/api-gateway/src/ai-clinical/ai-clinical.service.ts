@@ -105,9 +105,23 @@ export class AiClinicalService {
       if (response.ok) {
         aiResponseData = await response.json();
       } else {
-        throw new Error(`AI service responded with status ${response.status}`);
+        const errorText = await response.text();
+        let errorDetail = errorText;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.detail) {
+            errorDetail =
+              typeof parsed.detail === 'string'
+                ? parsed.detail
+                : JSON.stringify(parsed.detail);
+          }
+        } catch (_) {}
+        throw new HttpException(errorDetail, response.status);
       }
     } catch (err: any) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`AI prescription scanning failed: ${err.message}`);
       throw new HttpException(
         'Dịch vụ AI chẩn đoán đơn thuốc hiện không khả dụng. Vui lòng kiểm tra lại kết nối.',
@@ -304,9 +318,23 @@ export class AiClinicalService {
       if (response.ok) {
         aiResponseData = await response.json();
       } else {
-        throw new Error(`AI voice service responded with status ${response.status}`);
+        const errorText = await response.text();
+        let errorDetail = errorText;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.detail) {
+            errorDetail =
+              typeof parsed.detail === 'string'
+                ? parsed.detail
+                : JSON.stringify(parsed.detail);
+          }
+        } catch (_) {}
+        throw new HttpException(errorDetail, response.status);
       }
     } catch (err: any) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`AI voice consultation failed: ${err.message}`);
       throw new HttpException(
         'Dịch vụ AI tư vấn giọng nói hiện không khả dụng. Vui lòng kiểm tra lại mic và đường truyền.',

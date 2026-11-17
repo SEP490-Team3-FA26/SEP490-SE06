@@ -118,56 +118,58 @@ async def call_llm_json(messages: list[dict], temperature: float = 0.1) -> str:
             except Exception as exc:
                 errors.append(f"Groq ({model}) exception: {exc}")
 
-    # 2. Fallback sang Google Gemini 3.8 Flash
+    # 2. Fallback sang Google Gemini (Ưu tiên gemini-3.5-flash & gemini-3.7-flash hoạt động ổn định, kèm fallback 3.8)
     google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if google_key and len(google_key) > 10:
-        try:
-            print("[AI Service] Goi Google Gemini API (model: gemini-3.8-flash)...", flush=True)
-            sys_text = ""
-            contents = []
-            for m in messages:
-                role = m.get("role")
-                text = extract_text_from_message_content(m.get("content", ""))
-                if role == "system":
-                    sys_text = (sys_text + "\n" + text).strip()
-                elif role == "user":
-                    contents.append({"role": "user", "parts": [{"text": text}]})
-                elif role == "assistant":
-                    contents.append({"role": "model", "parts": [{"text": text}]})
+        models_gemini = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash"]
+        for g_model in models_gemini:
+            try:
+                print(f"[AI Service] Goi Google Gemini API (model: {g_model})...", flush=True)
+                sys_text = ""
+                contents = []
+                for m in messages:
+                    role = m.get("role")
+                    text = extract_text_from_message_content(m.get("content", ""))
+                    if role == "system":
+                        sys_text = (sys_text + "\n" + text).strip()
+                    elif role == "user":
+                        contents.append({"role": "user", "parts": [{"text": text}]})
+                    elif role == "assistant":
+                        contents.append({"role": "model", "parts": [{"text": text}]})
 
-            if not contents:
-                contents.append({"role": "user", "parts": [{"text": "Phan tich va tra ve ket qua JSON"}]})
+                if not contents:
+                    contents.append({"role": "user", "parts": [{"text": "Phan tich va tra ve ket qua JSON"}]})
 
-            payload = {
-                "contents": contents,
-                "generationConfig": {
-                    "response_mime_type": "application/json",
-                    "temperature": temperature
+                payload = {
+                    "contents": contents,
+                    "generationConfig": {
+                        "response_mime_type": "application/json",
+                        "temperature": temperature
+                    }
                 }
-            }
-            if sys_text:
-                payload["system_instruction"] = {"parts": [{"text": sys_text}]}
+                if sys_text:
+                    payload["system_instruction"] = {"parts": [{"text": sys_text}]}
 
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={google_key}"
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
-                if res.status_code == 200:
-                    candidates = res.json().get("candidates", [])
-                    if candidates:
-                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                        clean_msg = content.strip()
-                        if clean_msg.startswith("```"):
-                            clean_msg = re.sub(r"^```[a-zA-Z]*\n?", "", clean_msg)
-                            clean_msg = re.sub(r"\n?```$", "", clean_msg).strip()
-                        if clean_msg:
-                            print("[AI Service] Google Gemini 3.8 Flash phan hoi thanh cong!", flush=True)
-                            return clean_msg
-                else:
-                    print(f"[AI Service] Gemini 3.8 Flash bao loi ({res.status_code}): {res.text[:300]}", flush=True)
-                    errors.append(f"Gemini 3.8 Flash HTTP {res.status_code}: {res.text[:200]}")
-        except Exception as exc:
-            print(f"[AI Service] Gemini 3.8 Flash ngoai le: {exc}", flush=True)
-            errors.append(f"Gemini 3.8 Flash exception: {exc}")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={google_key}"
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                    if res.status_code == 200:
+                        candidates = res.json().get("candidates", [])
+                        if candidates:
+                            content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            clean_msg = content.strip()
+                            if clean_msg.startswith("```"):
+                                clean_msg = re.sub(r"^```[a-zA-Z]*\n?", "", clean_msg)
+                                clean_msg = re.sub(r"\n?```$", "", clean_msg).strip()
+                            if clean_msg:
+                                print(f"[AI Service] Google Gemini ({g_model}) phan hoi thanh cong!", flush=True)
+                                return clean_msg
+                    else:
+                        print(f"[AI Service] Gemini {g_model} bao loi ({res.status_code}): {res.text[:300]}", flush=True)
+                        errors.append(f"Gemini {g_model} HTTP {res.status_code}: {res.text[:200]}")
+            except Exception as exc:
+                print(f"[AI Service] Gemini {g_model} ngoai le: {exc}", flush=True)
+                errors.append(f"Gemini {g_model} exception: {exc}")
 
     # 3. Fallback sang Groq API (chuẩn hóa text thuần túy)
     groq_key = os.getenv("GROQ_API_KEY") or os.getenv("EXPO_PUBLIC_GROQ_API_KEY")

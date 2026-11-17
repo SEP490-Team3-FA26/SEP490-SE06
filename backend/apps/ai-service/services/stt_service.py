@@ -79,14 +79,20 @@ async def _transcribe_with_gemini(content: bytes, mime_type: str, google_key: st
         }],
         "generationConfig": {"temperature": 0.0}
     }
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={google_key}"
+    # Danh sách model Google hỗ trợ chuyển giọng nói thành văn bản
+    models_to_try = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash"]
     async with httpx.AsyncClient(timeout=30.0) as client:
-        res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
-        if res.status_code == 200:
-            candidates = res.json().get("candidates", [])
-            if candidates:
-                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
-                if "chuỗi rỗng" in text.lower() or "không nghe rõ" in text.lower() or "tạp âm" in text.lower():
-                    return ""
-                return text
+        for model in models_to_try:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={google_key}"
+                res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                if res.status_code == 200:
+                    candidates = res.json().get("candidates", [])
+                    if candidates:
+                        text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+                        if "chuỗi rỗng" in text.lower() or "không nghe rõ" in text.lower() or "tạp âm" in text.lower():
+                            return ""
+                        return text
+            except Exception as e:
+                print(f"[STT Service] Google Direct {model} loi: {e}")
     return ""
