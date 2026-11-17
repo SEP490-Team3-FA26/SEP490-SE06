@@ -87,6 +87,24 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res.length).toBe(2);
       expect(res[0].medicineName).toBe('Amoxicillin 500mg');
     });
+
+    it('TC-PO-NORM-01: getPurchaseOrderById tự động lấy chi tiết PO thành công khi có mã hợp lệ', async () => {
+      (globalThis as any).fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          _id: '6af6f744caefa79c40a05944',
+          poCode: 'PO-A05944',
+          status: 'RECEIVING',
+          items: [{ medicineId: 'm1', medicineName: 'Homtamin Ginseng', quantity: 274 }],
+        }),
+      } as any);
+
+      const po = await ApiService.getPurchaseOrderById('6af6f744caefa79c40a05944');
+      expect(po).toBeDefined();
+      expect(po._id).toBe('6af6f744caefa79c40a05944');
+      expect(po.items.length).toBe(1);
+    });
   });
 
   // =========================================================================
@@ -109,6 +127,22 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       const res = await ApiService.getShelfDetail('B', 'B2', 4);
       expect(Array.isArray(res)).toBe(true);
       expect(res.length).toBe(0);
+    });
+
+    it('TC-PO-BOUND-02: getPurchaseOrderById bóc tách chính xác query param ?poId= khi quét QR URL', async () => {
+      let requestedUrl = '';
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string) => {
+        requestedUrl = url;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ _id: '6af6f744caefa79c40a05944', poCode: 'PO-A05944' }),
+        });
+      });
+
+      const po = await ApiService.getPurchaseOrderById('https://abcpharmacy.store/warehouse?poId=6af6f744caefa79c40a05944');
+      expect(po).toBeDefined();
+      expect(requestedUrl).toContain('6af6f744caefa79c40a05944');
     });
   });
 
@@ -153,6 +187,37 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res).toBeDefined();
       expect(res.batches).toEqual([]);
       expect(res.zone).toBe('A');
+    });
+
+    it('TC-PO-ABNORM-03: Tự động cấp lại token kho và retry khi nhận HTTP 401 Unauthorized', async () => {
+      let callCount = 0;
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string) => {
+        callCount++;
+        if (url.includes('/api/auth/login')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ access_token: 'fresh_auto_warehouse_token' }),
+          });
+        }
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: false,
+            status: 401,
+            json: async () => ({ message: 'Unauthorized' }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => [{ _id: 'po1', poCode: 'PO-001' }],
+        });
+      });
+
+      const pos = await ApiService.getPurchaseOrders();
+      expect(Array.isArray(pos)).toBe(true);
+      expect(pos.length).toBe(1);
+      expect(pos[0]._id).toBe('po1');
     });
   });
 });
