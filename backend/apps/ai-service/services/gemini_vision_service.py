@@ -84,9 +84,9 @@ async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[s
     # Chiến lược 1: Ưu tiên gọi trực tiếp Google AI Studio API (Hoàn toàn miễn phí, tốc độ cao 1-2s, không phụ thuộc credit)
     if google_key and len(google_key) > 10:
         try:
-            print("🚀 [AI Vision] Sử dụng Google AI Studio Direct API (Gemini 3.8 Flash)...")
+            print("🚀 [AI Vision] Sử dụng Google AI Studio Direct API (Gemini Vision)...")
             res = await _call_google_direct_api(images, google_key)
-            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital") or res.get("rejection_reason") or res.get("is_printed") is not None):
                 return res
         except Exception as e:
             print(f"Google Direct API call error: {e}")
@@ -96,7 +96,7 @@ async def analyze_prescription_images(images: List[Tuple[bytes, str]]) -> Dict[s
         try:
             print("🔄 [AI Vision] Gọi OpenRouter fallback...")
             res = await _call_openrouter_gemini_vision(images, openrouter_key)
-            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital")):
+            if res and (res.get("items") or res.get("diagnoses") or res.get("hospital") or res.get("rejection_reason") or res.get("is_printed") is not None):
                 return res
         except Exception as e:
             print(f"OpenRouter Gemini Vision call error: {e}")
