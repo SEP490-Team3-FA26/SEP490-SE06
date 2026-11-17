@@ -376,11 +376,11 @@ export function HQApproval() {
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" className="rounded" checked={selectedPrs.includes(pr._id)} onChange={() => toggleSelectPr(pr._id)} />
                     </td>
-                    <td className="px-4 py-3 font-bold text-rose-700">{pr.prCode}</td>
-                    <td className="px-4 py-3 text-slate-600"><Calendar size={13} className="inline mr-1 text-slate-400" />{new Date(pr.createdAt).toLocaleDateString("vi-VN")}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800"><Building2 size={13} className="inline mr-1 text-slate-400" />{pr.branchName}</td>
-                    <td className="px-4 py-3 text-slate-800 font-semibold">{pr.reason}</td>
-                    <td className="px-4 py-3 text-center font-bold">{pr.items?.length || 0}</td>
+                    <td className="px-4 py-3 font-bold text-rose-700">{pr.prCode || pr._id}</td>
+                    <td className="px-4 py-3 text-slate-600"><Calendar size={13} className="inline mr-1 text-slate-400" />{pr.createdAt ? new Date(pr.createdAt).toLocaleDateString("vi-VN") : "---"}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800"><Building2 size={13} className="inline mr-1 text-slate-400" />{pr.branchName || "Chi nhánh"}</td>
+                    <td className="px-4 py-3 text-slate-800 font-semibold">{pr.reason || "Yêu cầu khẩn cấp"}</td>
+                    <td className="px-4 py-3 text-center font-bold">{Array.isArray(pr.items) ? pr.items.length : 0}</td>
                     <td className="px-4 py-3"><span className="inline-flex px-2 py-1 rounded bg-rose-600 text-white text-[10px] font-bold uppercase">HỎA TỐC</span></td>
                   </tr>
                 ))}
@@ -410,10 +410,10 @@ export function HQApproval() {
                     {tab === "PENDING_APPROVAL" && <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" className="rounded" checked={selectedPos.includes(po._id)} onChange={() => toggleSelectPo(po._id)} />
                     </td>}
-                    <td className="px-4 py-3 font-bold text-slate-900 font-mono text-xs">PO-{po._id.slice(-6).toUpperCase()}</td>
-                    <td className="px-4 py-3 text-slate-600"><Calendar size={13} className="inline mr-1 text-slate-400" />{new Date(po.createdAt).toLocaleDateString("vi-VN")}</td>
+                    <td className="px-4 py-3 font-bold text-slate-900 font-mono text-xs">PO-{(po._id || po.id || "").slice(-6).toUpperCase()}</td>
+                    <td className="px-4 py-3 text-slate-600"><Calendar size={13} className="inline mr-1 text-slate-400" />{po.createdAt ? new Date(po.createdAt).toLocaleDateString("vi-VN") : "---"}</td>
                     <td className="px-4 py-3 font-medium text-slate-800"><Building2 size={13} className="inline mr-1 text-slate-400" />{getSupplierName(po.supplierId)}</td>
-                    <td className="px-4 py-3 text-center font-bold">{po.items?.length || 0}</td>
+                    <td className="px-4 py-3 text-center font-bold">{Array.isArray(po.items) ? po.items.length : 0}</td>
                     <td className="px-4 py-3 text-right font-black text-violet-700">{po.totalAmount?.toLocaleString("vi-VN")}đ</td>
                     <td className="px-4 py-3 text-center">{statusBadge(po.status)}</td>
                     <td className="px-4 py-3 text-right">
@@ -452,7 +452,7 @@ export function HQApproval() {
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="relative bg-white rounded-2xl shadow-2xl w-10/12 max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-violet-50 shrink-0">
-                <div><h3 className="font-black text-slate-900 font-mono">PO-{detailPo._id.slice(-6).toUpperCase()}</h3><p className="text-xs mt-0.5">{statusBadge(detailPo.status)}</p></div>
+                <div><h3 className="font-black text-slate-900 font-mono">PO-{(detailPo._id || detailPo.id || '').slice(-6).toUpperCase()}</h3><p className="text-xs mt-0.5">{statusBadge(detailPo.status)}</p></div>
                 <button onClick={() => setDetailPo(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"><X size={18} /></button>
               </div>
               <div className="p-5 space-y-4 overflow-y-auto flex-1">
@@ -466,7 +466,7 @@ export function HQApproval() {
                 </div>
                 <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Package size={14} className="text-violet-600" />Sản phẩm ({detailPo.items?.length || 0})</h4>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                  {detailPo.items?.map((it: any, i: number) => (
+                  {(Array.isArray(detailPo.items) ? detailPo.items : []).map((it: any, i: number) => (
                     <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <div>
                         <span className="font-semibold text-slate-800 text-sm block">{it.medicineName || "ID: " + it.medicineId}</span>
@@ -544,7 +544,7 @@ export function HQApproval() {
                     <Package size={14} className="text-rose-600" /> Danh sách sản phẩm yêu cầu ({detailPr.items?.length || 0})
                   </h4>
                   <div className="space-y-2.5">
-                    {detailPr.items?.map((it: any, i: number) => (
+                    {(Array.isArray(detailPr.items) ? detailPr.items : []).map((it: any, i: number) => (
                       <div key={i} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
                         <div>
                           <span className="font-bold text-slate-800 text-sm block">{it.medicineName}</span>
@@ -599,7 +599,7 @@ export function HQApproval() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-200">
-                                {recommendationResult.recommendations?.map((rec: any, idx: number) => (
+                                {(Array.isArray(recommendationResult?.recommendations) ? recommendationResult.recommendations : []).map((rec: any, idx: number) => (
                                   <tr key={idx} className="text-slate-700">
                                     <td className="py-3 font-semibold text-slate-800">{rec.branchName}</td>
                                     <td className="py-3 text-center font-bold text-slate-900">{rec.currentStock}</td>
