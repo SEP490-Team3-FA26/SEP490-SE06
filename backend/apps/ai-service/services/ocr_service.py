@@ -165,7 +165,60 @@ async def extract_prescription_from_image(
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
     image_url = f"data:{mime_type};base64,{base64_image}"
 
-    # Strategy 1: OpenRouter Gemini 2.5 Flash
+    # Strategy 1: Google AI Studio Direct API (GEMINI_API_KEY)
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        models_to_try = [
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-flash-latest",
+        ]
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": PRESCRIPTION_OCR_PROMPT},
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": base64_image,
+                            }
+                        },
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.1,
+            },
+        }
+        import httpx
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            for model in models_to_try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+                try:
+                    res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                    if res.status_code == 200:
+                        candidates = res.json().get("candidates", [])
+                        if candidates:
+                            text_content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            parsed = _parse_json_content(text_content)
+                            if parsed.get("is_handwritten") is True:
+                                return {
+                                    "error": "HANDWRITTEN_PRESCRIPTION_REJECTED",
+                                    "message": "Hệ thống chỉ hỗ trợ quét đơn thuốc bản in điện tử, không tiếp nhận đơn viết tay để đảm bảo an toàn dược phẩm.",
+                                    "is_handwritten": True,
+                                }
+                            return parsed
+                    else:
+                        print(f"Google Direct OCR {model} status {res.status_code}: {res.text[:100]}")
+                except Exception as exc:
+                    provider_errors.append(f"Google Direct OCR {model} failed: {exc}")
+                    print(provider_errors[-1])
+
+    # Strategy 2: OpenRouter Gemini 2.5 Flash
     open_router_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
     if open_router_key:
         try:
@@ -210,7 +263,7 @@ async def extract_prescription_from_image(
             provider_errors.append(f"OpenRouter Gemini OCR failed: {exc}")
             print(provider_errors[-1])
 
-    # Strategy 2: Hugging Face Fallback
+    # Strategy 3: Hugging Face Fallback
     hf_token = os.getenv("HF_TOKEN")
     if hf_token:
         try:

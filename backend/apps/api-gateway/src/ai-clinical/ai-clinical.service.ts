@@ -145,39 +145,44 @@ export class AiClinicalService {
       };
     });
 
-    const ocrRecord = new this.ocrLogModel({
-      scanId: aiResponseData.scan_id || scanId,
-      branchId: branchId || 'BR-001',
-      imageUrls,
-      patient: aiResponseData.patient || {},
-      doctor: aiResponseData.doctor || {},
-      rawExtractedItems,
-      pharmacistAdjustedItems: rawExtractedItems.map((r: any) => ({
-        medicineId: r.medicineId,
-        name: r.name,
-        quantity: r.quantity,
-        unit: r.unit,
-        dosage: r.dosage,
-        price: r.matchedSku?.retail_price || 50000,
-        active_ingredient: r.generic_name,
-      })),
-      hasAdjustments: false,
-      confidenceScore: 0.96,
-      pharmacistInfo: {
-        name: userContext?.fullName || 'Dược sĩ trực quầy',
-        license: userContext?.license || 'CCHN-GPP/02849-HN',
-        userId: userContext?.userId || userContext?.sub,
+    const effectiveScanId = aiResponseData.scan_id || scanId;
+    const ocrRecord = await this.ocrLogModel.findOneAndUpdate(
+      { scanId: effectiveScanId },
+      {
+        $setOnInsert: {
+          scanId: effectiveScanId,
+          branchId: branchId || 'BR-001',
+          imageUrls,
+          patient: aiResponseData.patient || {},
+          doctor: aiResponseData.doctor || {},
+          rawExtractedItems,
+          pharmacistAdjustedItems: rawExtractedItems.map((r: any) => ({
+            medicineId: r.medicineId,
+            name: r.name,
+            quantity: r.quantity,
+            unit: r.unit,
+            dosage: r.dosage,
+            price: r.matchedSku?.retail_price || 50000,
+            active_ingredient: r.generic_name,
+          })),
+          hasAdjustments: false,
+          confidenceScore: 0.96,
+          pharmacistInfo: {
+            name: userContext?.fullName || 'Dược sĩ trực quầy',
+            license: userContext?.license || 'CCHN-GPP/02849-HN',
+            userId: userContext?.userId || userContext?.sub,
+          },
+          status: 'SCANNED',
+        },
       },
-      status: 'SCANNED',
-    });
-
-    await ocrRecord.save();
+      { upsert: true, new: true },
+    );
 
     return {
       ...aiResponseData,
-      scan_id: ocrRecord.scanId,
+      scan_id: ocrRecord?.scanId || effectiveScanId,
       image_urls: imageUrls,
-      saved_log_id: ocrRecord._id,
+      saved_log_id: ocrRecord?._id,
     };
   }
 

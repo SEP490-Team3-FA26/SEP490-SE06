@@ -1753,9 +1753,11 @@ async def scan_prescription_v2(
         # 1. SHA-256 Cache Check
         cached_result = prescription_cache.get(bytes_list, branch_id)
         if cached_result:
-            cached_result["from_cache"] = True
-            cached_result["processing_time_sec"] = round(time.time() - start_time, 3)
-            return cached_result
+            result_copy = dict(cached_result)
+            result_copy["from_cache"] = True
+            result_copy["scan_id"] = f"scan_{uuid.uuid4().hex[:12]}"
+            result_copy["processing_time_sec"] = round(time.time() - start_time, 3)
+            return result_copy
 
         # 2. Gemini 2.5 Flash Vision Analysis
         gemini_response = await analyze_prescription_images(images_data)
