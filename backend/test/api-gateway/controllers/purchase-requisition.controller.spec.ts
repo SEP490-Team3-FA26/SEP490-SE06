@@ -87,6 +87,18 @@ describe('PurchaseRequisitionController - Gateway Controller Unit Tests', () => 
       });
       expect(result).toEqual(mockList);
     });
+
+    it('TC-PR-NORM-04: Tự động gán branchId của Quản lý chi nhánh khi không truyền branchId', async () => {
+      mockKafkaClient.send.mockReturnValue(of([]));
+      const req = { user: { role: 'BRANCH_MANAGER', branchId: 'BR-001' } };
+      await controller.listPurchaseRequisitions(undefined, undefined, undefined, undefined, req);
+      expect(mockKafkaClient.send).toHaveBeenCalledWith('inventory.pr.list', {
+        status: undefined,
+        branchId: 'BR-001',
+        limit: 100,
+        page: undefined,
+      });
+    });
   });
 
   // =========================================================================

@@ -6,9 +6,10 @@ export interface PaginationProps {
   setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
   totalPages: number;
   totalItems: number;
+  unitName?: string;
 }
 
-export function Pagination({ currentPage, setCurrentPage, totalPages, totalItems }: PaginationProps) {
+export function Pagination({ currentPage, setCurrentPage, totalPages, totalItems, unitName = "sản phẩm" }: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const [inputPage, setInputPage] = useState<string>(currentPage.toString());
@@ -45,7 +46,7 @@ export function Pagination({ currentPage, setCurrentPage, totalPages, totalItems
         /{" "}
         <span className="font-bold text-sky-600">{totalPages}</span>
         <span className="ml-1 text-slate-400 font-normal">
-          ({totalItems.toLocaleString("vi-VN")} sản phẩm)
+          ({totalItems.toLocaleString("vi-VN")} {unitName})
         </span>
       </div>
 

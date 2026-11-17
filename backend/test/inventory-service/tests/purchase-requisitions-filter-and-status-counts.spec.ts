@@ -24,12 +24,12 @@ describe('PurchaseQueryEngine - Lọc đa trạng thái và Thống kê PR/PO/GR
     return statusInput;
   }
 
-  // Mô phỏng thuật toán tính toán phân trang chuẩn Kafka 1MB ceiling
+  // Mô phỏng thuật toán tính toán phân trang chuẩn Kafka 1MB ceiling (mặc định 100 bản ghi)
   function calculatePagination(query: { limit?: any; page?: any }) {
     const rawPage = Number(query?.page);
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
     const rawLimit = Number(query?.limit);
-    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 100), 100);
     const skip = Math.max(0, (page - 1) * limit);
     return { limit, skip };
   }
@@ -79,9 +79,9 @@ describe('PurchaseQueryEngine - Lọc đa trạng thái và Thống kê PR/PO/GR
       });
     });
 
-    it('TC-NORM-04: Tính toán phân trang chuẩn mặc định (page=1, limit=20)', () => {
+    it('TC-NORM-04: Tính toán phân trang chuẩn mặc định (page=1, limit=100)', () => {
       const pagination = calculatePagination({});
-      expect(pagination).toEqual({ limit: 20, skip: 0 });
+      expect(pagination).toEqual({ limit: 100, skip: 0 });
     });
 
     it('TC-NORM-05: Định dạng đúng kết quả status counts từ aggregate MongoDB', () => {
@@ -111,12 +111,12 @@ describe('PurchaseQueryEngine - Lọc đa trạng thái và Thống kê PR/PO/GR
       expect(pagination.skip).toBe(0);
     });
 
-    it('TC-BOUND-02: Giới hạn sàn tối thiểu limit là 20 (mặc định) khi truyền vào 0 hoặc số âm', () => {
+    it('TC-BOUND-02: Giới hạn sàn tối thiểu limit là 100 (mặc định) khi truyền vào 0 hoặc số âm', () => {
       const paginationZero = calculatePagination({ limit: 0, page: 1 });
-      expect(paginationZero.limit).toBe(20);
+      expect(paginationZero.limit).toBe(100);
 
       const paginationNegative = calculatePagination({ limit: -5, page: 1 });
-      expect(paginationNegative.limit).toBe(20);
+      expect(paginationNegative.limit).toBe(100);
     });
 
     it('TC-BOUND-03: Tính skip chính xác ở các trang kế tiếp (page=2, limit=50 -> skip=50)', () => {
@@ -150,7 +150,7 @@ describe('PurchaseQueryEngine - Lọc đa trạng thái và Thống kê PR/PO/GR
 
     it('TC-ABNORM-02: Tham số page và limit dạng chuỗi ký tự không hợp lệ fallback về mặc định', () => {
       const pagination = calculatePagination({ limit: 'abc', page: 'xyz' });
-      expect(pagination.limit).toBe(20);
+      expect(pagination.limit).toBe(100);
       expect(pagination.skip).toBe(0);
     });
 
