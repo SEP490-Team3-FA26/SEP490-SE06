@@ -2,12 +2,17 @@ import React from 'react';
 
 export const PR_STATUS: Record<string, { label: string; cls: string }> = {
   SUBMITTED: { label: "Chờ xử lý", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  SHIPPING: { label: "Đang giao", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  COMPLETED: { label: "Hoàn thành ✓", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  DISPATCH_PENDING: { label: "Chờ xuất kho", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  SHIPPING: { label: "Đang giao hàng", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  COMPLETED: { label: "Hoàn thành ✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   OUT_OF_STOCK: { label: "Hết hàng ⚠", cls: "bg-orange-50 text-orange-700 border-orange-200" },
   WAREHOUSE_SUBMITTED: { label: "Đã gửi Admin", cls: "bg-violet-50 text-violet-700 border-violet-200" },
-  CONSOLIDATED: { label: "Đã tạo PO", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  CONSOLIDATED: { label: "Đang gom đơn", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  APPROVED: { label: "Đã duyệt ✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   REJECTED: { label: "Từ chối ✗", cls: "bg-rose-50 text-rose-700 border-rose-200" },
+  URGENT_PENDING: { label: "Hỏa tốc — Chờ duyệt ⚡", cls: "bg-rose-50 text-rose-700 border-rose-200" },
+  DRAFT: { label: "Bản nháp", cls: "bg-slate-50 text-slate-600 border-slate-200" },
+  CANCELLED: { label: "Đã hủy", cls: "bg-slate-50 text-slate-500 border-slate-200" },
 };
 
 export const PO_STATUS: Record<string, { label: string; cls: string }> = {

@@ -146,6 +146,7 @@ export class OrderController implements OnModuleInit {
     const cashierId = req.user?.sub || req.user?.id || 'POS-CASHIER';
     const result = await sendKafkaMessage(this.orderClient, 'orders.reconciliation.manual_override', {
       ...body,
+      notes: body.notes || body.overrideReason,
       cashierId,
     });
     await this.clearMedicineCache();
