@@ -99,6 +99,12 @@ export class Medicine extends Document {
   manufacturer: string;
 
   @Prop()
+  brand?: string; // Thương hiệu / Nhãn hàng
+
+  @Prop()
+  country?: string; // Quốc gia sản xuất
+
+  @Prop()
   dosage_form: string;
 
   @Prop({ index: true })

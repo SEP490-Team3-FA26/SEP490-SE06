@@ -1215,11 +1215,11 @@ export class MedicineService implements OnModuleInit {
         .select('name category unit price image images active_ingredient registration_number barcode brand country')
         .lean()
         .exec();
-      const medMap = new Map(medicines.map(m => [m._id.toString(), m]));
+      const medMap = new Map<string, any>(medicines.map(m => [m._id.toString(), m]));
 
       const report = batches
         .map(b => {
-          const med = medMap.get(b.medicineId);
+          const med: any = medMap.get(b.medicineId);
           const expDate = new Date(b.expDate);
 
           let status = 'ACTIVE';
@@ -1249,8 +1249,8 @@ export class MedicineService implements OnModuleInit {
             active_ingredient: med?.active_ingredient || '',
             registrationNumber: med?.registration_number || '',
             barcode: med?.barcode || '',
-            brand: med?.brand || '',
-            country: med?.country || '',
+            brand: med?.brand || med?.manufacturer || '',
+            country: med?.country || med?.country_of_origin || '',
             branchId: b.branchId || (isBranchWarehouse ? branchId : 'CENTRAL_WH'),
             location: (b as any).location || null,
           };
