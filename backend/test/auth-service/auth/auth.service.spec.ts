@@ -339,4 +339,126 @@ describe('AuthService', () => {
       ).rejects.toThrow(ConflictException);
     });
   });
+
+  describe('syncEmployeeUser', () => {
+    // [Normal Values]
+    it('[Normal Values] nên đồng bộ tạo mới nhân viên vào Auth DB thành công khi chưa tồn tại', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      const result = await service.syncEmployeeUser({
+        email: 'manager09@gmail.com',
+        fullName: 'Nguyễn Văn Quản Lý',
+        role: UserRole.BRANCH,
+        branchId: 'BR-009',
+        passwordHash: 'hashed_manager_pwd',
+      });
+
+      expect(userModel.findOne).toHaveBeenCalledWith({ email: 'manager09@gmail.com' });
+      expect(result.email).toBe('manager09@gmail.com');
+      expect(result.role).toBe(UserRole.BRANCH);
+      expect(result.branchId).toBe('BR-009');
+      expect(result.passwordHash).toBe('hashed_manager_pwd');
+    });
+
+    it('[Normal Values] nên cập nhật thông tin nhân viên đã tồn tại trong Auth DB', async () => {
+      const existingUser: any = {
+        email: 'manager09@gmail.com',
+        fullName: 'Old Name',
+        role: UserRole.PHARMACIST,
+        save: jest.fn().mockResolvedValue(true),
+      };
+      userModel.findOne.mockResolvedValue(existingUser);
+
+      const result = await service.syncEmployeeUser({
+        email: 'manager09@gmail.com',
+        fullName: 'New Manager Name',
+        role: UserRole.BRANCH,
+        branchId: 'BR-009',
+        password: 'NewPassword123!',
+      });
+
+      expect(existingUser.fullName).toBe('New Manager Name');
+      expect(existingUser.role).toBe(UserRole.BRANCH);
+      expect(existingUser.branchId).toBe('BR-009');
+      expect(existingUser.save).toHaveBeenCalled();
+      expect(result).toBe(existingUser);
+    });
+
+    // [Boundary Values]
+    it('[Boundary Values] nên tự động chuẩn hóa email có khoảng trắng và chữ hoa', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      const result = await service.syncEmployeeUser({
+        email: '  MANAGER09@GMAIL.COM  ',
+        fullName: 'Quản Lý 09',
+      });
+
+      expect(userModel.findOne).toHaveBeenCalledWith({ email: 'manager09@gmail.com' });
+      expect(result.email).toBe('manager09@gmail.com');
+    });
+
+    it('[Boundary Values] nên tự động hash mật khẩu mặc định 123456 nếu không cung cấp password hay passwordHash', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      const result = await service.syncEmployeeUser({
+        email: 'staff01@gmail.com',
+      });
+
+      expect(result.passwordHash).toBeDefined();
+      expect(typeof result.passwordHash).toBe('string');
+    });
+
+    // [Abnormal Values]
+    it('[Abnormal Values] ném BadRequestException khi email rỗng hoặc không hợp lệ', async () => {
+      await expect(
+        service.syncEmployeeUser({ email: '' }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.syncEmployeeUser({ email: '   ' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('generateAndSendWelcomeResetToken', () => {
+    // [Normal Values]
+    it('[Normal Values] nên tự động đồng bộ tài khoản nếu chưa tồn tại trong Auth DB trước khi tạo token', async () => {
+      userModel.findOne.mockResolvedValueOnce(null);
+      tokenModel.create.mockResolvedValue({ token: '654321' });
+
+      const result = await service.generateAndSendWelcomeResetToken(
+        'newmanager@gmail.com',
+        'Quản Lý Mới',
+        'BR-010',
+        UserRole.BRANCH,
+        'hashed_pwd_token',
+      );
+
+      expect(userModel.findOne).toHaveBeenCalledWith({ email: 'newmanager@gmail.com' });
+      expect(tokenModel.create).toHaveBeenCalled();
+      expect(result.message).toContain('Đã gửi email thiết lập mật khẩu đến nhân viên mới');
+    });
+
+    // [Boundary Values]
+    it('[Boundary Values] nên hoạt động bình thường khi tài khoản đã tồn tại sẵn trong Auth DB', async () => {
+      const existingUser: any = {
+        email: 'existing@gmail.com',
+        fullName: 'Đã Có Sẵn',
+      };
+      userModel.findOne.mockResolvedValue(existingUser);
+      tokenModel.create.mockResolvedValue({ token: '654321' });
+
+      const result = await service.generateAndSendWelcomeResetToken('existing@gmail.com');
+      expect(result.message).toContain('Đã gửi email thiết lập mật khẩu đến nhân viên mới');
+    });
+
+    // [Abnormal Values]
+    it('[Abnormal Values] ném BadRequestException nếu email truyền vào rỗng', async () => {
+      userModel.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.generateAndSendWelcomeResetToken(''),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });

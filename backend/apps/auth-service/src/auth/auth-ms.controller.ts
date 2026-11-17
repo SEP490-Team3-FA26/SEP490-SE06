@@ -403,21 +403,40 @@ export class AuthMsController {
   }
 
   /**
-   * Su kien tu dong gui email chao mung va OTP thiet lap mat khau cho nhan vien moi
+   * Sự kiện tự động đồng bộ và gửi email chào mừng cho nhân viên mới
    */
   @EventPattern('auth.employee.welcome_reset_password')
   async handleEmployeeWelcomeResetPassword(@Payload() data: any) {
     try {
       const payload = typeof data === 'string' ? JSON.parse(data) : data;
-      console.log(`[Auth MS] Nhan su kien gui email chao mung cho nhan vien: ${payload.email}`);
+      console.log(`[Auth MS] Nhận sự kiện tạo nhân viên mới: ${payload.email}`);
+      // 1. Tự động đồng bộ tài khoản nhân sự vào Auth Database
+      await this.authService.syncEmployeeUser(payload);
+
+      // 2. Gửi email chào mừng và token kích hoạt tài khoản nếu cần
       await this.authService.generateAndSendWelcomeResetToken(
         payload.email,
         payload.fullName,
         payload.branchId,
         payload.role,
+        payload.passwordHash,
       );
     } catch (error: any) {
-      console.error(`[Auth MS] Loi xu ly gui email chao mung nhan vien:`, error.message);
+      console.error(`[Auth MS] Lỗi xử lý đồng bộ và gửi email chào mừng nhân viên:`, error.message);
+    }
+  }
+
+  /**
+   * Sự kiện đồng bộ thông tin nhân sự từ User Service (Cập nhật role, chi nhánh, mật khẩu)
+   */
+  @EventPattern('auth.employee.sync')
+  async handleEmployeeSync(@Payload() data: any) {
+    try {
+      const payload = typeof data === 'string' ? JSON.parse(data) : data;
+      console.log(`[Auth MS] Đồng bộ thông tin nhân viên: ${payload.email}`);
+      await this.authService.syncEmployeeUser(payload);
+    } catch (error: any) {
+      console.error(`[Auth MS] Lỗi xử lý đồng bộ tài khoản nhân viên:`, error.message);
     }
   }
 

@@ -375,6 +375,61 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   // ============================================================
+  // ĐỒNG BỘ TÀI KHOẢN NHÂN VIÊN TỪ USER SERVICE SANG AUTH SERVICE
+  // ============================================================
+  async syncEmployeeUser(payload: {
+    email: string;
+    fullName?: string;
+    role?: string;
+    branchId?: string;
+    phone?: string;
+    passwordHash?: string;
+    password?: string;
+  }): Promise<any> {
+    const email = (payload.email || '').toLowerCase().trim();
+    if (!email) {
+      throw new BadRequestException('Email không hợp lệ khi đồng bộ nhân sự');
+    }
+
+    let user: any = await this.userModel.findOne({ email });
+    const passwordHash =
+      payload.passwordHash ||
+      (payload.password ? await bcrypt.hash(payload.password, 12) : await bcrypt.hash('123456', 12));
+
+    if (user) {
+      // Cập nhật thông tin nhân sự
+      if (payload.fullName) user.fullName = payload.fullName;
+      if (payload.role) user.role = payload.role as any;
+      if (payload.branchId !== undefined) user.branchId = payload.branchId;
+      if (payload.phone) user.phone = payload.phone;
+      if (payload.passwordHash || payload.password) {
+        user.passwordHash = passwordHash;
+      }
+      user.isActive = true;
+      user.isApproved = 'approved';
+      await user.save();
+    } else {
+      // Tạo mới tài khoản trong Auth Service database
+      user = new this.userModel({
+        email,
+        fullName: payload.fullName || email,
+        role: payload.role || UserRole.BRANCH,
+        branchId: payload.branchId || null,
+        phone: payload.phone || undefined,
+        passwordHash,
+        isActive: true,
+        isApproved: 'approved',
+        isEmailVerified: true,
+        privacyAgreed: true,
+        privacyPolicyVersion: 'v1.0',
+        privacyAgreedAt: new Date(),
+      });
+      await user.save();
+    }
+    return user;
+  }
+
+  // ============================================================
   // TỰ ĐỘNG GỬI EMAIL CHÀO MỪNG & THIẾT LẬP MẬT KHẨU NHÂN VIÊN MỚI
   // ============================================================
   async generateAndSendWelcomeResetToken(
@@ -382,10 +437,18 @@ export class AuthService implements OnApplicationBootstrap {
     fullName?: string,
     branchId?: string,
     role?: string,
+    passwordHash?: string,
   ): Promise<{ message: string }> {
-    const userExists = await this.userModel.findOne({ email });
+    let userExists: any = await this.userModel.findOne({ email });
     if (!userExists) {
-      throw new NotFoundException(`Không tìm thấy tài khoản với email ${email}`);
+      // Tự động tạo và đồng bộ nhân sự vào Auth Database nếu chưa có
+      userExists = await this.syncEmployeeUser({
+        email,
+        fullName,
+        branchId,
+        role,
+        passwordHash,
+      });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();

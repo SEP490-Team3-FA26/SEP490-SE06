@@ -1205,16 +1205,19 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
       await this.syncManagerToBranch(data.branchId, data.fullName);
     }
 
-    // Phat su kien gui email chao mung va OTP thiet lap mat khau cho nhan vien moi
+    // Đồng bộ tài khoản nhân sự sang Auth Service và phát sự kiện gửi email chào mừng
     try {
       this.authClient.emit('auth.employee.welcome_reset_password', {
         email: data.email,
         fullName: data.fullName,
         branchId: data.branchId,
         role: data.role,
+        phone: data.phone,
+        passwordHash, // Đính kèm chuỗi băm mật khẩu để Auth Service lưu vào Auth DB
+        password: rawPassword, // Đính kèm mật khẩu gốc để gửi email/OTP
       });
     } catch (err: any) {
-      this.logger.warn(`Loi phat su kien gui email chao mung nhan vien: ${err.message}`);
+      this.logger.warn(`Lỗi phát sự kiện đồng bộ nhân viên sang Auth Service: ${err.message}`);
     }
 
     const result = newUser.toObject();
@@ -1645,6 +1648,9 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     if (data.fullName) employee.fullName = data.fullName;
     if (data.role) employee.role = data.role;
     if (data.branchId !== undefined) employee.branchId = data.branchId;
+    if (data.password && data.password.trim().length >= 6) {
+      employee.passwordHash = await bcrypt.hash(data.password.trim(), 12);
+    }
     if (data.phone !== undefined) {
       if (data.phone) {
         const existingPhone = await this.userModel.findOne({
@@ -1661,6 +1667,20 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
 
     await employee.save();
+
+    // Đồng bộ thông tin nhân sự sang Auth Service
+    try {
+      this.authClient.emit('auth.employee.sync', {
+        email: employee.email,
+        fullName: employee.fullName,
+        branchId: employee.branchId,
+        role: employee.role,
+        phone: employee.phone,
+        passwordHash: employee.passwordHash,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Lỗi đồng bộ cập nhật nhân sự sang Auth Service: ${err.message}`);
+    }
 
     // Auto sync manager field in Branch when branch manager changes
     const finalRole = data.role || employee.role;
