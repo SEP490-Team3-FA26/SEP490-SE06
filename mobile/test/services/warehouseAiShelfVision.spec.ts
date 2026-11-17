@@ -94,6 +94,29 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res.confidence).toBeGreaterThanOrEqual(95);
     });
 
+    it('TC-VISION-NORM-04: inspectReceiptItemAI gửi JSON Content-Type khi có ảnh Base64 thay vì FormData', async () => {
+      let capturedHeaders: any = null;
+      let capturedBody: any = null;
+      (globalThis as any).fetch = jest.fn().mockImplementation((url: string, opts: any) => {
+        capturedHeaders = opts?.headers;
+        capturedBody = opts?.body;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, aiCount: 10, status: 'MATCHED' }),
+        });
+      });
+
+      const res = await ApiService.inspectReceiptItemAI(
+        'GRN-101',
+        'item_0',
+        'data:image/jpeg;base64,dGVzdF9pbWFnZQ=='
+      );
+
+      expect(res.success).toBe(true);
+      expect(capturedHeaders['Content-Type']).toBe('application/json');
+      expect(JSON.parse(capturedBody).imageBase64).toBe('data:image/jpeg;base64,dGVzdF9pbWFnZQ==');
+    });
+
     it('TC-SHELF-NORM-02: Lấy chi tiết tầng kệ thành công khi Backend trả về danh sách lô hàng hợp lệ', async () => {
       const mockBatches = [
         { id: 'b1', medicineName: 'Amoxicillin 500mg', stock: 100, batchNo: 'LOT-01' },
@@ -265,6 +288,19 @@ describe('Warehouse AI Vision & Shelf Detail Suite', () => {
       expect(res.success).toBe(true);
       expect(res.aiCount).toBe(1);
       expect(res.confidence).toBeGreaterThanOrEqual(95);
+    });
+
+    it('TC-VISION-ABNORM-06: Ngăn chặn truyền object event/GestureResponderEvent và trả về kết quả an toàn', async () => {
+      const mockEvent = { nativeEvent: { pageX: 100, pageY: 200 } };
+      const res = await ApiService.inspectReceiptItemAI(
+        'GRN-A05944',
+        'item_0',
+        mockEvent as any
+      );
+
+      // Khi dữ liệu đầu vào là object event rác, tự động trả về giá trị dự phòng an toàn không ném crash
+      expect(res.success).toBe(true);
+      expect(res.detectedCount).toBe(10);
     });
 
     it('TC-SHELF-ABNORM-02: Lỗi mạng khi gọi getShelfDetail không văng crash, trả về cấu trúc rỗng an toàn', async () => {

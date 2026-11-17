@@ -142,6 +142,7 @@ const ShelfTier3D = React.memo<ShelfTier3DProps>(({
 interface Rack3DProps {
   zoneKey: string;
   rack: any;
+  rackIndex?: number;
   highlightedTarget: string;
   onSelectShelf: (loc: { zone: string; rack: string; shelf: number }) => void;
 }
@@ -149,10 +150,11 @@ interface Rack3DProps {
 const Rack3D = React.memo<Rack3DProps>(({
   zoneKey,
   rack,
+  rackIndex = 0,
   highlightedTarget,
   onSelectShelf,
 }) => {
-  const rackId = rack.rackId;
+  const rackId = rack.rackId || rack.id || rack.code || rack.rack || `${zoneKey}${rackIndex + 1}`;
   const isRackTargeted = highlightedTarget.startsWith(`${zoneKey}-${rackId}`);
 
   return (
@@ -170,16 +172,17 @@ const Rack3D = React.memo<Rack3DProps>(({
 
       {/* 4 Tầng kệ xếp chồng theo chiều thẳng đứng không gian 3D */}
       <View style={styles.rack3DStack}>
-        {rack.shelves?.map((shelf: any) => {
-          const targetId = `${zoneKey}-${rackId}-${shelf.shelf}`;
+        {rack.shelves?.map((shelf: any, sIdx: number) => {
+          const shelfNum = shelf.shelf || shelf.shelfNum || shelf.tier || sIdx + 1;
+          const targetId = `${zoneKey}-${rackId}-${shelfNum}`;
           const isHighlighted = highlightedTarget === targetId;
 
           return (
             <ShelfTier3D
-              key={`shelf_3d_${targetId}`}
+              key={`shelf_3d_${targetId}_${sIdx}`}
               zoneKey={zoneKey}
               rackId={rackId}
-              shelfNum={shelf.shelf}
+              shelfNum={shelfNum}
               totalStock={shelf.totalStock}
               batchCount={shelf.batchCount}
               status={shelf.status}
@@ -188,7 +191,7 @@ const Rack3D = React.memo<Rack3DProps>(({
                 onSelectShelf({
                   zone: zoneKey,
                   rack: rackId,
-                  shelf: shelf.shelf,
+                  shelf: shelfNum,
                 })
               }
             />
@@ -357,15 +360,19 @@ export const WarehouseMap3D: React.FC<WarehouseMap3DProps> = ({
 
               {/* Danh sách các Kệ 3D trong khu */}
               <View style={styles.racks3DGrid}>
-                {zone.racks?.map((rack: any) => (
-                  <Rack3D
-                    key={`rack_card_${zoneKey}_${rack.rackId}`}
-                    zoneKey={zoneKey}
-                    rack={rack}
-                    highlightedTarget={highlightedTarget}
-                    onSelectShelf={onSelectShelf}
-                  />
-                ))}
+                {zone.racks?.map((rack: any, rIdx: number) => {
+                  const rId = rack.rackId || rack.id || rack.code || rack.rack || `${zoneKey}${rIdx + 1}`;
+                  return (
+                    <Rack3D
+                      key={`rack_card_${zoneKey}_${rId}_${rIdx}`}
+                      zoneKey={zoneKey}
+                      rack={rack}
+                      rackIndex={rIdx}
+                      highlightedTarget={highlightedTarget}
+                      onSelectShelf={onSelectShelf}
+                    />
+                  );
+                })}
               </View>
             </View>
           );

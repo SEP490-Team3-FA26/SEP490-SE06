@@ -36,27 +36,32 @@ export interface InventoryCheckMedicine {
 }
 
 export const inventoryCheckService = {
-  async getBatches() {
-    const response = await api.get<InventoryCheckMedicine[]>(API_ENDPOINTS.INVENTORY_CHECKS.BATCHES);
+  async getBatches(branchId?: string) {
+    const params = branchId ? { branchId } : {};
+    const response = await api.get<InventoryCheckMedicine[]>(API_ENDPOINTS.INVENTORY_CHECKS.BATCHES, { params });
     return response.data;
   },
-  async getChecks() {
-    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.LIST);
-    return response.data;
-  },
-
-  async getCheckById(id: string) {
-    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.DETAIL(id));
+  async getChecks(branchId?: string) {
+    const params = branchId ? { branchId } : {};
+    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.LIST, { params });
     return response.data;
   },
 
-  async createCheck(payload: InventoryCheckPayload) {
-    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.CREATE, payload);
+  async getCheckById(id: string, branchId?: string) {
+    const params = branchId ? { branchId } : {};
+    const response = await api.get(API_ENDPOINTS.INVENTORY_CHECKS.DETAIL(id), { params });
     return response.data;
   },
 
-  async completeCheck(id: string) {
-    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.COMPLETE(id));
+  async createCheck(payload: InventoryCheckPayload, branchId?: string) {
+    const params = branchId ? { branchId } : {};
+    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.CREATE, payload, { params });
+    return response.data;
+  },
+
+  async completeCheck(id: string, branchId?: string) {
+    const params = branchId ? { branchId } : {};
+    const response = await api.post(API_ENDPOINTS.INVENTORY_CHECKS.COMPLETE(id), {}, { params });
     return response.data;
   }
 };

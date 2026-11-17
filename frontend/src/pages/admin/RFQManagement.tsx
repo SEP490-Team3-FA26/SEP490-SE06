@@ -83,6 +83,46 @@ export function RFQManagement() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Trạng thái modal xác nhận tùy chỉnh (thay thế hoàn toàn window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => void;
+  } | null>(null);
+
+  const confirmAction = ({
+    title,
+    description,
+    confirmText = 'Xác nhận',
+    cancelText = 'Hủy bỏ',
+    variant = 'primary',
+    onConfirm,
+  }: {
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => void;
+  }) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      description,
+      confirmText,
+      cancelText,
+      variant,
+      onConfirm: () => {
+        setConfirmDialog(null);
+        onConfirm();
+      },
+    });
+  };
+
   // Create Form State
   const [formTitle, setFormTitle] = useState<string>('');
   const [formDeadline, setFormDeadline] = useState<string>(
@@ -275,16 +315,23 @@ export function RFQManagement() {
     return { total, active, awarded, draft };
   }, [rfqs]);
 
-  // Handle Send RFQ Bulk
-  const handleSendRfq = async (id: string, code: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn gửi RFQ [${code}] đồng loạt đến tất cả NCC được mời?`)) return;
-    try {
-      await rfqService.sendRfq(id);
-      showToast(`Đã gửi RFQ ${code} hàng loạt thành công!`, 'success');
-      loadData();
-    } catch (err: any) {
-      showToast(`Lỗi gửi RFQ: ${err?.response?.data?.message || err.message}`, 'error');
-    }
+  // Handle Send RFQ Bulk (Sử dụng modal xác nhận tùy chỉnh thay thế window.confirm)
+  const handleSendRfq = (id: string, code: string) => {
+    confirmAction({
+      title: 'Xác nhận phát tán RFQ đồng loạt',
+      description: `Bạn có chắc chắn muốn gửi RFQ [${code}] đồng loạt đến tất cả NCC được mời? Hệ thống sẽ kích hoạt gửi thư mời và liên kết chào giá trực tuyến cho các nhà cung cấp.`,
+      confirmText: 'Gửi RFQ ngay',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          await rfqService.sendRfq(id);
+          showToast(`Đã gửi RFQ ${code} hàng loạt thành công!`, 'success');
+          loadData();
+        } catch (err: any) {
+          showToast(`Lỗi gửi RFQ: ${err?.response?.data?.message || err.message}`, 'error');
+        }
+      },
+    });
   };
 
   // Trích xuất danh sách danh mục (category) từ medicines
@@ -551,27 +598,32 @@ export function RFQManagement() {
     }
   };
 
-  // Award RFQ
-  const handleAward = async (quotation: SupplierQuotation) => {
+  // Award RFQ (Sử dụng modal xác nhận tùy chỉnh thay thế window.confirm)
+  const handleAward = (quotation: SupplierQuotation) => {
     if (!selectedRfq) return;
-    const confirmMsg = `Xác nhận CHỌN THẦU cho Nhà cung cấp: [${quotation.supplierName}] với tổng giá trị ${quotation.totalAmount.toLocaleString('vi-VN')} đ?\n\nHệ thống sẽ tự động phát hành Đơn đặt hàng PO tương ứng!`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      setIsSubmitting(true);
-      await rfqService.awardRfq(selectedRfq._id || selectedRfq.id || '', {
-        quotationId: quotation.quotationId,
-        supplierId: quotation.supplierId,
-        reason: 'Giá cạnh tranh, đáp ứng đầy đủ yêu cầu Hạn dùng và thời hạn công nợ',
-      });
-      showToast(`Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO!`, 'success');
-      setShowMatrixModal(false);
-      loadData();
-    } catch (err: any) {
-      showToast(`Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    confirmAction({
+      title: 'Xác nhận chọn thầu & Tạo đơn đặt hàng PO',
+      description: `Xác nhận CHỌN THẦU cho Nhà cung cấp: [${quotation.supplierName}] với tổng giá trị ${quotation.totalAmount.toLocaleString('vi-VN')} đ? Hệ thống sẽ tự động chốt phiên RFQ và tự động phát hành Đơn đặt hàng PO tương ứng!`,
+      confirmText: 'Chốt chọn thầu & Tạo PO',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await rfqService.awardRfq(selectedRfq._id || selectedRfq.id || '', {
+            quotationId: quotation.quotationId,
+            supplierId: quotation.supplierId,
+            reason: 'Giá cạnh tranh, đáp ứng đầy đủ yêu cầu Hạn dùng và thời hạn công nợ',
+          });
+          showToast(`Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO!`, 'success');
+          setShowMatrixModal(false);
+          loadData();
+        } catch (err: any) {
+          showToast(`Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`, 'error');
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   return (
@@ -1659,6 +1711,53 @@ export function RFQManagement() {
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
               >
                 {isSubmitting ? 'Đang lưu...' : 'Lưu Báo Giá NCC'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal xác nhận tùy chỉnh chuẩn UI y tế v2.0 (thay thế hoàn toàn window.confirm) */}
+      {typeof document !== 'undefined' && confirmDialog && confirmDialog.isOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                confirmDialog.variant === 'danger'
+                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                  : 'bg-blue-50 text-[#0057cd] border border-blue-200'
+              }`}>
+                {confirmDialog.variant === 'danger' ? <AlertTriangle size={24} /> : <Send size={24} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-snug">
+                  {confirmDialog.title}
+                </h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                  {confirmDialog.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                {confirmDialog.cancelText || 'Hủy bỏ'}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`px-5 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-colors cursor-pointer ${
+                  confirmDialog.variant === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-[#0057cd] hover:bg-[#00419e]'
+                }`}
+              >
+                {confirmDialog.confirmText || 'Xác nhận'}
               </button>
             </div>
           </div>
