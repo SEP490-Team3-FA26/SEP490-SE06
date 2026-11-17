@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus, X, CheckCircle2, AlertTriangle, Loader2, ClipboardList,
   Calendar, Package, Trash2, Send, FileText, ChevronRight, Eye, Search, ChevronDown, Edit, ShieldCheck
@@ -7,13 +7,36 @@ import { motion, AnimatePresence } from "motion/react";
 import { purchaseRequisitionService } from "../../services/purchase/purchaseRequisition.service";
 import { medicineService } from "../../services/inventory/medicine.service";
 import { CreatePRModal } from "../../components/CreatePRModal";
+import { Pagination } from "../../components/Pagination";
 import { useSocket } from "../../hooks/useSocket";
+
+// Trích xuất mã chi nhánh hiện tại từ token JWT hoặc localStorage
+function getBranchIdFromToken() {
+  const token = localStorage.getItem("token");
+  if (!token) return localStorage.getItem("branchId") || "BR-001";
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return localStorage.getItem("branchId") || "BR-001";
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(jsonPayload);
+    return payload.branchId || localStorage.getItem("branchId") || "BR-001";
+  } catch {
+    return localStorage.getItem("branchId") || "BR-001";
+  }
+}
 
 /**
  * BƯỚC 1 — Quản lý Chi nhánh tạo PR (Yêu cầu mua hàng) gửi lên Trụ sở.
  * Chi nhánh KHÔNG có quyền mua trực tiếp từ NCC.
  */
 export function BranchRequisition() {
+  const currentBranchId = useMemo(() => getBranchIdFromToken(), []);
   const [prList, setPrList] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +45,12 @@ export function BranchRequisition() {
   const [editPrData, setEditPrData] = useState<any>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [prefillData, setPrefillData] = useState<any[]>([]);
+
+  // Quản lý trạng thái phân trang (mặc định 100 bản ghi/trang)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(100);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,7 +76,7 @@ export function BranchRequisition() {
     try {
       await purchaseRequisitionService.deletePurchaseRequisition(id);
       setSuccessMsg("Đã hủy và xóa yêu cầu mua hàng thành công!");
-      fetchData();
+      fetchData(currentPage, pageSize);
     } catch (e: any) {
       alert(e.response?.data?.message || e.message || "Lỗi khi xóa yêu cầu");
     } finally {
@@ -55,15 +84,25 @@ export function BranchRequisition() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (page = currentPage, limit = pageSize) => {
     setLoading(true);
     try {
       const [prRes, medRes] = await Promise.all([
-        purchaseRequisitionService.getPurchaseRequisitions().catch(() => []),
+        purchaseRequisitionService.getPurchaseRequisitions(undefined, {
+          branchId: currentBranchId,
+          page,
+          limit,
+        }).catch(() => []),
         medicineService.getMedicinesDropdown().then(r => r.data || (Array.isArray(r) ? r : [])).catch(() => []),
       ]);
 
-      setPrList(Array.isArray(prRes) ? prRes : (prRes.data || []));
+      const items = Array.isArray(prRes) ? prRes : (prRes?.data || []);
+      const total = prRes?.total ?? items.length;
+      const pages = prRes?.totalPages ?? Math.max(1, Math.ceil(total / limit));
+
+      setPrList(items);
+      setTotalItems(total);
+      setTotalPages(pages);
       setMedicines(Array.isArray(medRes) ? medRes : []);
     } catch (err: any) {
       if (err?.name === 'AbortError') {
@@ -73,7 +112,9 @@ export function BranchRequisition() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData(currentPage, pageSize);
+  }, [currentPage, pageSize]);
 
   //===============================================
   // SOCKET.IO
@@ -82,31 +123,37 @@ export function BranchRequisition() {
   const { onEvent, offEvent } = useSocket();
   useEffect(() => {
     const handlePrUpdated = () => {
-      fetchData();
+      fetchData(currentPage, pageSize);
     };
     onEvent('pr_updated', handlePrUpdated);
+    onEvent('new_pr_notification', handlePrUpdated);
     return () => {
       offEvent('pr_updated', handlePrUpdated);
+      offEvent('new_pr_notification', handlePrUpdated);
     };
-  }, []);
+  }, [currentPage, pageSize]);
 
 
   //===============================================
 
+  // Định dạng nhãn trạng thái và màu sắc chuẩn tiếng Việt 100%
   const statusBadge = (s: string) => {
-    const styles: Record<string, string> = {
-      SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
-      CONSOLIDATED: "bg-amber-50 text-amber-700 border-amber-200",
-      APPROVED: "bg-sky-50 text-sky-700 border-sky-200",
-      REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+    const statusMap: Record<string, { label: string; cls: string }> = {
+      SUBMITTED: { label: "Đã gửi — Chờ xử lý", cls: "bg-blue-50 text-blue-700 border-blue-200" },
+      DISPATCH_PENDING: { label: "Chờ xuất kho", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+      SHIPPING: { label: "Đang giao hàng", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+      COMPLETED: { label: "Hoàn thành ✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      OUT_OF_STOCK: { label: "Hết hàng ⚠", cls: "bg-orange-50 text-orange-700 border-orange-200" },
+      CONSOLIDATED: { label: "Đang gom đơn", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+      APPROVED: { label: "Đã được duyệt ✓", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+      REJECTED: { label: "Bị từ chối ✗", cls: "bg-rose-50 text-rose-700 border-rose-200" },
+      URGENT_PENDING: { label: "Hỏa tốc — Chờ duyệt ⚡", cls: "bg-rose-50 text-rose-700 border-rose-200" },
+      WAREHOUSE_SUBMITTED: { label: "Kho đã gửi Admin", cls: "bg-violet-50 text-violet-700 border-violet-200" },
+      DRAFT: { label: "Bản nháp", cls: "bg-slate-50 text-slate-600 border-slate-200" },
+      CANCELLED: { label: "Đã hủy", cls: "bg-slate-50 text-slate-500 border-slate-200" },
     };
-    const labels: Record<string, string> = {
-      SUBMITTED: "Đã gửi — Chờ xử lý",
-      CONSOLIDATED: "Đang gom đơn",
-      APPROVED: "Đã được duyệt ✓",
-      REJECTED: "Bị từ chối ✗",
-    };
-    return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${styles[s] || "bg-slate-50 text-slate-500 border-slate-200"}`}>{labels[s] || s}</span>;
+    const current = statusMap[s] || { label: s, cls: "bg-slate-50 text-slate-600 border-slate-200" };
+    return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${current.cls}`}>{current.label}</span>;
   };
 
   return (
@@ -225,6 +272,24 @@ export function BranchRequisition() {
             </table>
           )}
         </div>
+
+        {/* Phân trang Pagination */}
+        {!loading && prList.length > 0 && (
+          <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs font-semibold text-slate-500">
+              Tổng cộng: <span className="font-bold text-blue-700">{totalItems.toLocaleString("vi-VN")}</span> yêu cầu ({pageSize} bản ghi/trang)
+            </div>
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                unitName="yêu cầu"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
@@ -234,7 +299,13 @@ export function BranchRequisition() {
             medicines={medicines} 
             prefillPrItems={prefillData}
             onClose={() => { setShowCreate(false); setPrefillData([]); }} 
-            onSuccess={(msg: string) => { setShowCreate(false); setPrefillData([]); setSuccessMsg(msg); fetchData(); }} 
+            onSuccess={(msg: string) => {
+              setShowCreate(false);
+              setPrefillData([]);
+              setSuccessMsg(msg);
+              setCurrentPage(1);
+              fetchData(1, pageSize);
+            }} 
           />
         )}
       </AnimatePresence>
@@ -249,7 +320,7 @@ export function BranchRequisition() {
             onSuccess={(msg: string) => {
               setEditPrData(null);
               setSuccessMsg(msg);
-              fetchData();
+              fetchData(currentPage, pageSize);
             }}
           />
         )}

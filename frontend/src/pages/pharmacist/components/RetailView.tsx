@@ -175,6 +175,10 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
   const handleConfirmEmergencyOverride = async () => {
     if (!payosOrderCode) return;
+    if (!bankTransactionId.trim()) {
+      showToast("Vui lòng nhập Mã giao dịch ngân hàng / Ref ID (từ màn hình app khách) trước khi xác nhận!", "error");
+      return;
+    }
     try {
       setIsOverriding(true);
       const branchInfo = getBranchInfoFromToken();
@@ -182,7 +186,8 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
         orderCode: payosOrderCode,
         branchId: branchInfo.branchId || "BR-001",
         actualAmount: total,
-        bankTransactionId: bankTransactionId.trim() || undefined,
+        bankTransactionId: bankTransactionId.trim(),
+        notes: overrideReason.trim(),
         overrideReason: overrideReason.trim(),
       });
       showToast("Đã xác nhận khẩn cấp có đối soát và hoàn tất đơn hàng!", "success");
@@ -3266,8 +3271,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-700">
+                <label className="font-bold text-slate-700 flex items-center gap-1">
                   Mã giao dịch ngân hàng / Ref ID (từ màn hình app khách):
+                  <span className="text-rose-500 font-bold">*</span>
                 </label>
                 <input
                   type="text"
@@ -3275,6 +3281,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
                   value={bankTransactionId}
                   onChange={(e) => setBankTransactionId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  required
                 />
               </div>
 

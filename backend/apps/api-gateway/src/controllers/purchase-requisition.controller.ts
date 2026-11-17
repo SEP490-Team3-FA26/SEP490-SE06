@@ -105,7 +105,8 @@ export class PurchaseRequisitionController implements OnModuleInit {
   }
 
   /**
-   * Danh sách PR (filter bằng ?status=SUBMITTED hoặc ?branchId=xxx)
+   * Danh sách PR (hỗ trợ lọc status, branchId, phân trang mặc định 100 bản ghi)
+   * Tự động gán branchId của Quản lý chi nhánh nếu không truyền branchId cụ thể
    */
   @Get()
   async listPurchaseRequisitions(
@@ -113,11 +114,16 @@ export class PurchaseRequisitionController implements OnModuleInit {
     @Query('branchId') branchId?: string,
     @Query('limit') limit?: number,
     @Query('page') page?: number,
+    @Req() req?: any,
   ) {
+    let effectiveBranchId = branchId;
+    if (!effectiveBranchId && req?.user?.branchId && req?.user?.role !== 'ADMIN' && req?.user?.role !== 'WAREHOUSE_MANAGER') {
+      effectiveBranchId = req.user.branchId;
+    }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.list', {
       status,
-      branchId,
-      limit: limit ? Number(limit) : undefined,
+      branchId: effectiveBranchId,
+      limit: limit ? Number(limit) : 100,
       page: page ? Number(page) : undefined,
     });
   }

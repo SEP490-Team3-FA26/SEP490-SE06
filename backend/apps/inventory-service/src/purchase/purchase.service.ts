@@ -306,7 +306,7 @@ export class PurchaseService {
   }
 
   /**
-   * Danh sách tất cả PR (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang tối đa 100).
+   * Danh sách tất cả PR (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang mặc định 100).
    */
   async listPurchaseRequisitions(query: any = {}) {
     const filter: any = {};
@@ -320,19 +320,32 @@ export class PurchaseService {
       }
     }
     if (query.branchId) filter.branchId = query.branchId;
-    // Giới hạn phân trang tránh quá tải Kafka message size (>1MB)
+    // Giới hạn phân trang: Mặc định 100 bản ghi theo yêu cầu (trần tối đa 100 theo Rule 9 Kafka 1MB)
     const rawPage = Number(query.page);
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
     const rawLimit = Number(query.limit);
-    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20), 100);
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 100), 100);
     const skip = Math.max(0, (page - 1) * limit);
-    return this.prModel
-      .find(filter)
-      .sort({ isUrgent: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .exec();
+
+    // Sắp xếp theo createdAt: -1 để đơn mới tạo luôn nổi lên trên cùng, truy vấn song song tổng bản ghi
+    const [items, total] = await Promise.all([
+      this.prModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.prModel.countDocuments(filter),
+    ]);
+
+    return {
+      data: items,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
   }
 
   /**

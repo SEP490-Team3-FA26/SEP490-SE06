@@ -124,6 +124,16 @@ export class ManualOverridePaymentDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Lý do xác nhận khẩn cấp (alias frontend)' })
+  @IsString()
+  @IsOptional()
+  overrideReason?: string;
+
+  @ApiPropertyOptional({ description: 'Mã chi nhánh' })
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 }
 
 export class ReconciliationQueryDto {
