@@ -66,6 +66,17 @@ export interface Medicine {
   registration_number?: string;
 }
 
+// Bộ nhớ đệm ngắn hạn (TTL 2 phút) + gộp request đang chạy cho danh mục dropdown thuốc
+// Giúp mở các modal Tạo PO / Tạo PR / Xuất hủy lần 2 trở đi hiển thị tức thì (~0ms)
+const DROPDOWN_CACHE_TTL_MS = 2 * 60 * 1000;
+const dropdownCache = new Map<string, { data: any; expiresAt: number }>();
+const dropdownInFlight = new Map<string, Promise<any>>();
+
+export const invalidateMedicinesDropdownCache = () => {
+  dropdownCache.clear();
+  dropdownInFlight.clear();
+};
+
 export const medicineService = {
   async getMedicines(params: MedicineQueryParams = {}) {
     const response = await api.get<PaginatedResult<Medicine>>(API_ENDPOINTS.MEDICINES.LIST, { params });
@@ -178,9 +189,36 @@ export const medicineService = {
     return response.data;
   },
 
-  async getMedicinesDropdown(branchId?: string) {
-    const response = await api.get(API_ENDPOINTS.MEDICINES.DROPDOWN, { params: { branchId } });
-    return response.data;
+  async getMedicinesDropdown(branchId?: string, forceRefresh = false) {
+    const cacheKey = branchId || 'ALL';
+    const now = Date.now();
+
+    if (!forceRefresh) {
+      const cached = dropdownCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.data;
+      }
+      const pending = dropdownInFlight.get(cacheKey);
+      if (pending) {
+        return pending;
+      }
+    }
+
+    const requestPromise = api
+      .get(API_ENDPOINTS.MEDICINES.DROPDOWN, { params: { branchId } })
+      .then((response) => {
+        dropdownCache.set(cacheKey, {
+          data: response.data,
+          expiresAt: Date.now() + DROPDOWN_CACHE_TTL_MS,
+        });
+        return response.data;
+      })
+      .finally(() => {
+        dropdownInFlight.delete(cacheKey);
+      });
+
+    dropdownInFlight.set(cacheKey, requestPromise);
+    return requestPromise;
   },
 
   async handleExpirationAction(payload: {
@@ -195,16 +233,19 @@ export const medicineService = {
     branchId?: string;
   }) {
     const response = await api.post(API_ENDPOINTS.MEDICINES.EXPIRATION_ACTION, payload);
+    invalidateMedicinesDropdownCache();
     return response.data;
   },
 
   async createMedicine(payload: Partial<Medicine> & Record<string, any>) {
     const response = await api.post(API_ENDPOINTS.MEDICINES.CREATE, payload);
+    invalidateMedicinesDropdownCache();
     return response.data;
   },
 
   async updateMedicine(id: string, payload: Partial<Medicine> & Record<string, any>) {
     const response = await api.put(API_ENDPOINTS.MEDICINES.UPDATE(id), payload);
+    invalidateMedicinesDropdownCache();
     return response.data;
   },
 
