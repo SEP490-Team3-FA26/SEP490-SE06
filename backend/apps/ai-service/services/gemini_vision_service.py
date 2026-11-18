@@ -136,7 +136,8 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
         "google/gemma-4-26b-a4b-it:free",
     ]
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    # Giảm timeout xuống 15s để tránh nghẽn khi mạng lag
+    async with httpx.AsyncClient(timeout=15.0) as client:
         for model in models_to_try:
             payload = {
                 "model": model,
@@ -194,13 +195,12 @@ async def _call_openrouter_gemini_vision(images: List[Tuple[bytes, str]], api_ke
     return {}
 
 async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str) -> Dict[str, Any]:
-    # Danh sách model Google AI Studio hiện hành (Ưu tiên gemini-3.5-flash & gemini-3.7-flash hoạt động ổn định, kèm fallback 3.8 và lite)
+    # Danh sách model Google AI Studio: Ưu tiên gemini-3.1-flash-lite phản hồi tức thì (< 1.5s),
+    # tránh các model preview đang bị quá tải 503 hoặc timeout.
     models_to_try = [
-        "gemini-3.5-flash",
-        "gemini-3.7-flash",
-        "gemini-3.8-flash",
         "gemini-3.1-flash-lite",
         "gemini-flash-latest",
+        "gemini-2.5-flash",
     ]
     parts = [{"text": GEMINI_SYSTEM_PROMPT}]
     for idx, (img_bytes, mime_type) in enumerate(images):
@@ -219,7 +219,8 @@ async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str)
     }
     headers = {"Content-Type": "application/json"}
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    # Giới hạn timeout 5.0s cho mỗi model để failover tức thì nếu model gặp sự cố hoặc timeout
+    async with httpx.AsyncClient(timeout=5.0) as client:
         for model in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:

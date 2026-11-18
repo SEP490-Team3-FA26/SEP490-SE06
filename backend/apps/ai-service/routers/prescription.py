@@ -194,8 +194,10 @@ def build_direct_inventory_match(ocr_result: dict) -> tuple[dict, dict]:
 
 async def build_prescription_scan_response(ocr_result: dict, start_time: float):
     medications = ocr_result.get("medications", [])
-    all_context_parts = []
-
+    
+    # Tối ưu hóa: Thu thập query và tra cứu RAG ngữ cảnh y tế song song (asyncio.gather),
+    # bật skip_ai_intent=True để tránh gọi LLM thừa thãi cho từng dòng thuốc đơn in đã có sẵn tên
+    query_list = []
     for med in medications:
         med_name = med.get("name", "")
         if not med_name or med_name == "Không rõ":
@@ -205,14 +207,19 @@ async def build_prescription_scan_response(ocr_result: dict, start_time: float):
             query_parts.append(med["active_ingredient"])
         if med.get("strength") and med.get("strength") != "Không rõ":
             query_parts.append(med["strength"])
-        query = " ".join(query_parts)
+        query_list.append(" ".join(query_parts))
 
+    async def _safe_fetch_context(q: str) -> str:
         try:
-            context = await retrieve_medical_context(query, top_k=2)
-            if context:
-                all_context_parts.append(context)
-        except RAGServiceUnavailable:
-            pass
+            return await retrieve_medical_context(q, top_k=2, skip_ai_intent=True)
+        except (RAGServiceUnavailable, Exception):
+            return ""
+
+    if query_list:
+        context_results = await asyncio.gather(*[_safe_fetch_context(q) for q in query_list])
+        all_context_parts = [c for c in context_results if c]
+    else:
+        all_context_parts = []
 
     full_rag_context = "\n\n".join(all_context_parts) if all_context_parts else ""
 

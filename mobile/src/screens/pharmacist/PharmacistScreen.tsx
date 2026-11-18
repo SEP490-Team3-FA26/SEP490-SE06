@@ -401,10 +401,11 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         showToast.error('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp ảnh đơn thuốc.');
         return;
       }
+      // Nén ảnh chất lượng 0.70 để tối ưu tốc độ upload & truyền tải OCR qua mạng
       const res = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.85,
+        quality: 0.7,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
         const uri = res.assets[0].uri;
@@ -423,10 +424,11 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         showToast.error('Cần quyền thư viện', 'Vui lòng cấp quyền thư viện để chọn ảnh đơn thuốc.');
         return;
       }
+      // Nén ảnh chất lượng 0.70 để tối ưu tốc độ upload & truyền tải OCR qua mạng
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.85,
+        quality: 0.7,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
         const uri = res.assets[0].uri;

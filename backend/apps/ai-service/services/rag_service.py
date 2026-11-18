@@ -275,10 +275,15 @@ def extract_search_intent_fallback(query: str) -> dict:
     }
 
 
-async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | None = None) -> str:
+async def retrieve_medical_context(
+    query: str,
+    top_k: int = 8,
+    branch_id: str | None = None,
+    skip_ai_intent: bool = False,
+) -> str:
     """
     Tìm kiếm ngữ cảnh y tế & danh sách thuốc thực tế từ MongoDB/Qdrant:
-    1. Dùng AI phân tích động triệu chứng, danh mục, hoạt chất và biệt dược.
+    1. Dùng AI phân tích động triệu chứng (hoặc regex fallback tức thì nếu skip_ai_intent=True cho OCR).
     2. Truy vấn song song MongoDB Atlas với bộ điều kiện mở rộng.
     3. Chấm điểm dược lý (Relevance Scoring): Ưu tiên thuốc còn hàng tại chi nhánh,
        ưu tiên dạng uống cho nội khoa, loại trừ tuyệt đối cao dán/dầu xoa cho đau bụng/tiêu hóa.
@@ -288,8 +293,11 @@ async def retrieve_medical_context(query: str, top_k: int = 8, branch_id: str | 
 
     branch_stock_map = get_branch_stock_map(branch_id) if branch_id else {}
 
-    # Bước 1: Trích xuất thông tin lâm sàng bằng AI
-    intent = await extract_clinical_intent_ai(query)
+    # Bước 1: Trích xuất thông tin lâm sàng (bỏ qua LLM call nếu tên thuốc đã rõ ràng từ OCR để tăng tốc 10x)
+    if skip_ai_intent:
+        intent = extract_search_intent_fallback(query)
+    else:
+        intent = await extract_clinical_intent_ai(query)
     search_terms = list(dict.fromkeys(
         intent.get("brand_or_drug_names", []) +
         intent.get("active_ingredients", []) +

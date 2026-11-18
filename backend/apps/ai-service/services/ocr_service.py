@@ -168,12 +168,11 @@ async def extract_prescription_from_image(
     # Strategy 1: Google AI Studio Direct API (GEMINI_API_KEY)
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
+        # Ưu tiên gemini-3.1-flash-lite phản hồi tức thì (< 1.5s), loại bỏ các model preview bị timeout
         models_to_try = [
-            "gemini-3.5-flash",
-            "gemini-3.7-flash",
-            "gemini-3.8-flash",
             "gemini-3.1-flash-lite",
             "gemini-flash-latest",
+            "gemini-2.5-flash",
         ]
         payload = {
             "contents": [
@@ -195,7 +194,8 @@ async def extract_prescription_from_image(
             },
         }
         import httpx
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        # Giảm timeout xuống 5.0s để failover tức thì sang model tiếp theo hoặc OpenRouter
+        async with httpx.AsyncClient(timeout=5.0) as client:
             for model in models_to_try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 try:
@@ -223,7 +223,8 @@ async def extract_prescription_from_image(
     if open_router_key:
         try:
             import httpx
-            async with httpx.AsyncClient() as client:
+            # Giảm timeout xuống 15.0s cho OpenRouter
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -247,7 +248,6 @@ async def extract_prescription_from_image(
                         "temperature": 0.1,
                         "response_format": {"type": "json_object"},
                     },
-                    timeout=45.0,
                 )
                 response.raise_for_status()
                 content = response.json()["choices"][0]["message"]["content"]

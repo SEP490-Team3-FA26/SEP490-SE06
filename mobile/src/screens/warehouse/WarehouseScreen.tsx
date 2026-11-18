@@ -671,10 +671,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         showToast.error('Cần quyền camera', 'Vui lòng cấp quyền trong Cài đặt.');
         return;
       }
+      // Tối ưu hóa chất lượng 0.70 để giảm tải kích thước base64 khi truyền sang AI Vision
       const res = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.85,
+        quality: 0.7,
         base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
@@ -691,10 +692,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
   const handlePickImage = async () => {
     try {
+      // Tối ưu hóa chất lượng 0.70 để giảm tải kích thước base64 khi truyền sang AI Vision
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.85,
+        quality: 0.7,
         base64: true,
       });
       if (!res.canceled && res.assets?.[0]?.uri) {
