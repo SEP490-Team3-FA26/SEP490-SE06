@@ -2,6 +2,7 @@ import { BadGatewayException, BadRequestException, Controller, Post, Patch, Get,
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientKafka } from '@nestjs/microservices';
 import { sendKafkaMessage, subscribeToKafkaTopics } from '../common/kafka.helper';
+import { filterAndDeduplicatePredictions } from '../common/vision-nms.helper';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -233,7 +234,9 @@ export class GoodsReceiptController implements OnModuleInit {
 
       for (const [key, val] of Object.entries(out)) {
         if (val && typeof val === 'object' && Array.isArray((val as any).predictions)) {
-          const preds = (val as any).predictions;
+          // Áp dụng bộ lọc độ tin cậy & thuật toán NMS (IoU >= 0.45) chống đếm trùng hộp thuốc
+          const rawPreds = (val as any).predictions;
+          const preds = filterAndDeduplicatePredictions(rawPreds, 0.35, 0.45, 0.75);
           const count = preds.length;
           const confs = preds.map((p: any) => p.confidence).filter((c: any) => typeof c === 'number');
           const avgConf = confs.length ? (confs.reduce((a: number, b: number) => a + b, 0) / confs.length) * 100 : 0;
@@ -356,6 +359,7 @@ export class GoodsReceiptController implements OnModuleInit {
     @UploadedFile() file: Express.Multer.File,
     @Body('imageUrl') imageUrl?: string,
     @Body('imageBase64') imageBase64?: string,
+    @Body('expectedMedicineName') expectedMedicineName?: string,
   ) {
     let fileBuffer = file?.buffer;
     let fileMimetype = file?.mimetype || 'image/jpeg';
@@ -400,6 +404,9 @@ export class GoodsReceiptController implements OnModuleInit {
         });
         formData.append('file', blob, fileName);
       }
+      if (expectedMedicineName && typeof expectedMedicineName === 'string' && expectedMedicineName.trim()) {
+        formData.append('expectedMedicineName', expectedMedicineName.trim());
+      }
 
       const response = await fetch(`${aiUrl}/api/ai/receipts/${id}/items/${itemId}/inspection`, {
         method: 'POST',
@@ -420,18 +427,24 @@ export class GoodsReceiptController implements OnModuleInit {
         throw new Error(errBody.detail);
       }
     } catch (e: any) {
-      // Cơ chế Self-Healing: Khi AI Service không phản hồi hoặc timeout, tự động phân tích qua Roboflow trực tiếp
+      // Cơ chế Self-Healing: Khi AI Service không phản hồi hoặc timeout, tự động phân tích qua Roboflow trực tiếp (đã áp dụng NMS)
       try {
         if (fileBuffer) {
           const directRes = await this.processWithRoboflowDirectly(fileBuffer);
           return {
             success: true,
             aiCount: directRes.detectedCount,
+            detectedCount: directRes.detectedCount,
             confidence: directRes.confidence,
-            difference: 0,
-            matchPo: true,
+            difference: null,
+            matchPo: null,
+            isExpectedMedicine: null,
+            detectedMedicineName: null,
+            batchNo: null,
+            expDate: null,
             boxes: directRes.boxes,
             annotatedImage: directRes.annotatedImage,
+            source: 'ROBOFLOW_DIRECT_NMS',
           };
         }
       } catch (_) {}

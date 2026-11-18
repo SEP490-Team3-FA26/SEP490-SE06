@@ -1,6 +1,7 @@
 // api.service.ts - Full API Service migrated from api_service.dart for Pharma ERP
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnvService } from './env.service';
+import { filterAndDeduplicateVisionPredictions } from '../utils/aiVisionNms';
 import {
   Medicine,
   UserProfile,
@@ -2274,10 +2275,11 @@ export class ApiService {
   }
 
   /**
-   * Cơ chế Self-Healing trên Mobile: Gọi trực tiếp Roboflow Vision Cloud khi API Gateway hoặc AI Service nội bộ offline
+   * Cơ chế Self-Healing trên Mobile: Gọi trực tiếp Roboflow Vision Cloud khi API Gateway hoặc AI Service nội bộ offline.
+   * Chuẩn hóa duy nhất 1 class ['Medicine'] + lọc NMS (IoU >= 0.45) chống đếm trùng hộp thuốc & tuyệt đối Zero Fake Data.
    */
   public static async inspectWithRoboflowDirect(imageInput: string | FormData): Promise<any> {
-    const roboflowApiKey = 'm7tvhnXSMEGw3bYwdRyW';
+    const roboflowApiKey = EnvService.get('ROBOFLOW_API_KEY') || 'm7tvhnXSMEGw3bYwdRyW';
     const roboflowUrl = 'https://serverless.roboflow.com/infer/workflows/thanh-le-truong/general-segmentation-api-13';
 
     let bodyPayload: any = null;
@@ -2290,7 +2292,8 @@ export class ApiService {
         api_key: roboflowApiKey,
         inputs: {
           image: { type: 'url', value: imageInput },
-          classes: ['medicine', 'medicine box', 'Medicine', 'box', 'package', 'pharmaceutical box', 'carton', 'drugs', 'item'],
+          // Chỉ truyền duy nhất 1 class để tránh Open-Vocabulary sinh nhiều bounding box đè lên cùng 1 hộp thuốc
+          classes: ['Medicine'],
         },
       };
     } else if (isDataUri || isBase64Only) {
@@ -2299,24 +2302,25 @@ export class ApiService {
         api_key: roboflowApiKey,
         inputs: {
           image: { type: 'base64', value: cleanBase64 },
-          classes: ['medicine', 'medicine box', 'Medicine', 'box', 'package', 'pharmaceutical box', 'carton', 'drugs', 'item'],
+          classes: ['Medicine'],
         },
       };
     }
 
     if (!bodyPayload) {
       return {
-        success: true,
-        detectedCount: 10,
-        confidence: 96,
+        success: false,
+        detectedCount: 0,
+        confidence: 0,
         boxes: [],
         annotatedImage: '',
+        message: 'Hình ảnh chưa sẵn sàng để phân tích bằng AI Vision.',
       };
     }
 
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), 20000);
 
       const rfRes = await fetch(roboflowUrl, {
         method: 'POST',
@@ -2331,19 +2335,18 @@ export class ApiService {
         const outputs = data?.outputs || [];
         for (const out of outputs) {
           const annotatedImgB64 = out?.annotated_image?.value || '';
-          for (const [key, val] of Object.entries(out)) {
+          for (const [, val] of Object.entries(out)) {
             if (val && typeof val === 'object' && Array.isArray((val as any).predictions)) {
-              const preds = (val as any).predictions;
+              // Áp dụng bộ lọc độ tin cậy >= 35% và thuật toán NMS (IoU >= 0.45) để đếm chính xác từng hộp
+              const rawPreds = (val as any).predictions;
+              const preds = filterAndDeduplicateVisionPredictions(rawPreds, 0.35, 0.45, 0.75);
               const count = preds.length;
               const confs = preds.map((p: any) => p.confidence).filter((c: any) => typeof c === 'number');
-              const avgConf = confs.length ? (confs.reduce((a: number, b: number) => a + b, 0) / confs.length) * 100 : 95;
-
-              // Đối với ảnh mẫu kiện hàng chuẩn 10 hộp Advagraf, đảm bảo số đếm thực tế chính xác
-              const finalCount = count >= 6 ? Math.max(count, 10) : (count > 0 ? count : 10);
+              const avgConf = confs.length ? (confs.reduce((a: number, b: number) => a + b, 0) / confs.length) * 100 : 0;
 
               return {
                 success: true,
-                detectedCount: finalCount,
+                detectedCount: count,
                 confidence: Math.round(avgConf * 10) / 10,
                 boxes: preds,
                 annotatedImage: annotatedImgB64 ? (annotatedImgB64.startsWith('data:') ? annotatedImgB64 : `data:image/jpeg;base64,${annotatedImgB64}`) : '',
@@ -2356,24 +2359,26 @@ export class ApiService {
       console.warn('Lỗi gọi trực tiếp Roboflow:', err);
     }
 
-    // Dự phòng an toàn kiểm định
     return {
-      success: true,
-      detectedCount: 10,
-      confidence: 96,
+      success: false,
+      detectedCount: 0,
+      confidence: 0,
       boxes: [],
       annotatedImage: '',
+      message: 'Không thể kết nối máy chủ AI Vision để đếm hộp thuốc. Vui lòng thử lại hoặc nhập số lượng thủ công.',
     };
   }
 
   public static async inspectReceiptItemAI(
     receiptId: string,
     receiptItemId: string,
-    imageInput: string | FormData
+    imageInput: string | FormData,
+    expectedMedicineName?: string,
   ): Promise<any> {
     try {
       const cleanReceiptId = String(receiptId || 'default').trim();
       const cleanItemId = String(receiptItemId || 'item_0').trim();
+      const cleanExpectedName = typeof expectedMedicineName === 'string' ? expectedMedicineName.trim() : '';
 
       // Chuẩn hóa và làm sạch dữ liệu đầu vào (phòng chống sự kiện click truyền nhầm object event)
       if (!imageInput || (typeof imageInput === 'object' && !(imageInput as any).append && (imageInput as any).nativeEvent)) {
@@ -2390,11 +2395,11 @@ export class ApiService {
 
         if (cleanInput.startsWith('http://') || cleanInput.startsWith('https://')) {
           // 1. Ảnh từ remote URL (ảnh mẫu hiển thị trên màn hình)
-          requestBody = JSON.stringify({ imageUrl: cleanInput });
+          requestBody = JSON.stringify({ imageUrl: cleanInput, expectedMedicineName: cleanExpectedName });
           isJsonRequest = true;
         } else if (cleanInput.startsWith('data:') || cleanInput.length > 500) {
           // 2. Ảnh dạng Base64 / Data URI: gửi dạng JSON trực tiếp để loại bỏ hoàn toàn lỗi Unsupported FormDataPart trên Expo WinterCG
-          requestBody = JSON.stringify({ imageBase64: cleanInput });
+          requestBody = JSON.stringify({ imageBase64: cleanInput, expectedMedicineName: cleanExpectedName });
           isJsonRequest = true;
         } else {
           // 3. Ảnh chụp từ file URI: thử chuyển sang Base64 qua XMLHttpRequest hoặc đóng gói Blob an toàn
@@ -2417,7 +2422,7 @@ export class ApiService {
 
           if (convertedB64) {
             fallbackImageForRoboflow = convertedB64;
-            requestBody = JSON.stringify({ imageBase64: convertedB64 });
+            requestBody = JSON.stringify({ imageBase64: convertedB64, expectedMedicineName: cleanExpectedName });
             isJsonRequest = true;
           } else {
             // Fallback FormData với Web Blob
@@ -2435,6 +2440,9 @@ export class ApiService {
               }
             } catch (_) {
               fd.append('file', { uri: cleanInput, name: filename, type } as any);
+            }
+            if (cleanExpectedName) {
+              fd.append('expectedMedicineName', cleanExpectedName);
             }
             requestBody = fd;
           }
@@ -2461,11 +2469,12 @@ export class ApiService {
         throw new Error('Dữ liệu hình ảnh kiểm đếm không hợp lệ.');
       }
 
-      // 1. Thử gọi qua API Gateway endpoint
+      // 1. Ưu tiên gọi qua API Gateway -> AI Service (Đếm hộp Roboflow NMS + Đối chiếu tên thuốc & OCR Vision LLM)
       let gwRes: Response | null = null;
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
+        // Tăng timeout lên 28s để kịp nhận kết quả phân tích song song từ AI Service
+        const timer = setTimeout(() => controller.abort(), 28000);
         gwRes = await fetch(
           `${this.baseUrl}/api/goods-receipts/${cleanReceiptId}/items/${cleanItemId}/inspection`,
           {
@@ -2487,36 +2496,32 @@ export class ApiService {
         }
       }
 
-      // 2. Cơ chế Self-Healing trên Mobile: Khi API Gateway hoặc AI Service không phản hồi, tự động nhận diện qua Roboflow Vision Cloud
+      // 2. Cơ chế Self-Healing trên Mobile: Gọi Roboflow trực tiếp với 1 class ['Medicine'] + NMS (không bịa số lô/HSD)
       const rfFallback = await ApiService.inspectWithRoboflowDirect(fallbackImageForRoboflow || imageInput);
-      if (rfFallback && rfFallback.detectedCount > 0) {
+      if (rfFallback && rfFallback.success) {
         return {
           success: true,
           aiCount: rfFallback.detectedCount,
           detectedCount: rfFallback.detectedCount,
-          confidence: rfFallback.confidence || 96,
-          batchNo: `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-102`,
-          expDate: '31/12/2028',
+          confidence: rfFallback.confidence,
+          batchNo: null,
+          expDate: null,
+          detectedMedicineName: null,
+          isExpectedMedicine: null,
+          mismatchReason: null,
           annotatedImage: rfFallback.annotatedImage,
-          difference: 0,
-          status: 'MATCHED',
+          difference: null,
+          status: 'ROBOFLOW_FALLBACK',
         };
       }
 
       const errBody = gwRes ? await gwRes.json().catch(() => null) : null;
-      throw new Error(errBody?.message || errBody?.detail || 'Không thể nhận diện hình ảnh hàng hóa.');
+      throw new Error(errBody?.message || errBody?.detail || rfFallback?.message || 'Không thể nhận diện hình ảnh hàng hóa.');
     } catch (e: any) {
       console.warn('Failed AI inspection of receipt item:', e);
-      // Dự phòng an toàn đảm bảo trải nghiệm kiểm đếm cho thủ kho
       return {
-        success: true,
-        aiCount: 10,
-        detectedCount: 10,
-        confidence: 95,
-        batchNo: `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-102`,
-        expDate: '31/12/2028',
-        difference: 0,
-        status: 'MATCHED',
+        success: false,
+        message: e?.message || 'Không thể kết nối máy chủ AI Vision. Vui lòng thử lại hoặc nhập số lượng thực nhận thủ công.',
       };
     }
   }
