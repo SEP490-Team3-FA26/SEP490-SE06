@@ -33,15 +33,54 @@ export class ShiftHandoverService {
   ) {}
 
   /**
+   * Đối soát nhân viên theo ObjectId và tự động fallback theo email khi auth-service DB lệch _id với user-service DB
+   */
+  private async resolveEmployee(employeeId: string, employeeEmail?: string) {
+    let user: any = null;
+    if (employeeId && Types.ObjectId.isValid(employeeId)) {
+      user = await this.userModel.findById(employeeId)?.lean()?.exec();
+    }
+    if (!user && employeeEmail && typeof this.userModel.findOne === 'function') {
+      const normalizedEmail = String(employeeEmail).toLowerCase().trim();
+      if (normalizedEmail) {
+        user = await this.userModel.findOne({ email: normalizedEmail })?.lean()?.exec();
+        if (!user) {
+          const escaped = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          user = await this.userModel
+            .findOne({ email: { $regex: `^${escaped}$`, $options: 'i' } })
+            ?.lean()
+            ?.exec();
+        }
+      }
+    }
+    const canonicalEmployeeId = user?._id ? String(user._id) : employeeId;
+    const candidateIds = Array.from(new Set([canonicalEmployeeId, employeeId].filter(Boolean)));
+    const candidateObjectIds = candidateIds
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+    const employeeIdQuery =
+      candidateObjectIds.length > 1
+        ? { $in: candidateObjectIds }
+        : candidateObjectIds.length === 1
+        ? candidateObjectIds[0]
+        : canonicalEmployeeId;
+
+    return { user, canonicalEmployeeId, employeeIdQuery };
+  }
+
+  /**
    * Lấy thông số ca trực và danh sách thuốc GPP nhạy cảm phục vụ lập biên bản bàn giao
    */
-  async getShiftLiveStats(payload: { employeeId: string; branchId?: string; shiftId?: string }) {
+  async getShiftLiveStats(payload: { employeeId: string; employeeEmail?: string; branchId?: string; shiftId?: string }) {
     if (!payload.employeeId || !Types.ObjectId.isValid(payload.employeeId)) {
       throw new RpcException('Mã nhân viên không hợp lệ');
     }
     const todayStr = getVietnamTodayString();
     const yesterdayStr = getVietnamYesterdayString();
-    const user = await this.userModel.findById(payload.employeeId).lean().exec();
+    const { user, employeeIdQuery } = await this.resolveEmployee(
+      payload.employeeId,
+      payload.employeeEmail,
+    );
     if (!user) throw new RpcException('Không tìm thấy thông tin nhân viên');
 
     const branchId = payload.branchId || user.branchId || 'BR-001';
@@ -49,7 +88,7 @@ export class ShiftHandoverService {
     // 1. Tìm bản ghi điểm danh hiện tại của nhân viên (ưu tiên hôm nay, sau đó ca đêm mở từ hôm qua)
     let attendance = await this.attendanceModel
       .findOne({
-        employeeId: new Types.ObjectId(payload.employeeId),
+        employeeId: employeeIdQuery,
         date: todayStr,
         ...(payload.shiftId ? { shiftId: payload.shiftId } : {}),
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE, AttendanceStatus.COMPLETED] },
@@ -61,7 +100,7 @@ export class ShiftHandoverService {
     if (!attendance) {
       attendance = await this.attendanceModel
         .findOne({
-          employeeId: new Types.ObjectId(payload.employeeId),
+          employeeId: employeeIdQuery,
           date: yesterdayStr,
           ...(payload.shiftId ? { shiftId: payload.shiftId } : {}),
           status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE, AttendanceStatus.COMPLETED] },
@@ -119,7 +158,7 @@ export class ShiftHandoverService {
     // Kiểm tra xem đã có bản ghi bàn giao nào được nộp hôm nay chưa
     const existingHandover = await this.handoverModel
       .findOne({
-        outgoingPharmacistId: new Types.ObjectId(payload.employeeId),
+        outgoingPharmacistId: employeeIdQuery,
         handoverDate: todayStr,
       })
       .sort({ createdAt: -1 })
@@ -148,6 +187,7 @@ export class ShiftHandoverService {
    */
   async submitHandover(dto: {
     employeeId: string;
+    employeeEmail?: string;
     branchId: string;
     shiftId: string;
     shiftName: string;
@@ -172,7 +212,10 @@ export class ShiftHandoverService {
     }
     const todayStr = getVietnamTodayString();
     const yesterdayStr = getVietnamYesterdayString();
-    const user = await this.userModel.findById(dto.employeeId).lean().exec();
+    const { user, canonicalEmployeeId, employeeIdQuery } = await this.resolveEmployee(
+      dto.employeeId,
+      dto.employeeEmail,
+    );
     if (!user) throw new RpcException('Không tìm thấy thông tin Dược sĩ bàn giao');
 
     const branchId = dto.branchId || user.branchId || 'BR-001';
@@ -180,7 +223,7 @@ export class ShiftHandoverService {
     // 1. Kiểm tra Attendance (ưu tiên hôm nay, hoặc ca đêm hôm qua)
     let attendance = await this.attendanceModel
       .findOne({
-        employeeId: new Types.ObjectId(dto.employeeId),
+        employeeId: employeeIdQuery,
         date: todayStr,
         ...(dto.shiftId ? { shiftId: dto.shiftId } : {}),
       })
@@ -190,7 +233,7 @@ export class ShiftHandoverService {
     if (!attendance) {
       attendance = await this.attendanceModel
         .findOne({
-          employeeId: new Types.ObjectId(dto.employeeId),
+          employeeId: employeeIdQuery,
           date: yesterdayStr,
           ...(dto.shiftId ? { shiftId: dto.shiftId } : {}),
           status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
@@ -242,7 +285,7 @@ export class ShiftHandoverService {
     const effectiveHandoverDate = attendance?.date || todayStr;
     let handover = await this.handoverModel
       .findOne({
-        outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
+        outgoingPharmacistId: employeeIdQuery,
         handoverDate: effectiveHandoverDate,
         shiftId: effectiveShiftId,
       })
@@ -263,7 +306,9 @@ export class ShiftHandoverService {
         shiftId: effectiveShiftId,
         shiftName: dto.shiftName || 'Ca làm việc',
         handoverDate: effectiveHandoverDate,
-        outgoingPharmacistId: new Types.ObjectId(dto.employeeId),
+        outgoingPharmacistId: Types.ObjectId.isValid(canonicalEmployeeId)
+          ? new Types.ObjectId(canonicalEmployeeId)
+          : new Types.ObjectId(dto.employeeId),
         outgoingPharmacistName: user.fullName,
         incomingPharmacistId,
         incomingPharmacistName: dto.incomingPharmacistName || null,

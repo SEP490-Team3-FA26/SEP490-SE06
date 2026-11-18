@@ -8,7 +8,7 @@ import {
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -378,6 +378,7 @@ export class AuthService implements OnApplicationBootstrap {
   // ĐỒNG BỘ TÀI KHOẢN NHÂN VIÊN TỪ USER SERVICE SANG AUTH SERVICE
   // ============================================================
   async syncEmployeeUser(payload: {
+    _id?: string;
     email: string;
     fullName?: string;
     role?: string;
@@ -409,8 +410,13 @@ export class AuthService implements OnApplicationBootstrap {
       user.isApproved = 'approved';
       await user.save();
     } else {
-      // Tạo mới tài khoản trong Auth Service database
+      // Tạo mới tài khoản trong Auth Service database, giữ nguyên _id từ User Service nếu hợp lệ để tránh lệch danh tính
+      const syncedObjectId =
+        payload._id && Types.ObjectId.isValid(payload._id)
+          ? new Types.ObjectId(payload._id)
+          : undefined;
       user = new this.userModel({
+        ...(syncedObjectId ? { _id: syncedObjectId } : {}),
         email,
         fullName: payload.fullName || email,
         role: payload.role || UserRole.BRANCH,

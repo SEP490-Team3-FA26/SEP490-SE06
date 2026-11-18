@@ -537,6 +537,7 @@ export class HrController implements OnModuleInit {
   async attendanceCheckIn(@Request() req, @Body() data: { latitude: number; longitude: number; shiftId?: string; isMockLocation?: boolean; note?: string }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_in', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       branchId: req.user.branchId,
       ...data,
     });
@@ -548,6 +549,8 @@ export class HrController implements OnModuleInit {
   async attendanceCheckOut(@Request() req, @Body() data: { latitude?: number; longitude?: number; note?: string }) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.check_out', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
+      branchId: req.user.branchId,
       ...data,
     });
   }
@@ -558,6 +561,7 @@ export class HrController implements OnModuleInit {
   async getMyCurrentShift(@Request() req) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       branchId: req.user.branchId,
     });
   }
@@ -568,6 +572,7 @@ export class HrController implements OnModuleInit {
   async getMyTodayAttendance(@Request() req) {
     const shiftStatus: any = await sendKafkaMessage(this.kafkaClient, 'hr.attendance.my_current_shift', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       branchId: req.user.branchId,
     });
     return shiftStatus?.attendance || shiftStatus;
@@ -579,6 +584,7 @@ export class HrController implements OnModuleInit {
   async getMyAttendanceHistory(@Request() req, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return await sendKafkaMessage(this.kafkaClient, 'hr.attendance.history', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       startDate,
       endDate,
     });
@@ -660,9 +666,10 @@ export class HrController implements OnModuleInit {
   ) {
     const branchId = req.user.role === 'branch' ? req.user.branchId : (queryBranchId || req.user.branchId || 'BR-001');
 
-    // 1. Lấy thông tin ca & danh mục thuốc GPP từ user-service
+    // 1. Lấy thông tin ca & danh mục thuốc GPP từ user-service (kèm email để đối soát khi 2 DB lệch _id)
     const shiftStats: any = await sendKafkaMessage(this.kafkaClient, 'hr.shift_handover.live_stats', {
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       branchId,
       shiftId,
     });
@@ -748,6 +755,7 @@ export class HrController implements OnModuleInit {
       systemDigitalSales: verifiedDigitalSales,
       systemOrderCount: verifiedOrdersCount,
       employeeId: req.user.sub,
+      employeeEmail: req.user.email,
       branchId,
     });
   }
