@@ -241,3 +241,131 @@ async def _call_google_direct_api(images: List[Tuple[bytes, str]], api_key: str)
             except Exception as e:
                 print(f"Google Direct {model} error: {e}")
     return {}
+
+
+# ==============================================================================
+# KIỂM ĐỊNH BAO BÌ KIỆN HÀNG NHẬP KHO (ĐỐI CHIẾU TÊN THUỐC, OCR SỐ LÔ & HSD THẬT)
+# ==============================================================================
+PACKAGE_INSPECTION_PROMPT = """Bạn là Chuyên gia Kiểm định Nhập kho Dược phẩm (GSP).
+Hãy phân tích hình ảnh kiện hàng/hộp thuốc được cung cấp và đối chiếu với tên dược phẩm kỳ vọng trên đơn đặt hàng (PO):
+- Tên dược phẩm kỳ vọng trên PO: "{expected_medicine_name}"
+
+QUY TẮC BẮT BUỘC (ZERO HALLUCINATION):
+1. Đọc chính xác tên thuốc/sản phẩm in trên vỏ hộp trong ảnh (detectedMedicineName). Nếu không đọc được rõ, trả về null.
+2. So sánh detectedMedicineName với tên kỳ vọng trên PO:
+   - Nếu cùng một loại thuốc/hoạt chất/thương hiệu phù hợp -> "isExpectedMedicine": true, "mismatchReason": null.
+   - Nếu là THUỐC KHÁC HOÀN TOÀN (ví dụ PO yêu cầu Salonpas nhưng ảnh là hộp Advagraf) -> "isExpectedMedicine": false, giải thích rõ trong "mismatchReason" bằng Tiếng Việt ngắn gọn.
+   - Nếu ảnh mờ không đọc được tên thuốc -> "isExpectedMedicine": null.
+3. Đếm chính xác số lượng hộp/vỉ/chai thuốc nguyên vẹn nhìn thấy trong ảnh ("visualBoxCount" là số nguyên >= 0).
+4. Chỉ trích xuất "batchNo" (Số lô / Lot) và "expDate" (Hạn dùng / EXP) KHI VÀ CHỈ KHI nhìn thấy rõ in trên bao bì trong ảnh. TUYỆT ĐỐI KHÔNG tự bịa số lô hoặc hạn sử dụng; nếu không nhìn thấy thì trả về null.
+
+TRẢ VỀ DUY NHẤT JSON HỢP LỆ (KHÔNG KÈM MARKDOWN):
+{{
+  "detectedMedicineName": "Tên thuốc đọc được trên hộp hoặc null",
+  "isExpectedMedicine": true,
+  "mismatchReason": null,
+  "visualBoxCount": 6,
+  "batchNo": null,
+  "expDate": null
+}}
+"""
+
+
+async def inspect_medicine_package_with_vision(
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
+    expected_medicine_name: str = "",
+) -> Dict[str, Any] | None:
+    """
+    Dùng Gemini Vision (ưu tiên Google Direct API -> fallback OpenRouter) để đối chiếu tên thuốc trên vỏ hộp
+    với mặt hàng trên PO và đọc OCR số lô / hạn dùng thật (tuyệt đối không bịa dữ liệu).
+    """
+    google_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_KEY")
+    openrouter_key = os.getenv("OPEN_ROUTER_API") or os.getenv("OPENROUTER_API_KEY")
+    if not google_key and not openrouter_key:
+        return None
+
+    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+    m_type = mime_type if mime_type and "image" in mime_type else "image/jpeg"
+    prompt_text = PACKAGE_INSPECTION_PROMPT.format(
+        expected_medicine_name=expected_medicine_name or "Không xác định"
+    )
+
+    def _clean_json(raw: str) -> Dict[str, Any] | None:
+        clean = (raw or "").strip()
+        if clean.startswith("```"):
+            clean = re.sub(r"^```[a-zA-Z]*\n?", "", clean)
+            clean = re.sub(r"\n?```$", "", clean).strip()
+        if not clean:
+            return None
+        return json.loads(clean)
+
+    # 1. Ưu tiên gọi Google AI Studio Direct API (nhanh, miễn phí)
+    if google_key and len(google_key) > 10:
+        google_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt_text},
+                        {"inline_data": {"mime_type": m_type, "data": b64_data}},
+                    ]
+                }
+            ],
+            "generationConfig": {"response_mime_type": "application/json", "temperature": 0.1},
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            for model in google_models:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={google_key}"
+                    res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                    if res.status_code == 200:
+                        candidates = res.json().get("candidates", [])
+                        if candidates:
+                            raw_txt = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            parsed = _clean_json(raw_txt)
+                            if parsed:
+                                return parsed
+                except Exception:
+                    continue
+
+    # 2. Fallback sang OpenRouter Vision nếu Google key không khả dụng
+    if openrouter_key:
+        or_models = ["google/gemini-2.5-flash", "google/gemini-2.0-flash-001"]
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            for model in or_models:
+                try:
+                    payload = {
+                        "model": model,
+                        "temperature": 0.1,
+                        "max_tokens": 600,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt_text},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:{m_type};base64,{b64_data}"},
+                                    },
+                                ],
+                            }
+                        ],
+                        "response_format": {"type": "json_object"},
+                    }
+                    res = await client.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers)
+                    if res.status_code == 200:
+                        choices = res.json().get("choices", [])
+                        if choices:
+                            raw_txt = choices[0].get("message", {}).get("content", "")
+                            parsed = _clean_json(raw_txt)
+                            if parsed:
+                                return parsed
+                except Exception:
+                    continue
+
+    return None

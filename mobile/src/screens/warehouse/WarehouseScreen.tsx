@@ -744,30 +744,52 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
       const currentItem = selectedReceiptForInspection.items[selectedItemIndex];
       const receiptId = selectedReceiptForInspection.id || selectedReceiptForInspection._id || selectedReceiptForInspection.poCode || 'GRN-01';
       const itemId = currentItem?.id || currentItem?._id || currentItem?.medicineId || String(selectedItemIndex);
+      const expectedMedicineName = currentItem?.medName || currentItem?.medicineName || currentItem?.name || 'Dược phẩm';
       const res = await ApiService.inspectReceiptItemAI(
         receiptId,
         itemId,
-        targetImage
+        targetImage,
+        expectedMedicineName
       );
 
       const detectedCount = typeof res?.aiCount === 'number' ? res.aiCount : (typeof res?.detectedCount === 'number' ? res.detectedCount : null);
 
       if (res && res.success !== false && detectedCount !== null) {
-        const medicineName = currentItem?.medName || currentItem?.medicineName || currentItem?.name || 'Dược phẩm';
+        const expectedQty = Number(currentItem?.expected ?? currentItem?.quantity ?? 0);
+        const computedDiff = typeof res.difference === 'number' ? res.difference : (expectedQty > 0 ? Number(detectedCount) - expectedQty : 0);
+        const resolvedBatchNo = (res.batchNo && String(res.batchNo).trim())
+          ? String(res.batchNo).trim()
+          : (currentItem?.batchNo ? String(currentItem.batchNo) : 'Chưa đọc được từ ảnh');
+        const resolvedExpDate = (res.expDate && String(res.expDate).trim())
+          ? String(res.expDate).trim()
+          : (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : 'Chưa đọc được từ ảnh');
+
         const scanOutput = {
-          medName: medicineName,
+          medName: expectedMedicineName,
           aiCount: Number(detectedCount),
-          batchNo: String(res.batchNo || currentItem?.batchNo || `LOT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${100 + selectedItemIndex * 12}`),
-          expDate: String(res.expDate || (currentItem?.expDate ? new Date(currentItem.expDate).toLocaleDateString('vi-VN') : '31/12/2028')),
-          integrity: res.difference === 0 ? 'Nguyên vẹn 100%' : `Chênh lệch: ${res.difference > 0 ? '+' : ''}${res.difference}`,
-          confidence: Number(res.confidence ?? 95),
-          matchPo: res.difference === 0,
+          batchNo: resolvedBatchNo,
+          expDate: resolvedExpDate,
+          integrity: computedDiff === 0 ? 'Khớp số lượng PO' : `Chênh lệch PO: ${computedDiff > 0 ? '+' : ''}${computedDiff}`,
+          confidence: Number(res.confidence ?? 0),
+          matchPo: res.isExpectedMedicine !== false && computedDiff === 0,
+          detectedMedicineName: res.detectedMedicineName || null,
+          isExpectedMedicine: typeof res.isExpectedMedicine === 'boolean' ? res.isExpectedMedicine : null,
+          mismatchReason: res.mismatchReason || null,
+          annotatedImage: res.annotatedImage || '',
           inspectionRecordId: res.inspectionRecordId ? String(res.inspectionRecordId) : undefined,
         };
 
         setAiScanResult(scanOutput);
         setActualCountInput(String(scanOutput.aiCount));
-        showToast.success('AI Vision', `Nhận diện thành công ${scanOutput.aiCount} hộp (Khớp: ${scanOutput.confidence}%)`);
+
+        if (scanOutput.isExpectedMedicine === false) {
+          showToast.error(
+            '⚠️ Cảnh báo giao nhầm thuốc!',
+            scanOutput.mismatchReason || `AI nhận diện "${scanOutput.detectedMedicineName || 'thuốc khác'}", không khớp với "${expectedMedicineName}" trên PO!`
+          );
+        } else {
+          showToast.success('AI Vision', `AI đếm được ${scanOutput.aiCount} hộp (Tin cậy: ${scanOutput.confidence}%)`);
+        }
       } else {
         const errMsg = res?.message || 'Không thể nhận diện hình ảnh từ máy chủ AI. Vui lòng nhập số lượng kiểm đếm thủ công.';
         showToast.error('Kiểm định thất bại', errMsg);
@@ -2690,13 +2712,17 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             </View>
 
             <View style={styles.scannerFrame}>
-              <Image source={{ uri: selectedInspectionImage }} style={styles.packageImage} resizeMode="contain" />
+              <Image
+                source={{ uri: (aiScanResult?.annotatedImage && aiScanResult.annotatedImage.length > 50) ? aiScanResult.annotatedImage : selectedInspectionImage }}
+                style={styles.packageImage}
+                resizeMode="contain"
+              />
               {isAiScanning && (
                 <View style={styles.scanOverlay}>
                   <View style={styles.laserLine} />
                   <View style={styles.scanningIndicatorBox}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.scanningText}>AI đang quét bao bì, OCR số lô & hạn dùng...</Text>
+                    <Text style={styles.scanningText}>AI đang đếm hộp (NMS), đối chiếu tên thuốc & OCR...</Text>
                   </View>
                 </View>
               )}
@@ -2729,10 +2755,65 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                 <>
                   <View style={styles.aiResultHeader}>
                     <Text style={styles.aiResultTitle}>Kết Quả AI Vision</Text>
-                    <View style={styles.confidenceBadge}>
-                      <Text style={styles.confidenceText}>Khớp: {aiScanResult.confidence}%</Text>
+                    <View
+                      style={[
+                        styles.confidenceBadge,
+                        aiScanResult.isExpectedMedicine === false && { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1 },
+                        aiScanResult.isExpectedMedicine === true && { backgroundColor: '#DCFCE7', borderColor: '#86EFAC', borderWidth: 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.confidenceText,
+                          aiScanResult.isExpectedMedicine === false && { color: '#B91C1C' },
+                          aiScanResult.isExpectedMedicine === true && { color: '#15803D' },
+                        ]}
+                      >
+                        {aiScanResult.isExpectedMedicine === false
+                          ? '⚠️ Sai loại thuốc'
+                          : aiScanResult.isExpectedMedicine === true
+                          ? `✓ Đúng thuốc • ${aiScanResult.confidence}%`
+                          : `Tin cậy AI: ${aiScanResult.confidence}%`}
+                      </Text>
                     </View>
                   </View>
+
+                  {/* Cảnh báo nổi bật nếu ảnh chụp là loại thuốc khác với mặt hàng đang kiểm trên PO */}
+                  {aiScanResult.isExpectedMedicine === false && (
+                    <View
+                      style={{
+                        backgroundColor: '#FEF2F2',
+                        borderWidth: 1,
+                        borderColor: '#FCA5A5',
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#B91C1C', marginBottom: 3 }}>
+                        ⚠️ CẢNH BÁO GIAO NHẦM THUỐC!
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#7F1D1D', lineHeight: 16 }}>
+                        {aiScanResult.mismatchReason ||
+                          `Ảnh chụp nhận diện là "${aiScanResult.detectedMedicineName || 'thuốc khác'}", không khớp mặt hàng "${aiScanResult.medName}" trên đơn PO.`}
+                      </Text>
+                    </View>
+                  )}
+
+                  {aiScanResult.detectedMedicineName ? (
+                    <View style={styles.aiRow}>
+                      <Text style={styles.aiRowLabel}>💊 Thuốc nhận diện:</Text>
+                      <Text
+                        style={[
+                          styles.aiRowValue,
+                          aiScanResult.isExpectedMedicine === false && { color: '#DC2626', fontWeight: '700' },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {aiScanResult.detectedMedicineName}
+                      </Text>
+                    </View>
+                  ) : null}
 
                   <View style={styles.aiRow}>
                     <Text style={styles.aiRowLabel}>📦 Số lượng AI đếm:</Text>

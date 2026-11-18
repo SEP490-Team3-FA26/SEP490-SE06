@@ -1113,8 +1113,73 @@ async def get_uploaded_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
+def _compute_box_overlap(box_a: dict, box_b: dict) -> tuple:
+    # Tính IoU và tỷ lệ lọt lòng (containment) giữa 2 khung hình dạng tâm (x, y, width, height)
+    ax, ay = float(box_a.get("x", 0) or 0), float(box_a.get("y", 0) or 0)
+    aw, ah = max(0.0, float(box_a.get("width", 0) or 0)), max(0.0, float(box_a.get("height", 0) or 0))
+    bx, by = float(box_b.get("x", 0) or 0), float(box_b.get("y", 0) or 0)
+    bw, bh = max(0.0, float(box_b.get("width", 0) or 0)), max(0.0, float(box_b.get("height", 0) or 0))
+
+    ax1, ay1, ax2, ay2 = ax - aw / 2.0, ay - ah / 2.0, ax + aw / 2.0, ay + ah / 2.0
+    bx1, by1, bx2, by2 = bx - bw / 2.0, by - bh / 2.0, bx + bw / 2.0, by + bh / 2.0
+
+    inter_w = max(0.0, min(ax2, bx2) - max(ax1, bx1))
+    inter_h = max(0.0, min(ay2, by2) - max(ay1, by1))
+    inter_area = inter_w * inter_h
+
+    area_a = aw * ah
+    area_b = bw * bh
+    if area_a <= 0 or area_b <= 0 or inter_area <= 0:
+        return 0.0, 0.0
+
+    union_area = area_a + area_b - inter_area
+    iou = inter_area / union_area if union_area > 0 else 0.0
+    containment = inter_area / min(area_a, area_b)
+    return iou, containment
+
+
+def _deduplicate_roboflow_predictions(
+    preds: list,
+    min_confidence: float = 0.35,
+    iou_threshold: float = 0.45,
+    containment_threshold: float = 0.75,
+) -> list:
+    # Lọc các khung có độ tin cậy thấp hoặc kích thước lỗi, sau đó áp dụng NMS loại bỏ khung chồng lấn cùng 1 hộp thuốc
+    valid = []
+    for p in preds:
+        if not isinstance(p, dict):
+            continue
+        w = float(p.get("width", 0) or 0)
+        h = float(p.get("height", 0) or 0)
+        if w <= 0 or h <= 0:
+            continue
+        conf = p.get("confidence")
+        conf_val = float(conf) if isinstance(conf, (int, float)) else 1.0
+        if conf_val < min_confidence:
+            continue
+        valid.append(p)
+
+    sorted_preds = sorted(
+        valid,
+        key=lambda item: float(item.get("confidence", 1.0) if isinstance(item.get("confidence"), (int, float)) else 1.0),
+        reverse=True,
+    )
+
+    kept = []
+    for candidate in sorted_preds:
+        is_dup = False
+        for selected in kept:
+            iou, containment = _compute_box_overlap(candidate, selected)
+            if iou >= iou_threshold or containment >= containment_threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(candidate)
+    return kept
+
+
 def parse_roboflow_workflow_count(result: dict) -> tuple:
-    # Trích xuất số lượng kiện thuốc, độ tin cậy, bounding boxes và ảnh annotated từ phản hồi Roboflow Computer Vision
+    # Trích xuất số lượng kiện thuốc (sau lọc NMS), độ tin cậy, bounding boxes và ảnh annotated từ phản hồi Roboflow Computer Vision
     try:
         outputs = result.get("outputs", [])
         for out in outputs:
@@ -1124,9 +1189,11 @@ def parse_roboflow_workflow_count(result: dict) -> tuple:
 
             for key, val in out.items():
                 if isinstance(val, dict) and "predictions" in val:
-                    preds = val["predictions"]
-                    if not isinstance(preds, list) or not all(isinstance(p, dict) for p in preds):
+                    raw_preds = val["predictions"]
+                    if not isinstance(raw_preds, list) or not all(isinstance(p, dict) for p in raw_preds):
                         raise ValueError("Danh sách nhận diện không hợp lệ.")
+                    # Áp dụng NMS chống đếm trùng hộp thuốc khi có nhiều bounding box đè lên nhau
+                    preds = _deduplicate_roboflow_predictions(raw_preds, 0.35, 0.45, 0.75)
                     count = len(preds)
                     confs = [p["confidence"] for p in preds if isinstance(p.get("confidence"), (int, float))]
                     avg_conf = (sum(confs) / len(confs) * 100) if confs else 0.0
@@ -1171,7 +1238,8 @@ def parse_roboflow_workflow_count(result: dict) -> tuple:
 async def inspect_receipt_item(
     receiptId: str,
     receiptItemId: str,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    expectedMedicineName: str | None = Form(None),
 ):
     # 1. Validate Uploaded File (format and size)
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
@@ -1298,23 +1366,58 @@ async def inspect_receipt_item(
     boxes = []
     annotated_image_b64 = ""
     raw_predictions = []
+    vision_ocr_result = None
+
+    # Tên dược phẩm kỳ vọng trên PO để đối chiếu chống giao nhầm hàng
+    resolved_expected_name = (
+        (expectedMedicineName or "").strip()
+        or str(target_item.get("medicineName") or target_item.get("name") or "")
+    )
+
+    async def _run_roboflow():
+        async with httpx.AsyncClient(timeout=25.0) as client_http:
+            return await client_http.post(url, json=payload)
+
+    async def _run_vision_ocr():
+        try:
+            from services.gemini_vision_service import inspect_medicine_package_with_vision
+            return await inspect_medicine_package_with_vision(
+                image_bytes=image_bytes,
+                mime_type=file.content_type or "image/jpeg",
+                expected_medicine_name=resolved_expected_name,
+            )
+        except Exception as ocr_err:
+            print(f"[AI Inspection] Bỏ qua bước đối chiếu Vision OCR (không chặn Roboflow): {ocr_err}")
+            return None
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client_http:
-            response = await client_http.post(url, json=payload)
-            if response.status_code == 200:
-                result = response.json()
-                parsed_count, parsed_conf, parsed_boxes, parsed_annotated_img, raw_preds = parse_roboflow_workflow_count(result)
-                ai_count = parsed_count
-                confidence = parsed_conf
-                boxes = parsed_boxes
-                annotated_image_b64 = parsed_annotated_img
-                raw_predictions = raw_preds
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}: {response.text}"
-                )
+        import asyncio
+        rf_outcome, ocr_outcome = await asyncio.gather(
+            _run_roboflow(),
+            _run_vision_ocr(),
+            return_exceptions=True,
+        )
+
+        if isinstance(ocr_outcome, dict):
+            vision_ocr_result = ocr_outcome
+
+        if isinstance(rf_outcome, Exception):
+            raise rf_outcome
+
+        response = rf_outcome
+        if response.status_code == 200:
+            result = response.json()
+            parsed_count, parsed_conf, parsed_boxes, parsed_annotated_img, raw_preds = parse_roboflow_workflow_count(result)
+            ai_count = parsed_count
+            confidence = parsed_conf
+            boxes = parsed_boxes
+            annotated_image_b64 = parsed_annotated_img
+            raw_predictions = raw_preds
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Dịch vụ Roboflow Vision phản hồi lỗi {response.status_code}: {response.text}"
+            )
     except HTTPException:
         raise
     except Exception as rf_err:
@@ -1322,24 +1425,53 @@ async def inspect_receipt_item(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Kết nối tới máy chủ Roboflow Vision thất bại: {str(rf_err)}"
         )
-        
+
+    # Nếu Roboflow đếm ra 0 nhưng Vision LLM đếm được hộp rõ ràng -> dùng số đếm đối chứng từ Vision LLM
+    visual_box_count = (
+        int(vision_ocr_result.get("visualBoxCount"))
+        if isinstance(vision_ocr_result, dict) and isinstance(vision_ocr_result.get("visualBoxCount"), (int, float))
+        else None
+    )
+    if ai_count == 0 and visual_box_count is not None and visual_box_count > 0:
+        ai_count = visual_box_count
+
+    detected_medicine_name = (
+        vision_ocr_result.get("detectedMedicineName")
+        if isinstance(vision_ocr_result, dict)
+        else None
+    )
+    is_expected_medicine = (
+        vision_ocr_result.get("isExpectedMedicine")
+        if isinstance(vision_ocr_result, dict)
+        else None
+    )
+    mismatch_reason = (
+        vision_ocr_result.get("mismatchReason")
+        if isinstance(vision_ocr_result, dict)
+        else None
+    )
+
     # 6. Compute discrepancy details using configurable tolerance threshold
     difference = ai_count - expected_qty
     abs_diff = abs(difference)
     pct_diff = (abs_diff / expected_qty) if expected_qty > 0 else 0
-        
-    if difference == 0:
+
+    if is_expected_medicine is False:
+        inspection_status = "WRONG_MEDICINE"
+    elif difference == 0:
         inspection_status = "MATCH"
     elif pct_diff <= tolerance_pct:
         inspection_status = "WARNING"
     else:
         inspection_status = "MISMATCH"
-        
+
     evidence_url = f"/static/uploads/{evidence_filename}"
 
-    # Lấy thông tin số lô và hạn dùng từ phiếu nhập kho
-    item_batch_no = target_item.get("batchNo") if target_item else ""
-    item_exp_date = str(target_item.get("expDate") or "") if target_item else ""
+    # Ưu tiên số lô & hạn dùng đọc OCR thật từ ảnh -> sau đó đến thông tin có sẵn trên phiếu PO -> tuyệt đối không bịa
+    ocr_batch_no = (vision_ocr_result.get("batchNo") if isinstance(vision_ocr_result, dict) else None) or ""
+    ocr_exp_date = (vision_ocr_result.get("expDate") if isinstance(vision_ocr_result, dict) else None) or ""
+    item_batch_no = str(ocr_batch_no or (target_item.get("batchNo") if target_item else "") or "")
+    item_exp_date = str(ocr_exp_date or (target_item.get("expDate") if target_item else "") or "")
 
     # 7. Write Inspection Record with Raw AI Response for debug audits
     record_id = ObjectId()
@@ -1348,18 +1480,23 @@ async def inspect_receipt_item(
         "receiptId": receiptId,
         "receiptItemId": receiptItemId,
         "medicineId": medicine_id,
+        "expectedMedicineName": resolved_expected_name,
+        "detectedMedicineName": detected_medicine_name,
+        "isExpectedMedicine": is_expected_medicine,
+        "mismatchReason": mismatch_reason,
         "expectedQty": expected_qty,
         "aiCount": ai_count,
+        "visualBoxCount": visual_box_count,
         "confidence": confidence,
-        "actualQty": None, 
+        "actualQty": None,
         "difference": difference,
         "status": "PENDING_VERIFICATION",
         "evidenceImage": evidence_url,
-        "rawAiResponse": result if 'result' in locals() else {"mock": True},
+        "rawAiResponse": result if 'result' in locals() else {},
         "verifiedBy": None,
         "createdAt": datetime.utcnow()
     })
-        
+
     return {
         "success": True,
         "inspectionRecordId": str(record_id),
@@ -1367,12 +1504,16 @@ async def inspect_receipt_item(
         "receiptItemId": receiptItemId,
         "expectedQty": expected_qty,
         "aiCount": ai_count,
+        "visualBoxCount": visual_box_count,
         "confidence": confidence,
         "difference": difference,
         "status": inspection_status,
+        "detectedMedicineName": detected_medicine_name,
+        "isExpectedMedicine": is_expected_medicine,
+        "mismatchReason": mismatch_reason,
         "evidenceImage": evidence_url,
-        "batchNo": item_batch_no,
-        "expDate": item_exp_date,
+        "batchNo": item_batch_no or None,
+        "expDate": item_exp_date or None,
         "boxes": boxes,
         "annotatedImage": f"data:image/jpeg;base64,{annotated_image_b64}" if annotated_image_b64 else "",
         "predictions": raw_predictions
