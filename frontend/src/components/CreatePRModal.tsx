@@ -1,10 +1,14 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
 import { Plus, X, AlertTriangle, Loader2, ClipboardList, Package, Trash2, Send, Search, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
 import { purchaseRequisitionService } from "../services/purchase/purchaseRequisition.service";
 import { branchService } from "../services/admin/branch.service";
+
+// Phân trang cuốn chiếu giúp modal chọn thuốc tạo PR luôn mượt < 50ms dù danh mục hàng nghìn thuốc
+const PR_MODAL_PAGE_SIZE = 24;
+const NOOP = () => {};
 
 function getBranchIdFromToken() {
   const token = localStorage.getItem("token");
@@ -86,6 +90,9 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
   }, [prefillPrItems]);
   
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [visibleCount, setVisibleCount] = useState<number>(PR_MODAL_PAGE_SIZE);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Advanced Filter states
   const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
@@ -122,8 +129,15 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
   const hasAnyFilter = !!(selectedTargetGroup || selectedPriceRange || selectedFlavour || selectedCountry || selectedBrand || selectedIndication || selectedBrandOrigin || selectedIngredient || selectedClassification);
 
   const filteredMedicines = useMemo(() => {
+    const q = deferredSearchQuery.trim().toLowerCase();
     return medicines.filter(m => {
-      if (searchQuery && !m.name?.toLowerCase().includes(searchQuery.toLowerCase()) && !m.id?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (
+        q &&
+        !m.name?.toLowerCase().includes(q) &&
+        !m.id?.toLowerCase().includes(q) &&
+        !m.active_ingredient?.toLowerCase().includes(q) &&
+        !m.barcode?.toLowerCase().includes(q)
+      ) return false;
       if (selectedTargetGroup && m.targetGroup && m.targetGroup !== selectedTargetGroup) return false;
       if (selectedCountry && m.country && m.country !== selectedCountry) return false;
       if (selectedBrand && m.brand && m.brand !== selectedBrand) return false;
@@ -134,23 +148,56 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
       if (selectedFlavour && m.flavour && m.flavour !== selectedFlavour) return false;
       return true;
     });
-  }, [medicines, searchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+  }, [medicines, deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
 
-  const addItem = (medicineId: string, quantity: number) => {
+  // Reset trang hiển thị khi đổi bộ lọc
+  useEffect(() => {
+    setVisibleCount(PR_MODAL_PAGE_SIZE);
+  }, [deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+
+  const visibleMedicines = useMemo(
+    () => filteredMedicines.slice(0, visibleCount),
+    [filteredMedicines, visibleCount],
+  );
+  const hasMoreMedicines = visibleCount < filteredMedicines.length;
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || !hasMoreMedicines) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + PR_MODAL_PAGE_SIZE, filteredMedicines.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMoreMedicines, filteredMedicines.length]);
+
+  const selectedMedIdSet = useMemo(() => new Set(items.map((i) => i.medicineId)), [items]);
+
+  const addItem = useCallback((medicineId: string, quantity: number) => {
     if (quantity <= 0) {
       setErr("Số lượng phải lớn hơn 0");
       return;
     }
-    const idx = items.findIndex(i => i.medicineId === medicineId);
-    if (idx >= 0) {
-      const u = [...items];
-      u[idx].quantity += quantity;
-      setItems(u);
-    } else {
-      setItems([...items, { medicineId, quantity }]);
-    }
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.medicineId === medicineId);
+      if (idx >= 0) {
+        const u = [...prev];
+        u[idx] = { ...u[idx], quantity: u[idx].quantity + quantity };
+        return u;
+      }
+      return [...prev, { medicineId, quantity }];
+    });
     setErr(null);
-  };
+  }, []);
+
+  const handleCardAdd = useCallback((m: any, q: number) => {
+    addItem(m.id || m._id, q);
+  }, [addItem]);
 
   const removeItem = (idx: number) => {
     setItems(items.filter((_, i) => i !== idx));
@@ -304,23 +351,50 @@ export function CreatePRModal({ medicines, onClose, onSuccess, prefillPrItems, e
               )}
             </div>
             
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-2.5 px-0.5">
+              <span>
+                Hiển thị <strong className="text-slate-800">{visibleMedicines.length}</strong> / {filteredMedicines.length} dược phẩm
+              </span>
+              {searchQuery !== deferredSearchQuery && (
+                <span className="text-blue-600 flex items-center gap-1">
+                  <Loader2 size={11} className="animate-spin" /> Đang lọc...
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
-              {filteredMedicines.length === 0 ? (
+              {visibleMedicines.length === 0 ? (
                 <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
                   <Search size={40} className="mb-4 opacity-50" />
                   <p className="text-sm font-bold">Không tìm thấy thuốc phù hợp</p>
                 </div>
               ) : (
-                filteredMedicines.map(med => (
-                  <MedicineCard 
-                    key={med.id || med._id} 
-                    med={med} 
-                    added={items.some(i => i.medicineId === (med.id || med._id))} 
-                    onAddToCart={(m, q, _unit) => { addItem(m.id || m._id, q); }} 
-                    onClick={() => {}} 
-                    allowOutOfStock={true}
-                  />
-                ))
+                <>
+                  {visibleMedicines.map(med => {
+                    const medId = med.id || med._id;
+                    return (
+                      <MedicineCard 
+                        key={medId} 
+                        med={med} 
+                        added={selectedMedIdSet.has(medId)} 
+                        onAddToCart={handleCardAdd} 
+                        onClick={NOOP} 
+                        allowOutOfStock={true}
+                      />
+                    );
+                  })}
+                  {hasMoreMedicines && (
+                    <div ref={loadMoreRef} className="col-span-full py-4 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCount(prev => Math.min(prev + PR_MODAL_PAGE_SIZE, filteredMedicines.length))}
+                        className="px-4 py-2 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                      >
+                        Tải thêm dược phẩm ({filteredMedicines.length - visibleMedicines.length} còn lại)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

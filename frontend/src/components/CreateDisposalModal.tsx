@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from "react";
 import { X, AlertTriangle, CheckCircle2, Trash2, Loader2, Search, Package, AlertCircle, CheckSquare, Square, Zap, Clock, ShieldAlert, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
 import { medicineService } from "../services";
+
+// Phân trang cuốn chiếu tránh vẽ hàng nghìn thẻ thuốc cùng lúc khi chuyển sang tab "Tất cả danh mục"
+const DISPOSAL_MODAL_PAGE_SIZE = 24;
 
 export interface CreateDisposalModalProps {
   onClose: () => void;
@@ -30,6 +33,9 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
   const [disposalNotes, setDisposalNotes] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [visibleCount, setVisibleCount] = useState<number>(DISPOSAL_MODAL_PAGE_SIZE);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Trạng thái bộ lọc nâng cao
   const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
@@ -149,26 +155,23 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
         });
       });
 
-      // Hợp nhất dữ liệu: Các thuốc có lô hết hạn được ưu tiên hiển thị trước
+      // Hợp nhất dữ liệu bằng Map O(N) (loại bỏ vòng lặp lồng O(N^2) gây đơ khi danh mục lớn)
       const combinedMedList: any[] = [...expiredMedMap.values()];
-      const existingIds = new Set(combinedMedList.map(m => m.id));
 
       medList.forEach((m: any) => {
         const mId = m.id || m._id;
-        if (!existingIds.has(mId)) {
+        const target = expiredMedMap.get(mId);
+        if (!target) {
           combinedMedList.push(m);
         } else {
-          // Bổ sung thông tin chi tiết (ảnh, hoạt chất, số đăng ký) nếu có
-          const target = combinedMedList.find(x => x.id === mId || x._id === mId);
-          if (target) {
-            target.image = target.image || m.image || (Array.isArray(m.images) && m.images[0]);
-            target.images = target.images?.length > 0 ? target.images : (m.images || (m.image ? [m.image] : []));
-            target.active_ingredient = m.active_ingredient || target.active_ingredient;
-            target.registrationNumber = m.registration_number || m.registrationNumber || target.registrationNumber;
-            target.brand = m.brand || target.brand;
-            target.country = m.country || target.country;
-            target.targetGroup = m.targetGroup || target.targetGroup;
-          }
+          // Bổ sung thông tin chi tiết (ảnh, hoạt chất, số đăng ký) trực tiếp O(1)
+          target.image = target.image || m.image || (Array.isArray(m.images) && m.images[0]);
+          target.images = target.images?.length > 0 ? target.images : (m.images || (m.image ? [m.image] : []));
+          target.active_ingredient = m.active_ingredient || target.active_ingredient;
+          target.registrationNumber = m.registration_number || m.registrationNumber || target.registrationNumber;
+          target.brand = m.brand || target.brand;
+          target.country = m.country || target.country;
+          target.targetGroup = m.targetGroup || target.targetGroup;
         }
       });
 
@@ -264,8 +267,9 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
     return { expiredCount, nearExpiryCount, totalCount: medicines.length };
   }, [medicines]);
 
-  // Filter medicines
+  // Lọc danh mục thuốc (dùng deferredSearchQuery tránh khựng phím khi danh mục lớn)
   const filteredMedicines = useMemo(() => {
+    const q = deferredSearchQuery.trim().toLowerCase();
     return medicines.filter(m => {
       const batches = m.batches || [];
 
@@ -278,8 +282,7 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
         if (!hasNearExpiry) return false;
       }
 
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+      if (q) {
         const matchName = m.name?.toLowerCase().includes(q);
         const matchId = (m.id || m._id || "").toLowerCase().includes(q);
         const matchReg = (m.registrationNumber || "").toLowerCase().includes(q);
@@ -298,40 +301,66 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
 
       return true;
     });
-  }, [medicines, expiryFilterMode, searchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+  }, [medicines, expiryFilterMode, deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+
+  // Reset số thẻ hiển thị về 24 mỗi khi chuyển tab hoặc đổi bộ lọc
+  useEffect(() => {
+    setVisibleCount(DISPOSAL_MODAL_PAGE_SIZE);
+  }, [expiryFilterMode, deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+
+  const visibleMedicines = useMemo(
+    () => filteredMedicines.slice(0, visibleCount),
+    [filteredMedicines, visibleCount],
+  );
+  const hasMoreMedicines = visibleCount < filteredMedicines.length;
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || !hasMoreMedicines) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + DISPOSAL_MODAL_PAGE_SIZE, filteredMedicines.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMoreMedicines, filteredMedicines.length]);
+
+  // Dùng Set O(1) để kiểm tra nhanh thuốc đã nằm trong danh sách xuất hủy chưa
+  const disposalCartIdSet = useMemo(() => new Set(disposalCart.map((i) => i.id)), [disposalCart]);
 
   // Check if all currently displayed medicines are added
   const allDisplayedSelected = useMemo(() => {
     if (filteredMedicines.length === 0) return false;
-    return filteredMedicines.every(m => disposalCart.some(i => i.id === (m.id || m._id)));
-  }, [filteredMedicines, disposalCart]);
+    return filteredMedicines.every(m => disposalCartIdSet.has(m.id || m._id));
+  }, [filteredMedicines, disposalCartIdSet]);
 
-  // Add single medicine to disposal cart
-  const handleAddMedicine = (med: any) => {
+  // Add single medicine to disposal cart (bọc useCallback ổn định tham chiếu cho React.memo)
+  const handleAddMedicine = useCallback((med: any) => {
     const medId = med.id || med._id;
-    const exists = disposalCart.find(i => i.id === medId);
-    if (exists) {
-      return;
-    }
-
     const batches = med.batches || [];
-    // Prioritize expired batches first, then near-expiry, then with stock
     const expiredBatch = batches.find(isBatchExpired);
     const nearExpiryBatch = batches.find(isBatchNearExpiry);
     const defaultBatch = expiredBatch || nearExpiryBatch || batches.find((b: any) => b.stock > 0) || batches[0] || null;
 
-    setDisposalCart(prev => [
-      ...prev,
-      {
-        ...med,
-        id: medId,
-        selectedBatchNo: defaultBatch?.batchNo || "",
-        selectedBatch: defaultBatch,
-        quantity: defaultBatch ? (defaultBatch.stock || 1) : 1, // Default full stock for disposal
-        maxStock: defaultBatch?.stock || 0
-      }
-    ]);
-  };
+    setDisposalCart((prev) => {
+      if (prev.some((i) => i.id === medId)) return prev;
+      return [
+        ...prev,
+        {
+          ...med,
+          id: medId,
+          selectedBatchNo: defaultBatch?.batchNo || "",
+          selectedBatch: defaultBatch,
+          quantity: defaultBatch ? (defaultBatch.stock || 1) : 1,
+          maxStock: defaultBatch?.stock || 0,
+        },
+      ];
+    });
+  }, []);
 
   // Toggle "Select All" / "Deselect All" for current filtered view
   const handleToggleSelectAll = () => {
@@ -666,41 +695,54 @@ export function CreateDisposalModal({ onClose, onSuccess, prefillItem, branchId 
                     )}
                   </div>
                 ) : (
-                  filteredMedicines.map(med => {
-                    const medId = med.id || med._id;
-                    const isAdded = disposalCart.some(i => i.id === medId);
-                    const batches = med.batches || [];
-                    const expiredBatches = batches.filter(isBatchExpired);
-                    const nearExpBatches = batches.filter(isBatchNearExpiry);
+                  <>
+                    {visibleMedicines.map(med => {
+                      const medId = med.id || med._id;
+                      const isAdded = disposalCartIdSet.has(medId);
+                      const batches = med.batches || [];
+                      const expiredBatches = batches.filter(isBatchExpired);
+                      const nearExpBatches = batches.filter(isBatchNearExpiry);
 
-                    return (
-                      <div key={medId} className="relative group">
-                        <MedicineCard
-                          med={med}
-                          added={isAdded}
-                          onAddToCart={(m) => { handleAddMedicine(m); }}
-                          onClick={() => { handleAddMedicine(med); }}
-                          allowOutOfStock={true}
-                        />
-                        
-                        {/* Huy hiệu cảnh báo lô quá hạn / cận hạn */}
-                        {expiredBatches.length > 0 && (
-                          <div className="absolute top-2 right-2 pointer-events-none z-10">
-                            <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider animate-pulse">
-                              <ShieldAlert size={10} /> Hết hạn ({expiredBatches.length} lô)
-                            </span>
-                          </div>
-                        )}
-                        {expiredBatches.length === 0 && nearExpBatches.length > 0 && (
-                          <div className="absolute top-2 right-2 pointer-events-none z-10">
-                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
-                              <Clock size={10} /> Cận date ({nearExpBatches.length} lô)
-                            </span>
-                          </div>
-                        )}
+                      return (
+                        <div key={medId} className="relative group">
+                          <MedicineCard
+                            med={med}
+                            added={isAdded}
+                            onAddToCart={handleAddMedicine}
+                            onClick={() => handleAddMedicine(med)}
+                            allowOutOfStock={true}
+                          />
+                          
+                          {/* Huy hiệu cảnh báo lô quá hạn / cận hạn */}
+                          {expiredBatches.length > 0 && (
+                            <div className="absolute top-2 right-2 pointer-events-none z-10">
+                              <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider animate-pulse">
+                                <ShieldAlert size={10} /> Hết hạn ({expiredBatches.length} lô)
+                              </span>
+                            </div>
+                          )}
+                          {expiredBatches.length === 0 && nearExpBatches.length > 0 && (
+                            <div className="absolute top-2 right-2 pointer-events-none z-10">
+                              <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
+                                <Clock size={10} /> Cận date ({nearExpBatches.length} lô)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {hasMoreMedicines && (
+                      <div ref={loadMoreRef} className="col-span-full py-4 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount(prev => Math.min(prev + DISPOSAL_MODAL_PAGE_SIZE, filteredMedicines.length))}
+                          className="px-4 py-2 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          Tải thêm dược phẩm ({filteredMedicines.length - visibleMedicines.length} còn lại)
+                        </button>
                       </div>
-                    );
-                  })
+                    )}
+                  </>
                 )}
               </div>
             )}

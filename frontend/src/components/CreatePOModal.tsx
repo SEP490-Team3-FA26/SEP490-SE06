@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from "react";
 import { X, AlertTriangle, CheckCircle2, PackagePlus, Loader2, Search, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ShopFilterSidebar } from "./ShopFilterSidebar";
 import { MedicineCard } from "./MedicineCard";
 import { medicineService, supplierService, purchaseOrderService } from "../services";
 
+// Hằng số phân trang cuốn chiếu (Progressive Rendering) tránh render hàng nghìn thẻ DOM cùng lúc gây đơ modal
+const PO_MODAL_PAGE_SIZE = 24;
+const NOOP = () => {};
+
 export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillPrItems?: any[]; onClose: () => void; onSuccess: () => void }) {
   const [medicines, setMedicines] = useState<any[]>([]);
+  const [isLoadingMedicines, setIsLoadingMedicines] = useState<boolean>(true);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -16,6 +21,9 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
   const prefillDone = useRef(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [visibleCount, setVisibleCount] = useState<number>(PO_MODAL_PAGE_SIZE);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Advanced Filter states
   const [selectedTargetGroup, setSelectedTargetGroup] = useState("");
@@ -51,19 +59,26 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
 
   const hasAnyFilter = !!(selectedTargetGroup || selectedPriceRange || selectedFlavour || selectedCountry || selectedBrand || selectedIndication || selectedBrandOrigin || selectedIngredient || selectedClassification);
 
-  // Fetch full medicines for filtering
+  // Fetch full medicines for filtering (tận dụng cache ngắn hạn 2 phút từ medicineService)
   useEffect(() => {
+    let active = true;
+    setIsLoadingMedicines(true);
     Promise.all([
       medicineService.getMedicinesDropdown(),
       supplierService.getSuppliers()
     ]).then(([medData, supData]) => {
+      if (!active) return;
       setMedicines(Array.isArray(medData?.data) ? medData.data : (Array.isArray(medData) ? medData : []));
       setSuppliers(Array.isArray(supData) ? supData : []);
     }).catch(err => {
       console.error("Lỗi khi tải dữ liệu thuốc/nhà cung cấp:", err);
+      if (!active) return;
       setMedicines([]);
       setSuppliers([]);
+    }).finally(() => {
+      if (active) setIsLoadingMedicines(false);
     });
+    return () => { active = false; };
   }, []);
 
   const fetchMedicineById = async (id: string) => {
@@ -150,8 +165,15 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
   }, [prefillPrItems]);
 
   const filteredMedicines = useMemo(() => {
+    const q = deferredSearchQuery.trim().toLowerCase();
     return medicines.filter(m => {
-      if (searchQuery && !m.name?.toLowerCase().includes(searchQuery.toLowerCase()) && !m.id?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (
+        q &&
+        !m.name?.toLowerCase().includes(q) &&
+        !m.id?.toLowerCase().includes(q) &&
+        !m.active_ingredient?.toLowerCase().includes(q) &&
+        !m.barcode?.toLowerCase().includes(q)
+      ) return false;
       if (selectedTargetGroup && m.targetGroup && m.targetGroup !== selectedTargetGroup) return false;
       if (selectedCountry && m.country && m.country !== selectedCountry) return false;
       if (selectedBrand && m.brand && m.brand !== selectedBrand) return false;
@@ -162,7 +184,38 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
       if (selectedFlavour && m.flavour && m.flavour !== selectedFlavour) return false;
       return true;
     });
-  }, [medicines, searchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+  }, [medicines, deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+
+  // Reset số lượng hiển thị về 24 mỗi khi đổi bộ lọc hoặc từ khóa tìm kiếm
+  useEffect(() => {
+    setVisibleCount(PO_MODAL_PAGE_SIZE);
+  }, [deferredSearchQuery, selectedTargetGroup, selectedCountry, selectedBrand, selectedIndication, selectedBrandOrigin, selectedIngredient, selectedClassification, selectedFlavour]);
+
+  // Chỉ cắt đúng phần hiển thị để giữ DOM siêu nhẹ (~24-48 thẻ thay vì 2.000 thẻ)
+  const visibleMedicines = useMemo(
+    () => filteredMedicines.slice(0, visibleCount),
+    [filteredMedicines, visibleCount],
+  );
+  const hasMoreMedicines = visibleCount < filteredMedicines.length;
+
+  // Tự động nạp thêm thẻ thuốc khi người dùng cuộn gần đến cuối danh sách
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || !hasMoreMedicines) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + PO_MODAL_PAGE_SIZE, filteredMedicines.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMoreMedicines, filteredMedicines.length]);
+
+  // Dùng Set tra cứu O(1) thay vì cart.some O(N) cho từng thẻ thuốc
+  const cartIdSet = useMemo(() => new Set(cart.map((i) => i.id)), [cart]);
 
   const getSupplierName = (id: string) => {
     if (!id) return "Không có thông tin";
@@ -170,7 +223,7 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
     return s ? s.name : id;
   };
 
-  const handleAddMedicine = (med: any, quantity: number) => {
+  const handleAddMedicine = useCallback((med: any, quantity: number) => {
     setErrorMsg(null);
     if (!med) return;
 
@@ -184,15 +237,16 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
     const finalPrice = med.price || 0;
     const medId = med.id || med._id;
 
-    const existingIndex = cart.findIndex(item => item.id === medId);
-    if (existingIndex >= 0) {
-      const newCart = [...cart];
-      newCart[existingIndex].quantity += quantity;
-      setCart(newCart);
-    } else {
-      setCart([...cart, { ...med, id: medId, quantity, unitPrice: finalPrice }]);
-    }
-  };
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === medId);
+      if (existingIndex >= 0) {
+        const newCart = [...prev];
+        newCart[existingIndex] = { ...newCart[existingIndex], quantity: newCart[existingIndex].quantity + quantity };
+        return newCart;
+      }
+      return [...prev, { ...med, id: medId, quantity, unitPrice: finalPrice }];
+    });
+  }, []);
 
   const handleRemoveItem = (id: string) => {
     setCart(cart.filter(item => item.id !== id));
@@ -319,25 +373,59 @@ export function CreatePOModal({ prefillPrItems, onClose, onSuccess }: { prefillP
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
-              {filteredMedicines.length === 0 ? (
-                <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                  <Search size={40} className="mb-4 opacity-50" />
-                  <p className="text-sm font-bold">Không tìm thấy thuốc phù hợp</p>
-                </div>
-              ) : (
-                filteredMedicines.map(med => (
-                  <MedicineCard
-                    key={med.id || med._id}
-                    med={med}
-                    added={cart.some(i => i.id === (med.id || med._id))}
-                    onAddToCart={(m, q, _unit) => { handleAddMedicine(m, q); }}
-                    onClick={() => { }}
-                    allowOutOfStock={true}
-                  />
-                ))
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-2.5 px-0.5">
+              <span>
+                Hiển thị <strong className="text-slate-800">{visibleMedicines.length}</strong> / {filteredMedicines.length} dược phẩm
+              </span>
+              {searchQuery !== deferredSearchQuery && (
+                <span className="text-blue-600 flex items-center gap-1">
+                  <Loader2 size={11} className="animate-spin" /> Đang lọc...
+                </span>
               )}
             </div>
+
+            {isLoadingMedicines && medicines.length === 0 ? (
+              <div className="py-16 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 size={32} className="animate-spin text-blue-600 mb-3" />
+                <p className="text-sm font-bold text-slate-600">Đang tải danh mục dược phẩm...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 auto-rows-max">
+                {visibleMedicines.length === 0 ? (
+                  <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
+                    <Search size={40} className="mb-4 opacity-50" />
+                    <p className="text-sm font-bold">Không tìm thấy thuốc phù hợp</p>
+                  </div>
+                ) : (
+                  <>
+                    {visibleMedicines.map(med => {
+                      const medId = med.id || med._id;
+                      return (
+                        <MedicineCard
+                          key={medId}
+                          med={med}
+                          added={cartIdSet.has(medId)}
+                          onAddToCart={handleAddMedicine}
+                          onClick={NOOP}
+                          allowOutOfStock={true}
+                        />
+                      );
+                    })}
+                    {hasMoreMedicines && (
+                      <div ref={loadMoreRef} className="col-span-full py-4 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount(prev => Math.min(prev + PO_MODAL_PAGE_SIZE, filteredMedicines.length))}
+                          className="px-4 py-2 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          Tải thêm dược phẩm ({filteredMedicines.length - visibleMedicines.length} còn lại)
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right Column: PO Cart */}

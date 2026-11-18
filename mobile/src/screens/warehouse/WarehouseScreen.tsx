@@ -1,5 +1,5 @@
 // WarehouseScreen.tsx - Warehouse & Logistics Management: Map 2D, Barcode Scanner, Stock, GRN Receipts, QR Transfers, AI Inspection, Lot Tracing & AI Demand Forecasting
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   StatusBar,
   TouchableOpacity,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -204,67 +205,136 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
     }
   }, []);
 
+  // Theo dõi các tab đã tải để tránh gọi thừa 8 API cùng lúc gây lag khi mở màn hình Kho
+  const loadedTabsRef = useRef<Set<string>>(new Set());
+  const isFirstSearchEffectRef = useRef<boolean>(true);
+  const [visibleMedCount, setVisibleMedCount] = useState<number>(20);
+
+  // Hàm chuẩn hóa danh sách thuốc & tự động bóc tách nhóm cận hạn / hết hạn
+  const applyMedicinesResult = useCallback((medList: any[]) => {
+    if (!Array.isArray(medList)) return;
+    setMedicines(medList);
+    setVisibleMedCount(20);
+    const nearExpiry = medList
+      .map((m: any) => {
+        const exp = ApiService.getExpiryStatus(m);
+        return {
+          ...m,
+          ...exp,
+          expDate: exp.expDateFormatted,
+          stock: m.stock ?? m.totalStock ?? 0,
+          unit: m.unit || m.baseUnit || 'Đơn vị',
+        };
+      })
+      .filter((item: any) => item.status === 'NEAR_EXPIRY' || item.status === 'EXPIRED');
+    setExpiredList(nearExpiry);
+  }, []);
+
+  // Tải dữ liệu theo từng Tab (Lazy-load) giúp giảm nghẽn mạng và JS thread ngay lúc mở app
+  const loadTabData = useCallback(
+    async (tab: string, forceRefresh = false) => {
+      if (!forceRefresh && loadedTabsRef.current.has(tab)) {
+        return;
+      }
+      try {
+        if (forceRefresh) setRefreshing(true);
+        await ApiService.initToken().catch(() => {});
+
+        if (tab === 'MAP') {
+          const [mapRes, statsRes] = await Promise.all([
+            ApiService.getWarehouseMap().catch(() => ({ zones: DEFAULT_GSP_ZONES })),
+            ApiService.getInventoryStats('CENTRAL_WH').catch(() => null),
+          ]);
+          if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
+          if (statsRes && statsRes.totalMedicines > 0) {
+            setInventoryStats({
+              totalMedicines: statsRes.totalMedicines,
+              totalStock: statsRes.totalStock,
+            });
+          }
+        } else if (tab === 'INVENTORY' || tab === 'EXPIRATION') {
+          const [medList, statsRes] = await Promise.all([
+            ApiService.getMedicines({ search: searchQuery }).catch(() => []),
+            ApiService.getInventoryStats('CENTRAL_WH').catch(() => null),
+          ]);
+          applyMedicinesResult(medList);
+          if (statsRes && statsRes.totalMedicines > 0) {
+            setInventoryStats({
+              totalMedicines: statsRes.totalMedicines,
+              totalStock: statsRes.totalStock,
+            });
+          }
+          loadedTabsRef.current.add('INVENTORY');
+          loadedTabsRef.current.add('EXPIRATION');
+        } else if (tab === 'TRANSFERS') {
+          const transferList = await ApiService.getStockTransfers().catch(() => []);
+          setTransfers(transferList || []);
+        } else if (tab === 'RECEIPTS') {
+          const [grnList, poList] = await Promise.all([
+            ApiService.getGoodsReceipts().catch(() => []),
+            ApiService.getPurchaseOrders().catch(() => []),
+          ]);
+          setReceipts(grnList || []);
+          if (Array.isArray(poList)) {
+            const pending = poList.filter((p: any) =>
+              ['SHIPPING', 'RECEIVING', 'PARTIAL_RECEIVED', 'APPROVED', 'ORDERED', 'SENT', 'DELIVERING', 'PENDING_INSPECTION', 'PENDING_APPROVAL'].includes(p.status)
+            );
+            setIncomingPOs(pending);
+          }
+        } else if (tab === 'CHECKS') {
+          const checksList = await ApiService.getInventoryChecks().catch(() => []);
+          if (checksList) setInventoryChecksList(checksList);
+        }
+
+        loadedTabsRef.current.add(tab);
+      } catch (e) {
+        console.warn('Error loading warehouse tab data:', tab, e);
+      } finally {
+        if (forceRefresh) setRefreshing(false);
+      }
+    },
+    [applyMedicinesResult, searchQuery],
+  );
+
+  // Pull-to-Refresh hoặc gọi làm mới: chỉ tải lại đúng tab đang hiển thị thay vì gọi lại cả 8 API
   const loadData = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      await ApiService.initToken().catch(() => {});
-      const [medList, mapRes, lowStock, transferList, grnList, checksList, statsRes, poList] = await Promise.all([
-        ApiService.getMedicines({ search: searchQuery }).catch(() => []),
-        ApiService.getWarehouseMap().catch(() => ({ zones: DEFAULT_GSP_ZONES })),
-        ApiService.getLowStockReport().catch(() => []),
-        ApiService.getStockTransfers().catch(() => []),
-        ApiService.getGoodsReceipts().catch(() => []),
-        ApiService.getInventoryChecks().catch(() => []),
-        ApiService.getInventoryStats('CENTRAL_WH').catch(() => null),
-        ApiService.getPurchaseOrders().catch(() => []),
-      ]);
+    await loadTabData(activeTab, true);
+  }, [activeTab, loadTabData]);
 
-      if (statsRes && statsRes.totalMedicines > 0) {
-        setInventoryStats({
-          totalMedicines: statsRes.totalMedicines,
-          totalStock: statsRes.totalStock,
-        });
-      }
-
-      if (medList) {
-        setMedicines(medList);
-        const nearExpiry = medList
-          .map((m: any) => {
-            const exp = ApiService.getExpiryStatus(m);
-            return {
-              ...m,
-              ...exp,
-              expDate: exp.expDateFormatted,
-              stock: m.stock ?? m.totalStock ?? 0,
-              unit: m.unit || m.baseUnit || 'Đơn vị',
-            };
-          })
-          .filter((item: any) => item.status === 'NEAR_EXPIRY' || item.status === 'EXPIRED');
-        setExpiredList(nearExpiry);
-      }
-      if (mapRes && mapRes.zones) setWarehouseZones(mapRes.zones);
-      setTransfers(transferList || []);
-      setReceipts(grnList || []);
-
-      // Lọc các đơn PO cần kiểm đếm / đang vận chuyển nhập kho
-      if (Array.isArray(poList)) {
-        const pending = poList.filter((p: any) =>
-          ['SHIPPING', 'RECEIVING', 'PARTIAL_RECEIVED', 'APPROVED', 'ORDERED', 'SENT', 'DELIVERING', 'PENDING_INSPECTION', 'PENDING_APPROVAL'].includes(p.status)
-        );
-        setIncomingPOs(pending);
-      }
-
-      if (checksList) setInventoryChecksList(checksList);
-    } catch (e) {
-      console.warn('Error loading warehouse data:', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [searchQuery]);
-
+  // Tự động tải dữ liệu khi người dùng chuyển sang tab mới lần đầu
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadTabData(activeTab, false);
+  }, [activeTab, loadTabData]);
+
+  // Debounce tìm kiếm thuốc 350ms: chỉ gọi riêng API getMedicines, tuyệt đối không gọi lại 8 API kho
+  useEffect(() => {
+    if (isFirstSearchEffectRef.current) {
+      isFirstSearchEffectRef.current = false;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const medList = await ApiService.getMedicines({ search: searchQuery }).catch(() => []);
+        applyMedicinesResult(medList);
+      } catch (err) {
+        console.warn('Lỗi tìm kiếm danh mục thuốc kho:', err);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, applyMedicinesResult]);
+
+  // Tính tổng tồn kho 1 lần bằng useMemo thay vì chạy .reduce() lặp lại trên mỗi lần render
+  const totalDisplayedStock = useMemo(
+    () => (inventoryStats.totalStock > 0 ? inventoryStats.totalStock : medicines.reduce((sum, m) => sum + (m.stock || 0), 0)),
+    [inventoryStats.totalStock, medicines],
+  );
+
+  // Cắt danh sách thuốc hiển thị cuốn chiếu (20 mục/lần) giữ FPS mượt khi mở tab Tồn kho
+  const visibleMedicines = useMemo(
+    () => medicines.slice(0, visibleMedCount),
+    [medicines, visibleMedCount],
+  );
 
   // Tự động mở phiên kiểm đếm đơn PO khi nhận được poId từ Deep Link hoặc Navigation params
   useEffect(() => {
@@ -1407,7 +1477,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
               <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="layers" size={20} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>
-                  {(inventoryStats.totalStock > 0 ? inventoryStats.totalStock : medicines.reduce((sum, m) => sum + m.stock, 0)).toLocaleString('vi-VN')}
+                  {totalDisplayedStock.toLocaleString('vi-VN')}
                 </Text>
                 <Text style={styles.kpiLabel}>Tổng đơn vị tồn kho</Text>
               </GradientCard>
@@ -1434,8 +1504,10 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Danh Mục Thuốc Lưu Kho</Text>
-            {medicines.map((med, idx) => {
+            <Text style={styles.sectionTitle}>
+              Danh Mục Thuốc Lưu Kho ({visibleMedicines.length}/{medicines.length})
+            </Text>
+            {visibleMedicines.map((med, idx) => {
               const isExpanded = expandedMedId === med.id;
               const isLowStock = med.stock <= 20;
 
@@ -1445,14 +1517,15 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                     onPress={() => setExpandedMedId(isExpanded ? null : med.id)}
                     style={styles.medHeaderRow}
                   >
-                    <Image
+                    <ExpoImage
                       source={{
                         uri:
                           med.image ||
                           'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
                       }}
                       style={styles.inventoryThumb}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
                     />
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1545,6 +1618,26 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                 </View>
               );
             })}
+
+            {visibleMedCount < medicines.length && (
+              <TouchableOpacity
+                onPress={() => setVisibleMedCount((prev) => Math.min(prev + 20, medicines.length))}
+                style={{
+                  marginTop: 8,
+                  marginBottom: 16,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: '#EFF6FF',
+                  borderWidth: 1,
+                  borderColor: '#BFDBFE',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0284C7' }}>
+                  Xem thêm dược phẩm ({medicines.length - visibleMedCount} còn lại)
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

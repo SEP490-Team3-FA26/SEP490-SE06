@@ -1,6 +1,46 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { CheckCircle2, Plus, ShoppingBag, AlertCircle, Heart, ShieldAlert, Star } from "lucide-react";
 import { isPrescriptionMedicine } from "../utils/prescriptionUtils";
+
+// Biểu thức chính quy biên dịch sẵn 1 lần ở cấp module để tránh tạo mới liên tục trong hàng nghìn card
+const REGEX_FULL_PACK = /hộp\s+(\d+)\s+vỉ\s*x\s*(\d+)\s+viên/;
+const REGEX_BOX_PILLS = /hộp\s+(\d+)\s+viên/;
+const REGEX_BOX_BLISTERS = /hộp\s+(\d+)\s+vỉ/;
+
+function parsePackaging(spec: string, defaultUnit: string) {
+  const cleanSpec = (spec || "").toLowerCase().trim();
+  const units = [defaultUnit || "Viên"];
+  const multipliers: { [key: string]: number } = { [defaultUnit || "Viên"]: 1 };
+
+  const matchFull = cleanSpec.match(REGEX_FULL_PACK);
+  if (matchFull) {
+    const a = parseInt(matchFull[1], 10);
+    const b = parseInt(matchFull[2], 10);
+    return { units: ["Hộp", "Vỉ", "Viên"], multipliers: { "Hộp": a * b, "Vỉ": b, "Viên": 1 } };
+  }
+  const matchBoxPills = cleanSpec.match(REGEX_BOX_PILLS);
+  if (matchBoxPills) {
+    const b = parseInt(matchBoxPills[1], 10);
+    return { units: ["Hộp", "Viên"], multipliers: { "Hộp": b, "Viên": 1 } };
+  }
+  const matchBoxBlisters = cleanSpec.match(REGEX_BOX_BLISTERS);
+  if (matchBoxBlisters) {
+    const a = parseInt(matchBoxBlisters[1], 10);
+    return { units: ["Hộp", "Vỉ"], multipliers: { "Hộp": a, "Vỉ": 1 } };
+  }
+  return { units, multipliers };
+}
+
+function getFlag(country: string) {
+  if (country.includes("Việt")) return "🇻🇳";
+  if (country.includes("Hoa Kỳ") || country.includes("Mỹ")) return "🇺🇸";
+  if (country.includes("Pháp")) return "🇫🇷";
+  if (country.includes("Đức")) return "🇩🇪";
+  if (country.includes("Nhật")) return "🇯🇵";
+  if (country.includes("Hàn")) return "🇰🇷";
+  if (country.includes("Ấn Độ")) return "🇮🇳";
+  return "🌐";
+}
 
 interface MedicineCardProps {
   med: any;
@@ -13,7 +53,7 @@ interface MedicineCardProps {
   allowPrescriptionPurchase?: boolean;
 }
 
-export const MedicineCard: React.FC<MedicineCardProps> = ({
+const MedicineCardInner: React.FC<MedicineCardProps> = ({
   med,
   added,
   onAddToCart,
@@ -28,52 +68,14 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
   const isRx = isPrescriptionMedicine(med);
   const isRxBlocked = isRx && !allowPrescriptionPurchase && !allowOutOfStock;
 
-  const parsePackaging = (spec: string, defaultUnit: string) => {
-    const cleanSpec = (spec || "").toLowerCase().trim();
-    const regexFull = /hộp\s+(\d+)\s+vỉ\s*x\s*(\d+)\s+viên/;
-    const regexBoxPills = /hộp\s+(\d+)\s+viên/;
-    const regexBoxBlisters = /hộp\s+(\d+)\s+vỉ/;
-
-    let units = [defaultUnit || "Viên"];
-    let multipliers: { [key: string]: number } = { [defaultUnit || "Viên"]: 1 };
-
-    const matchFull = cleanSpec.match(regexFull);
-    if (matchFull) {
-      const a = parseInt(matchFull[1], 10);
-      const b = parseInt(matchFull[2], 10);
-      return { units: ["Hộp", "Vỉ", "Viên"], multipliers: { "Hộp": a * b, "Vỉ": b, "Viên": 1 } };
-    }
-    const matchBoxPills = cleanSpec.match(regexBoxPills);
-    if (matchBoxPills) {
-      const b = parseInt(matchBoxPills[1], 10);
-      return { units: ["Hộp", "Viên"], multipliers: { "Hộp": b, "Viên": 1 } };
-    }
-    const matchBoxBlisters = cleanSpec.match(regexBoxBlisters);
-    if (matchBoxBlisters) {
-      const a = parseInt(matchBoxBlisters[1], 10);
-      return { units: ["Hộp", "Vỉ"], multipliers: { "Hộp": a, "Vỉ": 1 } };
-    }
-    return { units, multipliers };
-  };
-
   const packSpec = med.thong_tin_chi_tiet?.["Quy cách đóng gói"] || med.thong_tin_chi_tiet?.["Quy cách"] || "";
-  const { units, multipliers } = parsePackaging(packSpec, med.unit);
+  const { units, multipliers } = useMemo(() => parsePackaging(packSpec, med.unit), [packSpec, med.unit]);
   const [selectedUnit, setSelectedUnit] = useState(units[0] || med.unit || "Hộp");
 
   const currentMultiplier = multipliers[selectedUnit] || 1;
   const displayPrice = med.price * currentMultiplier;
 
   const countryName = med.thong_tin_chi_tiet?.["Nước sản xuất"] || med.thong_tin_chi_tiet?.["Xuất xứ"] || "";
-  const getFlag = (country: string) => {
-    if (country.includes("Việt")) return "🇻🇳";
-    if (country.includes("Hoa Kỳ") || country.includes("Mỹ")) return "🇺🇸";
-    if (country.includes("Pháp")) return "🇫🇷";
-    if (country.includes("Đức")) return "🇩🇪";
-    if (country.includes("Nhật")) return "🇯🇵";
-    if (country.includes("Hàn")) return "🇰🇷";
-    if (country.includes("Ấn Độ")) return "🇮🇳";
-    return "🌐";
-  };
 
   return (
     <div
@@ -82,11 +84,12 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
     >
       {/* Image Area - Tỉ lệ vuông 1:1 chuẩn Shopee (Width === Height) */}
       <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 aspect-square w-full flex items-center justify-center p-4 overflow-hidden">
-        {/* Khối hiển thị ảnh sản phẩm thực tế, có referrerPolicy để tránh bị CDN chặn hotlink */}
+        {/* Khối hiển thị ảnh sản phẩm thực tế, giải mã bất đồng bộ để không chặn main thread */}
         <img
           src={med.image || (Array.isArray(med.images) && med.images.length > 0 ? med.images[0] : "") || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=500&auto=format&fit=crop&q=60"}
           alt={med.name}
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -250,4 +253,20 @@ export const MedicineCard: React.FC<MedicineCardProps> = ({
       </div>
     </div>
   );
-}
+};
+
+// Bọc React.memo với bộ so sánh tùy chỉnh giúp khi thêm 1 thuốc vào giỏ không làm re-render hàng trăm card khác
+export const MedicineCard = React.memo(MedicineCardInner, (prev, next) => {
+  const prevId = prev.med?.id || prev.med?._id;
+  const nextId = next.med?.id || next.med?._id;
+  return (
+    prevId === nextId &&
+    prev.med?.stock === next.med?.stock &&
+    prev.med?.price === next.med?.price &&
+    prev.med?.image === next.med?.image &&
+    prev.added === next.added &&
+    prev.isWishlisted === next.isWishlisted &&
+    prev.allowOutOfStock === next.allowOutOfStock &&
+    prev.allowPrescriptionPurchase === next.allowPrescriptionPurchase
+  );
+});
