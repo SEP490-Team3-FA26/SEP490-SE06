@@ -14,7 +14,6 @@ import {
   ClipboardCheck, 
   AlertTriangle,
   MapPin,
-  Thermometer,
   Droplets,
   ShieldCheck,
   CheckCircle2,
@@ -53,8 +52,6 @@ interface ShipmentLogisticsInfo {
   vehicleType: string;
   currentLocation: string;
   eta: string;
-  temperature: number; // °C
-  tempStatus: "NORMAL" | "WARNING" | "CRITICAL";
   humidity: number; // %
   isArrived: boolean;
   arrivedAt?: string;
@@ -389,8 +386,6 @@ export function IncomingOrdersTab({
       vehicleType: "Xe tải lạnh 2.5 Tấn (Nhiệt độ kiểm soát)",
       currentLocation: isArrived ? "Đã đỗ tại Cổng Tiếp Nhận Kho Tổng" : "Đang di chuyển trên Quốc lộ 1A (Cách kho 3.5 km)",
       eta: isArrived ? "Đã đến kho lúc " + (arrivedPoIds[po._id] || "14:15") : "Dự kiến 20 phút nữa",
-      temperature: 4.2, // Chuẩn GDP 2°C - 8°C
-      tempStatus: "NORMAL",
       humidity: 58,
       isArrived,
       arrivedAt: arrivedPoIds[po._id],
@@ -718,9 +713,6 @@ export function IncomingOrdersTab({
                             <Truck size={12} /> Đang Giao ({logistics.eta})
                           </span>
                         )}
-                        <span className="text-[10px] text-indigo-600 font-semibold mt-1 flex items-center gap-0.5">
-                          <Thermometer size={10} /> Xe lạnh: {logistics.temperature}°C
-                        </span>
                       </div>
                     </td>
 
@@ -843,13 +835,6 @@ export function IncomingOrdersTab({
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <div className="text-xs font-bold text-slate-500">Cảm biến nhiệt xe lạnh</div>
-                          <div className="text-base font-black text-sky-600 flex items-center gap-1 justify-end">
-                            <Thermometer size={16} /> {logistics.temperature}°C (An Toàn)
-                          </div>
-                        </div>
-
                         <button
                           onClick={() => setTrackingModalPo(po)}
                           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5"
@@ -956,24 +941,17 @@ export function IncomingOrdersTab({
 
                 {/* Body */}
                 <div className="p-6 space-y-6 overflow-y-auto flex-1 text-sm font-sans">
-                  {/* Vehicle & IoT Sensors Card */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  {/* Vehicle & Logistics Card */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Tài xế phụ trách</span>
                       <strong className="text-slate-800 block text-xs mt-0.5">{logistics.driverName}</strong>
                       <span className="text-[11px] text-indigo-600 flex items-center gap-1 mt-0.5"><Phone size={10} /> {logistics.driverPhone}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Biển số xe lạnh</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Biển số phương tiện</span>
                       <strong className="text-slate-800 block text-xs mt-0.5">{logistics.licensePlate.split(" ")[0]}</strong>
-                      <span className="text-[11px] text-slate-500">Thùng lạnh 2.5T</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Nhiệt độ thùng xe (IoT)</span>
-                      <strong className="text-sky-700 block text-sm font-black mt-0.5 flex items-center gap-1">
-                        <Thermometer size={14} /> {logistics.temperature}°C
-                      </strong>
-                      <span className="text-[10px] text-sky-600 font-bold">Chuẩn GDP (2-8°C)</span>
+                      <span className="text-[11px] text-slate-500">Xe chuyên dụng</span>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Độ ẩm khoang hàng</span>
