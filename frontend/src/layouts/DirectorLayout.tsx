@@ -9,6 +9,7 @@ export function DirectorLayout() {
     { name: "CSKH & Đánh giá Chi nhánh", href: "/director/feedbacks", icon: <HeartHandshake size={20} /> },
     { name: "Email Marketing (Newsletter)", href: "/director/marketing/email-campaigns", icon: <Mail size={20} /> },
     { name: "Phê duyệt mua hàng (PO)", href: "/director/approvals", icon: <ShieldCheck size={20} /> },
+  { name: "Duyệt Xuất Kho Tổng", href: "/director/dispatch-approvals", icon: <ShieldCheck size={20} /> },
     { name: "Báo cáo Tài chính", href: "/director/finance", icon: <Banknote size={20} /> },
     { name: "Báo cáo Thống kê & Mùa vụ", href: "/director/reports", icon: <BarChart3 size={20} /> },
     { name: "Yêu cầu Báo giá (RFQ)", href: "/director/rfq", icon: <FileText size={20} /> },

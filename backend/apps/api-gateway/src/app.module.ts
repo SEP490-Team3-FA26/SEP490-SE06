@@ -33,6 +33,8 @@ import { RfqPortalController } from "./controllers/rfq-portal.controller";
 import { MarketingCampaignController } from "./controllers/marketing-campaign.controller";
 import { RecommendationController } from "./controllers/recommendation.controller";
 import { EmailNewsletterController } from "./controllers/email-newsletter.controller";
+import { DispatchOrderController } from "./controllers/dispatch-order.controller";
+import { ToteController } from "./controllers/tote.controller";
 import { ImageProxyController } from "./controllers/image-proxy.controller";
 import { subscribeToKafkaTopics } from "./common/kafka.helper";
 
@@ -217,6 +219,8 @@ const gatewayInstanceId = randomUUID().substring(0, 8);
     RecommendationController,
     EmailNewsletterController,
     SensorController,
+    DispatchOrderController,
+    ToteController,
     ImageProxyController,
   ],
   providers: [
@@ -332,6 +336,11 @@ export class AppGatewayModule implements OnModuleInit {
       "inventory.sensor.get_stations",
       "inventory.recommendation.for_you",
       "inventory.recommendation.recent_searches",
+      // Kafka reply topics cho luồng Xuất Kho Tổng (Dispatch Orders & Totes)
+      "dispatch.order.get.all",
+      "dispatch.order.get.by.id",
+      "dispatch.order.create",
+      "tote.get.all",
       // Đăng ký bổ sung toàn bộ reply topics cho kiểm kê kho (Inventory Check)
       "inventory.check.create",
       "inventory.check.list",

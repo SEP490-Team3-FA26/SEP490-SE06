@@ -138,6 +138,25 @@ export function BranchRequisition() {
 
   // Định dạng nhãn trạng thái và màu sắc chuẩn tiếng Việt 100%
   const statusBadge = (s: string) => {
+<<<<<<< HEAD
+    const styles: Record<string, string> = {
+      SUBMITTED: "bg-blue-50 text-blue-700 border-blue-200",
+      DISPATCH_PENDING: "bg-sky-50 text-sky-700 border-sky-200",
+      CONSOLIDATED: "bg-amber-50 text-amber-700 border-amber-200",
+      APPROVED: "bg-sky-50 text-sky-700 border-sky-200",
+      SHIPPING: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+    };
+    const labels: Record<string, string> = {
+      SUBMITTED: "Đã gửi — Chờ xử lý",
+      DISPATCH_PENDING: "Đã lập phiếu xuất (Chờ duyệt/xuất)",
+      CONSOLIDATED: "Đang gom đơn",
+      APPROVED: "Đã được duyệt ✓",
+      SHIPPING: "Đang giao hàng",
+      REJECTED: "Bị từ chối ✗",
+    };
+    return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${styles[s] || "bg-slate-50 text-slate-500 border-slate-200"}`}>{labels[s] || s}</span>;
+=======
     const statusMap: Record<string, { label: string; cls: string }> = {
       SUBMITTED: { label: "Đã gửi — Chờ xử lý", cls: "bg-blue-50 text-blue-700 border-blue-200" },
       DISPATCH_PENDING: { label: "Chờ xuất kho", cls: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -154,6 +173,7 @@ export function BranchRequisition() {
     };
     const current = statusMap[s] || { label: s, cls: "bg-slate-50 text-slate-600 border-slate-200" };
     return <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${current.cls}`}>{current.label}</span>;
+>>>>>>> f88ec444b41e814d43b8e190ee34dd0193a99bd4
   };
 
   return (

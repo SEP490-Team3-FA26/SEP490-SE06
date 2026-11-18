@@ -23,19 +23,26 @@ export interface PurchaseRequisitionPayload {
 
 export const purchaseRequisitionService = {
   // Lấy danh sách yêu cầu mua hàng PR (hỗ trợ lọc theo trạng thái, chi nhánh, phân trang tối đa 100)
-  async getPurchaseRequisitions(status?: string, options?: { limit?: number; page?: number; branchId?: string }) {
-    const response = await api.get(API_ENDPOINTS.PURCHASE_REQUISITIONS.LIST, {
-      params: {
-        ...(status ? { status } : {}),
-        ...(options || {}),
-      },
-    });
+  async getPurchaseRequisitions(
+    status?: string,
+    optionsOrLimit?: number | { limit?: number; page?: number; branchId?: string },
+    page?: number,
+  ) {
+    const params: any = {};
+    if (status) params.status = status;
+    if (typeof optionsOrLimit === 'number') {
+      params.limit = optionsOrLimit;
+      if (page) params.page = page;
+    } else if (typeof optionsOrLimit === 'object' && optionsOrLimit !== null) {
+      Object.assign(params, optionsOrLimit);
+    }
+    const response = await api.get(API_ENDPOINTS.PURCHASE_REQUISITIONS.LIST, { params });
     return response.data;
   },
 
   // Lấy số lượng PR theo từng trạng thái để hiển thị badge sub-tab
   async getStatusCounts(branchId?: string): Promise<Record<string, number>> {
-    const response = await api.get(`${API_ENDPOINTS.PURCHASE_REQUISITIONS.LIST}/status-counts`, {
+    const response = await api.get(API_ENDPOINTS.PURCHASE_REQUISITIONS.STATUS_COUNTS, {
       params: branchId ? { branchId } : undefined,
     });
     return response.data;

@@ -13,6 +13,8 @@ import {
   ScrollView,
   StatusBar,
   Vibration,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +47,37 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
   const isProcessingRef = useRef<boolean>(false);
   const [scanMode, setScanMode] = useState<'BARCODE' | 'QR' | 'ALL'>(mode);
+
+  // Yêu cầu quyền truy cập Camera (Hỗ trợ mở Cài đặt nếu quyền đã bị chặn)
+  const handleRequestPermission = async () => {
+    try {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert(
+          'Quyền truy cập Camera',
+          'Ứng dụng cần quyền Camera để quét mã vạch và QR code. Vui lòng cho phép Camera trong phần Cài đặt thiết bị.',
+          [
+            { text: 'Hủy', style: 'cancel' },
+            {
+              text: 'Mở Cài Đặt',
+              onPress: () => {
+                Linking.openSettings().catch(() => {});
+              },
+            },
+          ]
+        );
+      }
+    } catch (e: any) {
+      console.warn('[BarcodeScannerModal] Lỗi xin quyền camera:', e?.message);
+    }
+  };
+
+  // Tự động yêu cầu quyền truy cập Camera khi mở Modal
+  useEffect(() => {
+    if (visible && (!permission || (!permission.granted && permission.canAskAgain))) {
+      void requestPermission();
+    }
+  }, [visible, permission, requestPermission]);
 
   // Đồng bộ scanMode khi mode prop từ bên ngoài thay đổi
   useEffect(() => {
@@ -161,10 +194,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
   const barcodeTypes: any =
     scanMode === 'BARCODE'
-      ? ['ean13', 'code128', 'ean8', 'upc_a', 'upc_e']
+      ? ['ean13', 'code128', 'datamatrix', 'ean8', 'upc_a', 'upc_e']
       : scanMode === 'QR'
       ? ['qr']
-      : ['ean13', 'code128', 'qr', 'ean8', 'upc_a', 'upc_e'];
+      : ['ean13', 'code128', 'datamatrix', 'qr', 'ean8', 'upc_a', 'upc_e'];
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -218,7 +251,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             <View style={styles.permissionBox}>
               <Ionicons name="camera-reverse-outline" size={48} color="#38BDF8" />
               <Text style={styles.permissionText}>Ứng dụng cần quyền Camera để quét mã vạch và QR code.</Text>
-              <TouchableOpacity onPress={() => requestPermission()} style={styles.grantBtn}>
+              <TouchableOpacity onPress={handleRequestPermission} style={styles.grantBtn}>
                 <Text style={styles.grantBtnText}>CẤP QUYỀN CAMERA</Text>
               </TouchableOpacity>
             </View>

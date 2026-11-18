@@ -18,8 +18,8 @@ import {
   StyleProp,
   ViewStyle,
   ImageStyle,
+  Image,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { MedicineImageService } from '../../services/medicineImage.service';
 import { ApiService } from '../../services/api.service';
@@ -93,8 +93,6 @@ export const MedicineSmartImage: React.FC<MedicineSmartImageProps> = React.memo(
   }
 
   // Ánh xạ resizeMode sang contentFit của expo-image
-  const contentFitValue = resizeMode === 'cover' ? 'cover' : 'contain';
-
   return (
     <View style={[styles.imageWrapper, style]}>
       {/* Tầng nền: Icon dược phẩm chìm nhẹ nhàng trong lúc chờ ảnh tải lần đầu, không dùng spinner giật lag */}
@@ -104,16 +102,13 @@ export const MedicineSmartImage: React.FC<MedicineSmartImageProps> = React.memo(
         </View>
       )}
 
-      {/* Tầng ảnh chính: Công nghệ 1 expo-image (Background Decode + Native Memory-Disk Cache SDWebImage/Glide) */}
-      <ExpoImage
+      {/* Tầng ảnh chính: Sử dụng Image chuẩn của React Native để đảm bảo tương thích 100% */}
+      <Image
         source={{
           uri: currentUri,
         }}
         style={StyleSheet.absoluteFill}
-        contentFit={contentFitValue}
-        transition={150}
-        cachePolicy="memory-disk"
-        priority="high"
+        resizeMode={resizeMode}
         onLoad={handleLoadSuccess}
         onError={handleError}
       />
@@ -130,7 +125,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   preloadingBackground: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',

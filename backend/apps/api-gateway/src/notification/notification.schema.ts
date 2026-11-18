@@ -3,11 +3,28 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true, collection: 'notifications' })
 export class Notification extends Document {
-  @Prop({ required: true, enum: ['NEW_PR', 'PR_APPROVED', 'PR_REJECTED', 'NEW_PO', 'GRN_COMPLETED', 'IOT_TEMPERATURE_ALERT', 'LOW_STOCK'] })
+  @Prop({
+    required: true,
+    enum: [
+      'NEW_PR',
+      'PR_APPROVED',
+      'PR_REJECTED',
+      'NEW_PO',
+      'GRN_COMPLETED',
+      'IOT_TEMPERATURE_ALERT',
+      'LOW_STOCK',
+      'DISPATCH_CREATED',
+      'DISPATCH_APPROVED',
+      'DISPATCH_REJECTED',
+      'DISPATCH_STALE',
+      'DISPATCH_COMPLETED',
+      'TRANSFER_SHIPPED',
+    ],
+  })
   type: string;
 
   @Prop({ required: true, index: true })
-  targetRoom: string; // 'admin', 'warehouse', 'branch-BR-001', etc.
+  targetRoom: string; // 'admin', 'warehouse', 'pic', 'branch-BR-001', etc.
 
   @Prop({ required: true })
   message: string;
@@ -20,6 +37,10 @@ export class Notification extends Document {
   @Prop() prCode?: string;
   @Prop() poId?: string;
   @Prop() grnId?: string;
+  @Prop() dispatchOrderId?: string;
+  @Prop() dispatchCode?: string;
+  @Prop() transferId?: string;
+  @Prop() transferCode?: string;
   @Prop() branchId?: string;
   @Prop() branchName?: string;
   @Prop() itemsCount?: number;

@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, X, Package, Loader2, Building2, Calendar, Eye, Truck, ClipboardList, ShoppingCart, PackageX } from "lucide-react";
+import { Search, X, Package, Loader2, Building2, Calendar, Eye, Truck, ClipboardList, ShoppingCart, PackageX, RefreshCw, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { StatusBadge, PR_STATUS } from "./WarehouseConstants";
 import { useSocket } from "../../../hooks/useSocket";
 import { purchaseRequisitionService } from "../../../services/purchase/purchaseRequisition.service";
 import { stockTransferService } from "../../../services/inventory/stockTransfer.service";
+import { dispatchOrderService } from "../../../services/inventory/dispatchOrder.service";
 
 export function BranchRequestsTab({
   branches,
   onMsg,
   onCreatePO,
+  onDispatchCreated,
 }: {
   branches: any[];
   onMsg: (m: { type: "success" | "error"; text: string } | null) => void;
   onCreatePO: (items: any[]) => void;
+  onDispatchCreated?: () => void;
 }) {
   const [prList, setPrList] = useState<any[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -41,83 +44,136 @@ export function BranchRequestsTab({
   const [fromBranchId, setFromBranchId] = useState("CENTRAL_WH");
   const [outOfStockPrId, setOutOfStockPrId] = useState<string | null>(null);
   const [shipError, setShipError] = useState<{ prId: string; message: string } | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const STATUS_TABS = [
     { key: "SUBMITTED", label: "Chờ xử lý", color: "blue" },
+    { key: "DISPATCH_PENDING", label: "Chờ xuất kho", color: "sky" },
     { key: "SHIPPING", label: "Đang giao", color: "indigo" },
     { key: "COMPLETED", label: "Hoàn thành", color: "sky" },
     { key: "OUT_OF_STOCK", label: "Hết hàng", color: "orange" },
+    { key: "CONSOLIDATED", label: "Đã tạo PO", color: "violet" },
     { key: "REJECTED", label: "Từ chối", color: "rose" },
   ];
 
-  // Tải danh sách yêu cầu PR theo đúng trạng thái đang chọn (hỗ trợ tối đa 100 bản ghi)
-  const fetchData = async (currentStatus = statusFilter) => {
-    setLoading(true);
-    try {
-      const data = await purchaseRequisitionService.getPurchaseRequisitions(currentStatus, { limit: 100 });
-      const items = Array.isArray(data?.data || data) ? (data.data || data) : [];
-      setPrList(items);
-      // Cập nhật số lượng tạm thời cho sub-tab hiện tại
-      setStatusCounts(prev => ({
-        ...prev,
-        [currentStatus]: items.length,
-      }));
-    } catch (e: any) {
-      console.error('Lỗi khi tải danh sách PR:', e);
-      setPrList([]);
-    } finally { setLoading(false); }
-  };
-
-  // Tải số lượng bản ghi của tất cả các trạng thái từ Backend để hiển thị badge
+  // Tải thống kê số lượng theo từng trạng thái để hiển thị badge số lượng chính xác
   const fetchCounts = async () => {
     try {
       const counts = await purchaseRequisitionService.getStatusCounts();
-      if (counts && typeof counts === 'object') {
+      if (counts && typeof counts === "object") {
         setStatusCounts(counts);
       }
-    } catch {
-      // Bỏ qua lỗi nếu endpoint thống kê chưa sẵn sàng
+    } catch (e) {
+      console.warn("Không thể tải thống kê số lượng PR:", e);
     }
   };
 
+  // Tải danh sách yêu cầu cấp hàng theo đúng trạng thái của sub-tab đang chọn
+  const fetchData = async (currentStatus?: string) => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const activeStatus = currentStatus !== undefined ? currentStatus : statusFilter;
+      const data = await purchaseRequisitionService.getPurchaseRequisitions(
+        activeStatus,
+        { limit: 100 }
+      );
+      const list = Array.isArray(data?.data || data) ? (data.data || data) : [];
+      setPrList(list);
+    } catch (e: any) {
+      console.error(e);
+      const errMsg = e.response?.data?.message || e.message || "Không thể tải danh sách yêu cầu cấp hàng từ máy chủ";
+      setFetchError(errMsg);
+    } finally { setLoading(false); }
+  };
+
+  // Re-fetch dữ liệu mỗi khi chuyển sub-tab
   useEffect(() => {
     fetchData(statusFilter);
     fetchCounts();
     setSelectedPrs([]);
   }, [statusFilter]);
 
-  // Lắng nghe realtime sự kiện cập nhật PR qua Socket.IO
+  // Tải thống kê số lượng khi mở trang
+  useEffect(() => {
+    fetchCounts();
+  }, []);
+
+  // Lắng nghe realtime sự kiện cập nhật PR & cảnh báo từ chối lập phiếu qua Socket.IO
   const { onEvent, offEvent } = useSocket();
   useEffect(() => {
     const handlePrUpdated = () => {
       fetchData(statusFilter);
       fetchCounts();
     };
+    const handleInventoryUpdated = (payload: any) => {
+      if (payload?.event === 'PR_DISPATCH_PENDING' || payload?.event === 'DISPATCH_CONFIRMED') {
+        fetchData(statusFilter);
+        fetchCounts();
+      }
+    };
+    const handleDispatchRejected = (payload: any) => {
+      if (payload?.reason) {
+        onMsg({ type: "error", text: payload.reason });
+      }
+    };
     onEvent('pr_updated', handlePrUpdated);
     onEvent('new_pr_notification', handlePrUpdated);
+    onEvent('inventory_updated', handleInventoryUpdated);
+    onEvent('dispatch_action_rejected', handleDispatchRejected);
     return () => {
       offEvent('pr_updated', handlePrUpdated);
       offEvent('new_pr_notification', handlePrUpdated);
+      offEvent('inventory_updated', handleInventoryUpdated);
+      offEvent('dispatch_action_rejected', handleDispatchRejected);
     };
   }, [statusFilter]);
 
-  const filtered = prList.filter(pr =>
-    (statusFilter ? pr.status === statusFilter : true) &&
-    ((pr.prCode || "").toLowerCase().includes(search.toLowerCase()) ||
-    (pr.branchName || "").toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = prList.filter(pr => {
+    const matchesStatus = statusFilter === "SUBMITTED"
+      ? (pr.status === "SUBMITTED" || pr.status === "URGENT_PENDING")
+      : statusFilter === "REJECTED"
+      ? (pr.status === "REJECTED" || pr.status === "CANCELLED")
+      : pr.status === statusFilter;
+    const matchesSearch = (pr.prCode || "").toLowerCase().includes(search.toLowerCase()) ||
+      (pr.branchName || "").toLowerCase().includes(search.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
-  // Xuất kho: tạo stock transfer SHIPPING
+  // Lập phiếu xuất kho 2 pha (chờ Giám đốc / Dược sĩ PIC duyệt) khi xuất từ Kho Tổng CENTRAL_WH
   const handleShip = async (prId: string) => {
     setActionLoading(true);
     try {
-      await stockTransferService.createStockTransfer(prId, fromBranchId, "Thủ Kho");
-      onMsg({ type: "success", text: "Đã xuất kho & chuyển hàng thành công!" });
-      setDetailPr(null);
-      fetchData(statusFilter);
-      fetchCounts();
+      if (fromBranchId === "CENTRAL_WH") {
+        const res = await dispatchOrderService.createOrderSync({
+          type: "TRANSFER",
+          referenceId: prId,
+        });
+        const createdCode = res?.data?.dispatchCode;
+        onMsg({
+          type: "success",
+          text: createdCode
+            ? `Đã lập Phiếu Xuất Kho ${createdCode} (chờ Giám đốc / Dược sĩ PIC duyệt)!`
+            : "Đã lập Phiếu Xuất Kho (chờ Giám đốc / Dược sĩ PIC duyệt)!",
+        });
+        setDetailPr(null);
+        if (onDispatchCreated) {
+          onDispatchCreated();
+        } else {
+          setStatusFilter("DISPATCH_PENDING");
+          await fetchData("DISPATCH_PENDING");
+          fetchCounts();
+        }
+      } else {
+        await stockTransferService.createStockTransfer(prId, fromBranchId, "Thủ Kho");
+        onMsg({ type: "success", text: "Đã xuất kho & chuyển hàng thành công!" });
+        setDetailPr(null);
+        fetchData(statusFilter);
+        fetchCounts();
+      }
     } catch (e: any) {
-      const message = e.response?.data?.message || e.message || "Lỗi xuất kho";
+      const message = e.response?.data?.message || e.message || "Lỗi lập phiếu xuất kho";
+      setDetailPr(null);
       setShipError({ prId, message });
       onMsg({ type: "error", text: message });
     } finally { setActionLoading(false); }
@@ -145,10 +201,16 @@ export function BranchRequestsTab({
         {STATUS_TABS.map(t => {
           const count = statusCounts[t.key] !== undefined
             ? statusCounts[t.key]
-            : (statusFilter === t.key ? prList.length : 0);
+            : prList.filter(pr =>
+                t.key === "SUBMITTED"
+                  ? (pr.status === "SUBMITTED" || pr.status === "URGENT_PENDING")
+                  : t.key === "REJECTED"
+                  ? (pr.status === "REJECTED" || pr.status === "CANCELLED")
+                  : pr.status === t.key
+              ).length;
           return (
             <button key={t.key} onClick={() => setStatusFilter(t.key)}
-              className={`px-3 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 ${statusFilter === t.key
+              className={`px-3 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 cursor-pointer ${statusFilter === t.key
                 ? `bg-white border border-slate-200 border-b-white text-${t.color}-700 -mb-px`
                 : "text-slate-500 hover:text-slate-700"
                 }`}>
@@ -189,10 +251,25 @@ export function BranchRequestsTab({
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 overflow-auto">
-        {loading ? (
+        {loading && prList.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3">
             <Loader2 className="animate-spin text-emerald-600" size={28} />
-            <p className="text-slate-500 text-sm">Đang tải...</p>
+            <p className="text-slate-500 text-sm">Đang tải danh sách yêu cầu cấp hàng...</p>
+          </div>
+        ) : fetchError && prList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
+              <AlertTriangle size={24} />
+            </div>
+            <p className="text-sm font-bold text-slate-800 mb-1">Không thể kết nối máy chủ</p>
+            <p className="text-xs text-rose-600 mb-4 max-w-md">{fetchError}</p>
+            <button
+              onClick={() => void fetchData()}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              <RefreshCw size={14} />
+              <span>Thử lại ngay</span>
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3 text-slate-400">
@@ -230,7 +307,16 @@ export function BranchRequestsTab({
                           ? prev.filter(x => x !== pr._id) : [...prev, pr._id])} />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-bold text-slate-900 font-mono text-xs">{pr.prCode}</td>
+                  <td className="px-4 py-3 font-bold text-slate-900 font-mono text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span>{pr.prCode}</span>
+                      {(pr.isUrgent || pr.status === "URGENT_PENDING") && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 whitespace-nowrap">
+                          ⚡ Hỏa tốc
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">
                     <Calendar size={12} className="inline mr-1 text-slate-400" />
                     {new Date(pr.createdAt).toLocaleDateString("vi-VN")}
@@ -246,11 +332,11 @@ export function BranchRequestsTab({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1.5 items-center">
-                      {pr.status === "SUBMITTED" && (
+                      {(pr.status === "SUBMITTED" || pr.status === "URGENT_PENDING") && (
                         <>
                           <button
                             onClick={() => { setDetailPr(pr); setFromBranchId("CENTRAL_WH"); }}
-                            title="Xuất kho → Giao hàng"
+                            title={fromBranchId === "CENTRAL_WH" ? "Lập phiếu xuất kho (Chờ duyệt)" : "Xuất kho → Giao hàng"}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
                           >
                             <Truck size={15} />
@@ -396,7 +482,7 @@ export function BranchRequestsTab({
                   ))}
                 </div>
               </div>
-              {detailPr.status === "SUBMITTED" && (
+              {(detailPr.status === "SUBMITTED" || detailPr.status === "URGENT_PENDING") && (
                 <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0 space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Kho xuất:</span>
@@ -416,7 +502,7 @@ export function BranchRequestsTab({
                     <button onClick={() => handleShip(detailPr._id)} disabled={actionLoading}
                       className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center gap-1.5">
                       {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-                      Xuất kho & Giao hàng
+                      {fromBranchId === "CENTRAL_WH" ? "Lập phiếu xuất kho" : "Xuất kho & Giao hàng"}
                     </button>
                   </div>
                 </div>

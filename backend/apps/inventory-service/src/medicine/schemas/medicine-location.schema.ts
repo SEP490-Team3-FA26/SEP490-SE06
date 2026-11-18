@@ -36,6 +36,10 @@ export class MedicineLocation extends Document {
 
   @Prop({ type: Number, default: 200, min: 1 })
   maxCapacity: number;  // Suc chua toi da thung nay (don vi medicine.unit)
+
+  /** Trạng thái vật lý hiện tại của ô khay để đồng bộ sơ đồ 2D/3D (trống khi tổng tồn về 0) */
+  @Prop({ type: String, default: 'OCCUPIED', enum: ['OCCUPIED', 'EMPTY', 'RESERVED'], index: true })
+  binStatus?: string;
 }
 
 export const MedicineLocationSchema = SchemaFactory.createForClass(MedicineLocation);

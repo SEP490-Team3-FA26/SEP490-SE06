@@ -307,7 +307,14 @@ export class PurchaseService {
   }
 
   /**
+<<<<<<< HEAD
+  /**
+   * Danh sách tất cả PR (cho Warehouse Manager xem để gom đơn, hoặc HQ xem để duyệt).
+   * Hỗ trợ lọc status đơn lẻ, mảng hoặc chuỗi comma-separated, phân trang tối đa 100.
+   * Đồng thời hỗ trợ gộp trạng thái URGENT_PENDING vào SUBMITTED cho tab Chờ xử lý.
+=======
    * Danh sách tất cả PR (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang mặc định 100).
+>>>>>>> f88ec444b41e814d43b8e190ee34dd0193a99bd4
    */
   async listPurchaseRequisitions(query: any = {}) {
     const filter: any = {};
@@ -316,6 +323,11 @@ export class PurchaseService {
         filter.status = { $in: query.status.split(',').map((s: string) => s.trim()) };
       } else if (Array.isArray(query.status)) {
         filter.status = { $in: query.status };
+      } else if (query.status === 'SUBMITTED') {
+        filter.status = { $in: ['SUBMITTED', 'URGENT_PENDING'] };
+      } else if (query.status === 'REJECTED') {
+        // Tab Từ chối gom cả các đơn bị từ chối và các đơn đã hủy
+        filter.status = { $in: ['REJECTED', 'CANCELLED'] };
       } else {
         filter.status = query.status;
       }
@@ -356,7 +368,7 @@ export class PurchaseService {
     const match: any = {};
     if (query?.branchId) match.branchId = query.branchId;
     const counts = await this.prModel.aggregate([
-      { $match: match },
+      ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
     const result: Record<string, number> = {
@@ -372,7 +384,16 @@ export class PurchaseService {
     counts.forEach((c: any) => {
       if (c._id) result[c._id] = c.count;
     });
+    // Gộp trạng thái URGENT_PENDING vào SUBMITTED cho tab Chờ xử lý
+    result['SUBMITTED'] = (result['SUBMITTED'] || 0) + (result['URGENT_PENDING'] || 0);
+    // Gộp trạng thái CANCELLED vào REJECTED cho tab Từ chối / Đã hủy
+    result['REJECTED'] = (result['REJECTED'] || 0) + (result['CANCELLED'] || 0);
     return result;
+  }
+
+  // Alias tương thích ngược cho getPurchaseRequisitionStatusCounts
+  async getPurchaseRequisitionStatusCounts(query: any = {}) {
+    return this.getPurchaseRequisitionsStatusCounts(query);
   }
 
   /**
@@ -1244,8 +1265,24 @@ export class PurchaseService {
         .exec();
 
       // === TASK 4: Auto-move lô cũ sang Khu Dự Trữ khi lô mới được xếp vào thùng ===
-      // Sử dụng shelvedLocation hoặc location nếu có
-      const locSource = item.shelvedLocation || (item as any).location || null;
+      // Sử dụng shelvedLocation hoặc location nếu có, nếu bot/người dùng không chọn thì tự động tìm vị trí quy hoạch
+      let locSource = item.shelvedLocation || (item as any).location || null;
+      if (!locSource) {
+        const plannedLoc = await this.locationModel.findOne({ medicineId: item.medicineId }).lean().exec();
+        if (plannedLoc) {
+          locSource = {
+            zone:     plannedLoc.zone,
+            rack:     plannedLoc.rack,
+            shelf:    plannedLoc.shelf,
+            bin:      plannedLoc.bin,
+            slotType: 'MAIN',
+          };
+          this.logger.log(
+            `📦 [GRN Approve] Tự động gán vị trí quy hoạch cho thuốc ${item.medicineId}: ${plannedLoc.zone}-${plannedLoc.rack}-T${plannedLoc.shelf}-B${plannedLoc.bin}`,
+          );
+        }
+      }
+
       if (locSource) {
         await this.relocateBatchesToReserve(
           item.medicineId,
@@ -1273,6 +1310,24 @@ export class PurchaseService {
           };
         }
         await batch.save();
+
+        // === FIX: Đồng bộ binStatus OCCUPIED khi nhập kho vào khu MAIN ===
+        // Nếu batch được xếp vào khay MAIN (không phải RESERVE),
+        // cập nhật MedicineLocation.binStatus = OCCUPIED để sơ đồ kho hiển thị đúng
+        if (locSource && (locSource.slotType === 'MAIN' || !locSource.slotType)) {
+          await this.locationModel.updateOne(
+            {
+              zone:  locSource.zone,
+              rack:  locSource.rack,
+              shelf: Number(locSource.shelf),
+              bin:   Number(locSource.bin),
+            },
+            { $set: { binStatus: 'OCCUPIED', medicineId: item.medicineId } },
+          ).exec();
+          this.logger.log(
+            `✅ [GRN Approve] Cập nhật binStatus=OCCUPIED tại ${locSource.zone}/${locSource.rack}/T${locSource.shelf}/B${locSource.bin}`,
+          );
+        }
       } else {
         // Xác định location cho batch mới
         const batchLocation = locSource
@@ -1297,6 +1352,22 @@ export class PurchaseService {
           location: batchLocation,
         });
         await batch.save();
+
+        // === FIX: Đồng bộ binStatus OCCUPIED khi tạo batch mới vào khu MAIN ===
+        if (batchLocation.slotType === 'MAIN') {
+          await this.locationModel.updateOne(
+            {
+              zone:  batchLocation.zone,
+              rack:  batchLocation.rack,
+              shelf: Number(batchLocation.shelf),
+              bin:   Number(batchLocation.bin),
+            },
+            { $set: { binStatus: 'OCCUPIED', medicineId: item.medicineId } },
+          ).exec();
+          this.logger.log(
+            `✅ [GRN Approve - New Batch] Cập nhật binStatus=OCCUPIED tại ${batchLocation.zone}/${batchLocation.rack}/T${batchLocation.shelf}/B${batchLocation.bin}`,
+          );
+        }
       }
 
       // Cập nhật tồn kho tổng của thuốc (dựa trên số lượng thực nhận actualQty)
@@ -1926,10 +1997,13 @@ export class PurchaseService {
           .session(session)
           .exec(); // FEFO: First Expiry First Out
 
-        const totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
+        const totalAvailable = batches.reduce(
+          (sum, b) => sum + Math.max(0, Number(b.stock || 0) - Number((b as any).reservedQty || 0)),
+          0,
+        );
         if (totalAvailable < item.requestedQuantity) {
           throw new RpcException({
-            message: `Không đủ tồn kho tại ${sourceName} cho thuốc "${item.medicineName}" (Yêu cầu: ${item.requestedQuantity}, Khả dụng: ${totalAvailable})`,
+            message: `Không đủ tồn kho khả dụng tại ${sourceName} cho thuốc "${item.medicineName}" (Yêu cầu: ${item.requestedQuantity}, Khả dụng: ${totalAvailable})`,
             statusCode: 400,
           });
         }
@@ -1937,16 +2011,20 @@ export class PurchaseService {
         let needed = item.requestedQuantity;
         for (const batch of batches) {
           if (needed <= 0) break;
-          const deductQty = Math.min(batch.stock, needed);
+          const avail = Math.max(0, Number(batch.stock || 0) - Number((batch as any).reservedQty || 0));
+          if (avail <= 0) continue;
+          const deductQty = Math.min(avail, needed);
 
           const stockBefore = batch.stock;
 
-          // Sử dụng OCC / Atomic Update để trừ tồn kho an toàn chống Race Condition
+          // Sử dụng OCC / Atomic Update kiểm tra (stock - reservedQty >= deductQty) chống tranh chấp
           const updatedBatch = await this.batchModel
             .findOneAndUpdate(
               {
                 _id: batch._id,
-                stock: { $gte: deductQty },
+                $expr: {
+                  $gte: [{ $subtract: ['$stock', { $ifNull: ['$reservedQty', 0] }] }, deductQty],
+                },
               },
               {
                 $inc: { stock: -deductQty },
@@ -2521,11 +2599,14 @@ export class PurchaseService {
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    // 1. Get batches for this branch
+    // 1. Get batches for this branch (tính theo tồn khả dụng = stock - reservedQty)
     const branchBatches = await this.batchModel
       .find({ medicineId, branchId, status: "ACTIVE" })
       .exec();
-    const currentStock = branchBatches.reduce((sum, b) => sum + b.stock, 0);
+    const currentStock = branchBatches.reduce(
+      (sum, b) => sum + Math.max(0, Number(b.stock || 0) - Number((b as any).reservedQty || 0)),
+      0,
+    );
     const batchNos = branchBatches.map((b) => b.batchNo);
 
     // 2. Query transactions for these batches
@@ -3129,7 +3210,23 @@ export class PurchaseService {
       for (const item of grn.items) {
         if (item.actualQty > 0) {
           // Lưu vào MedicineBatch - tìm theo batchNo + location để tránh gộp nhầm lô khác vị trí
-          const locSource = (item as any).shelvedLocation || (item as any).location || null;
+          let locSource = (item as any).shelvedLocation || (item as any).location || null;
+          if (!locSource) {
+            const plannedLoc = await this.locationModel.findOne({ medicineId: item.medicineId }).session(session).lean().exec();
+            if (plannedLoc) {
+              locSource = {
+                zone:     plannedLoc.zone,
+                rack:     plannedLoc.rack,
+                shelf:    plannedLoc.shelf,
+                bin:      plannedLoc.bin,
+                slotType: 'MAIN',
+              };
+              this.logger.log(
+                `📦 [Inspection Approve] Tự động gán vị trí quy hoạch cho thuốc ${item.medicineId}: ${plannedLoc.zone}-${plannedLoc.rack}-T${plannedLoc.shelf}-B${plannedLoc.bin}`,
+              );
+            }
+          }
+
           const newLocation = locSource ? {
             zone: locSource.zone || 'A',
             rack: locSource.rack || 'A1',
@@ -3178,6 +3275,24 @@ export class PurchaseService {
               location: newLocation, // Lưu vị trí xếp hàng
             });
             await batch.save({ session });
+          }
+
+          // === FIX: Đồng bộ binStatus OCCUPIED khi nhập kho kiểm duyệt vào khu MAIN ===
+          // Chỉ cập nhật MedicineLocation khi batch được xếp vào khay MAIN (không phải RESERVE)
+          // để sơ đồ kho hiển thị đúng trạng thái chiếm dụng khay
+          if (newLocation.slotType === 'MAIN') {
+            await this.locationModel.updateOne(
+              {
+                zone:  newLocation.zone,
+                rack:  newLocation.rack,
+                shelf: Number(newLocation.shelf),
+                bin:   Number(newLocation.bin),
+              },
+              { $set: { binStatus: 'OCCUPIED', medicineId: item.medicineId } },
+            ).session(session).exec();
+            this.logger.log(
+              `✅ [Inspection Approve] Cập nhật binStatus=OCCUPIED tại ${newLocation.zone}/${newLocation.rack}/T${newLocation.shelf}/B${newLocation.bin}`,
+            );
           }
 
           // Cập nhật tồn kho tổng

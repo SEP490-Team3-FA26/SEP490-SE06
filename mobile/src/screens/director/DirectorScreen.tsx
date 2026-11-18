@@ -24,9 +24,12 @@ import {
   SafeStockChainItem,
 } from '../../types/pharmacy.types';
 import { StaffIdCardScanModal } from '../../components/attendance/StaffIdCardScanModal';
+import { DispatchApprovalSection } from '../../components/warehouse/DispatchApprovalSection';
+import { useAuth } from '../../context/AuthContext';
 
 export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PO_APPROVAL' | 'TRANSFERS'>('OVERVIEW');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PO_APPROVAL' | 'DISPATCH_APPROVAL' | 'TRANSFERS'>('OVERVIEW');
   const [showStaffScanModal, setShowStaffScanModal] = useState<boolean>(false);
 
   // Summary & Branches
@@ -181,7 +184,21 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             color={activeTab === 'PO_APPROVAL' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'PO_APPROVAL' && styles.activeTabText]}>
-            Duyệt Đơn Mua ({purchaseOrders.length})
+            Duyệt Mua ({purchaseOrders.length})
+          </Text>
+        </AnimatedTouchable>
+
+        <AnimatedTouchable
+          onPress={() => setActiveTab('DISPATCH_APPROVAL')}
+          style={[styles.tabItem, activeTab === 'DISPATCH_APPROVAL' && styles.activeTabItem]}
+        >
+          <Ionicons
+            name="shield-checkmark"
+            size={18}
+            color={activeTab === 'DISPATCH_APPROVAL' ? '#0284C7' : '#94A3B8'}
+          />
+          <Text style={[styles.tabText, activeTab === 'DISPATCH_APPROVAL' && styles.activeTabText]}>
+            Duyệt Xuất
           </Text>
         </AnimatedTouchable>
 
@@ -344,6 +361,14 @@ export const DirectorScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             ))}
           </View>
+        )}
+
+        {/* TAB 2B: PHÊ DUYỆT LỆNH XUẤT KHO (THUỐC THƯỜNG & HỦY) */}
+        {activeTab === 'DISPATCH_APPROVAL' && (
+          <DispatchApprovalSection
+            mode="DIRECTOR"
+            currentUserId={(user as any)?.id || (user as any)?._id}
+          />
         )}
 
         {/* TAB 3: TRANSFERS & SAFE STOCK */}

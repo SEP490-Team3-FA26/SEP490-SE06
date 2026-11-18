@@ -7,16 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#01BAA8"
-    },
-    "androidNavigationBar": {
-      "visible": "always",
-      "barStyle": "dark-content",
-      "backgroundColor": "#FFFFFF"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.abcpharmacy.mobile",
@@ -30,7 +20,6 @@
     "android": {
       "package": "com.abcpharmacy.mobile",
       "googleServicesFile": "./google-services.json",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#01BAA8",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -73,9 +62,24 @@
       "expo-local-authentication",
       "expo-web-browser",
       "expo-calendar",
+      [
+        "expo-navigation-bar",
+        {
+          "visible": "always",
+          "barStyle": "dark-content",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
       "expo-status-bar",
       "expo-font",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#01BAA8"
+        }
+      ],
       [
         "expo-location",
         {

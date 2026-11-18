@@ -56,6 +56,7 @@ import { MobileAIInspection } from "./pages/warehouse/MobileAIInspection";
 import { WarehouseMapPage } from "./pages/warehouse/WarehouseMapPage";
 import { GspTelemetryDashboard } from "./pages/warehouse/GspTelemetryDashboard";
 import { GoodsReceiptInspectionPage } from "./pages/warehouse/GoodsReceiptInspectionPage";
+import { DispatchOrdersPage } from "./pages/warehouse/DispatchOrdersPage";
 
 // Admin / HQ Pages
 import { Finance } from "./pages/admin/Finance";
@@ -170,6 +171,7 @@ export default function App() {
             <Route path="/director" element={<DirectorLayout />}>
               <Route index element={<DashboardHome />} />
               <Route path="approvals" element={<HQApproval />} />
+              <Route path="dispatch-approvals" element={<DispatchOrdersPage mode="DIRECTOR_APPROVAL" />} />
               <Route path="finance" element={<Finance />} />
               <Route path="reports" element={<Reports />} />
               <Route path="rfq" element={<RFQManagement />} />
@@ -206,6 +208,7 @@ export default function App() {
               <Route path="marketing/email-campaigns/new" element={<EmailCampaignPage />} />
               <Route path="marketing/email-campaigns/:id" element={<EmailCampaignPage />} />
               <Route path="approvals" element={<HQApproval />} />
+              <Route path="dispatch-approvals" element={<DispatchOrdersPage mode="DIRECTOR_APPROVAL" />} />
               <Route path="finance" element={<Finance />} />
               <Route path="rfq" element={<RFQManagement />} />
               <Route path="pricing" element={<PriceManagement />} />
@@ -248,6 +251,7 @@ export default function App() {
               <Route path="inventory/export" element={<InventoryHistory type="export" />} />
               <Route path="inventory/dispose" element={<InventoryHistory type="dispose" />} />
               <Route path="inventory/lot-tracking" element={<LotTracking />} />
+              <Route path="inventory/dispatch" element={<Navigate to="/warehouse/inventory/import?tab=dispatch_orders" replace />} />
               <Route path="goods-receipt/mobile-inspection" element={<MobileAIInspection />} />
               <Route path="goods-receipt/inspection" element={<GoodsReceiptInspectionPage />} />
               <Route path="goods-receipt/scan" element={<GoodsReceiptInspectionPage />} />
@@ -305,6 +309,7 @@ export default function App() {
               <Route path="ocr-history" element={<OcrHistoryPage />} />
               <Route path="ai-consultation" element={<VoiceConsultHistoryPage />} />
               <Route path="gpp-sync" element={<GppSyncPage />} />
+              <Route path="dispatch-approvals" element={<DispatchOrdersPage mode="PIC_APPROVAL" />} />
               <Route path="reports" element={<Reports />} />
               <Route path="kpi" element={<PharmacistKpiReport />} />
               <Route path="schedule" element={<PharmacistSchedule />} />

@@ -134,7 +134,7 @@ export class PurchaseRequisitionController implements OnModuleInit {
   /**
    * Thống kê số lượng PR theo từng trạng thái (phục vụ hiển thị badge sub-tab)
    * Tự động gán branchId tương tự cho chi nhánh để badge khớp với danh sách.
-   * Khai báo trước route động @Get(':id') theo Rule 11
+   * Bắt buộc khai báo trước route động @Get(':id') theo Rule 11 & Route Ordering
    */
   @Get('status-counts')
   async getStatusCounts(@Query('branchId') branchId?: string, @Req() req?: any) {
@@ -153,7 +153,7 @@ export class PurchaseRequisitionController implements OnModuleInit {
   @Get(':id')
   async getPurchaseRequisitionById(@Param('id') id: string) {
     if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-      throw new BadRequestException('Mã định danh PR không đúng định dạng ObjectId 24 ký tự');
+      throw new BadRequestException(`Mã định danh PR không đúng định dạng ObjectId 24 ký tự: ${id}`);
     }
     return await sendKafkaMessage(this.inventoryClient, 'inventory.pr.get_by_id', { id });
   }

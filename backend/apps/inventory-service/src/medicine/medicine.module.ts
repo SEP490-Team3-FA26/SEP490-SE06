@@ -13,6 +13,7 @@ import { BranchInventory, BranchInventorySchema } from './schemas/branch-invento
 import { BranchStockBalance, BranchStockBalanceSchema } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck, InventoryCheckSchema } from './schemas/inventory-check.schema';
 import { InventoryTransaction, InventoryTransactionSchema } from '../purchase/schemas/inventory-transaction.schema';
+import { DispatchOrder, DispatchOrderSchema } from '../dispatch/schemas/dispatch-order.schema';
 import { SearchHistory, SearchHistorySchema } from './schemas/search-history.schema';
 import { NationalPharmaModule } from '../national-pharma/national-pharma.module';
 
@@ -27,6 +28,7 @@ import { NationalPharmaModule } from '../national-pharma/national-pharma.module'
       { name: BranchStockBalance.name, schema: BranchStockBalanceSchema },
       { name: InventoryCheck.name, schema: InventoryCheckSchema },
       { name: InventoryTransaction.name, schema: InventoryTransactionSchema },
+      { name: DispatchOrder.name, schema: DispatchOrderSchema },
       { name: SearchHistory.name, schema: SearchHistorySchema },
     ]),
     NationalPharmaModule,

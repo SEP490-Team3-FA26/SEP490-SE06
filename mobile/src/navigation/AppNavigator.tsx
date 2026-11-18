@@ -19,6 +19,10 @@ import { SplashScreen } from '../screens/common/SplashScreen';
 import { AdminScreen } from '../screens/admin/AdminScreen';
 import { DirectorScreen } from '../screens/director/DirectorScreen';
 import { WarehouseScreen } from '../screens/warehouse/WarehouseScreen';
+import { DispatchOrderDetailScreen } from '../screens/warehouse/DispatchOrderDetailScreen';
+import { PickingScreen } from '../screens/warehouse/PickingScreen';
+import { StagingScreen } from '../screens/warehouse/StagingScreen';
+import { DispatchConfirmScreen } from '../screens/warehouse/DispatchConfirmScreen';
 import { PharmacistScreen } from '../screens/pharmacist/PharmacistScreen';
 import { BranchScreen } from '../screens/branch/BranchScreen';
 import { CustomerScreen } from '../screens/customer/CustomerScreen';
@@ -129,6 +133,10 @@ export default function AppNavigator() {
           <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
           <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
           <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          <Stack.Screen name="DispatchOrderDetailScreen" component={DispatchOrderDetailScreen} />
+          <Stack.Screen name="PickingScreen" component={PickingScreen} />
+          <Stack.Screen name="StagingScreen" component={StagingScreen} />
+          <Stack.Screen name="DispatchConfirmScreen" component={DispatchConfirmScreen} />
           <Stack.Screen name="BranchScreen" component={BranchScreen} />
           <Stack.Screen name="AdminScreen" component={AdminScreen} />
           <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
@@ -152,43 +160,42 @@ export default function AppNavigator() {
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
           <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
           <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+          {/* Đăng ký sẵn các màn hình Role để hỗ trợ chuyển trang mượt mà ngay sau khi đăng nhập */}
+          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
+          <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
+          <Stack.Screen name="AdminScreen" component={AdminScreen} />
+          <Stack.Screen name="BranchScreen" component={BranchScreen} />
+          {/* Màn hình thông tin tài khoản và thông báo dùng chung */}
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+          <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />
         </Stack.Group>
       ) : (
-        // ─── Authenticated Role-Based App Flow ──────────────────────────────────
+        // ─── Authenticated Role-Based App Flow (Đăng ký phẳng không dùng fragment tránh lỗi React Navigation) ────────────────
         <Stack.Group>
-          {isAdmin && (
-            <Stack.Screen name="AdminScreen" component={AdminScreen} />
-          )}
+          {/* Màn hình vai trò chính (được điều hướng theo initialRoute) */}
+          <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
+          <Stack.Screen name="AdminScreen" component={AdminScreen} />
+          <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
+          <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
+          <Stack.Screen name="BranchScreen" component={BranchScreen} />
+          <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
 
-          {isDirector && (
-            <Stack.Screen name="DirectorScreen" component={DirectorScreen} />
-          )}
+          {/* Phân hệ Kho vận & Xuất kho GSP */}
+          <Stack.Screen name="DispatchOrderDetailScreen" component={DispatchOrderDetailScreen} />
+          <Stack.Screen name="PickingScreen" component={PickingScreen} />
+          <Stack.Screen name="StagingScreen" component={StagingScreen} />
+          <Stack.Screen name="DispatchConfirmScreen" component={DispatchConfirmScreen} />
 
-          {(isWarehouse || isBranch || isAdmin) && (
-            <Stack.Screen name="WarehouseScreen" component={WarehouseScreen} />
-          )}
+          {/* Phân hệ Khách hàng E-Commerce */}
+          <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
+          <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
+          <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
+          <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
+          <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
+          <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
 
-          {isPharmacist && (
-            <Stack.Screen name="PharmacistScreen" component={PharmacistScreen} />
-          )}
-
-          {isBranch && (
-            <Stack.Screen name="BranchScreen" component={BranchScreen} />
-          )}
-
-          {!isAdmin && !isDirector && !isWarehouse && !isPharmacist && !isBranch && (
-            <>
-              <Stack.Screen name="CustomerScreen" component={CustomerScreen} />
-              <Stack.Screen name="CustomerCheckoutScreen" component={CustomerCheckoutScreen} />
-              <Stack.Screen name="CustomerWishlistScreen" component={CustomerWishlistScreen} />
-              <Stack.Screen name="ProductCatalogScreen" component={ProductCatalogScreen} />
-              <Stack.Screen name="OrderConfirmation" component={OrderConfirmation} />
-              <Stack.Screen name="MedicineReminderScreen" component={MedicineReminderScreen} />
-              <Stack.Screen name="ProductReviewScreen" component={ProductReviewScreen} />
-            </>
-          )}
-
-          {/* Màn hình dùng chung cho tất cả vai trò đã đăng nhập (Dược sĩ, Quản lý, Khách hàng) */}
+          {/* Màn hình dùng chung cho tất cả vai trò đã đăng nhập */}
           <Stack.Screen name="MedicineDetailScreen" component={MedicineDetailScreen} />
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="NotificationListScreen" component={NotificationListScreen} />

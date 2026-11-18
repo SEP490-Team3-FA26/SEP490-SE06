@@ -34,6 +34,7 @@ import { MedicineLocationModal } from '../../components/warehouse/MedicineLocati
 import { InventoryCheckModal } from '../../components/warehouse/InventoryCheckModal';
 import { buildCheckItemsFromShelf, InventoryCheckItem } from '../../services/inventoryCheckHelper';
 import { TransferQRModal } from '../../components/warehouse/TransferQRModal';
+import { WarehouseDispatchSection } from '../../components/warehouse/WarehouseDispatchSection';
 import { AttendanceCheckInModal } from '../../components/attendance/AttendanceCheckInModal';
 import { StaffPayslipModal } from '../../components/payroll/StaffPayslipModal';
 import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
@@ -51,7 +52,7 @@ const ZONE_COLORS: Record<string, { bg: string; border: string; text: string; la
 
 export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'CHECKS' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
+  const [activeTab, setActiveTab] = useState<'MAP' | 'INVENTORY' | 'CHECKS' | 'DISPATCH' | 'RECEIPTS' | 'TRANSFERS' | 'EXPIRATION' | 'TRACE' | 'FORECAST'>('MAP');
   const [mapViewMode, setMapViewMode] = useState<'3D' | '2D'>('3D');
 
   // --- Biên Bản Kiểm Kê Kho (BW07) State ---
@@ -94,6 +95,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
   const [selectedTransferForQR, setSelectedTransferForQR] = useState<StockTransfer | null>(null);
   const [transferFilter, setTransferFilter] = useState<string>('ALL');
+  const [dispatchSubTab, setDispatchSubTab] = useState<'DISPATCH_V6' | 'STOCK_TRANSFERS'>('DISPATCH_V6');
 
   // --- Goods Receipts state (GRN) & Incoming POs ---
   const [receipts, setReceipts] = useState<any[]>([]);
@@ -1029,6 +1031,14 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             <Ionicons name="scan-circle" size={17} color="#4F46E5" />
             <Text style={[styles.shiftActionText, { color: '#4F46E5', fontWeight: '700' }]}>Quét Đơn PO</Text>
           </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setActiveTab('DISPATCH')}
+            style={[styles.shiftActionBtn, { borderColor: '#38BDF8', backgroundColor: '#F0F9FF' }]}
+          >
+            <Ionicons name="cube-outline" size={17} color="#0284C7" />
+            <Text style={[styles.shiftActionText, { color: '#0284C7', fontWeight: '700' }]}>Nhặt Xuất Kho</Text>
+          </AnimatedTouchable>
         </ScrollView>
       </View>
 
@@ -1060,6 +1070,14 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
           >
             <Ionicons name="clipboard" size={15} color={activeTab === 'CHECKS' ? '#0284C7' : '#94A3B8'} />
             <Text style={[styles.tabText, activeTab === 'CHECKS' && styles.activeTabText]}>Kiểm Kê Kho</Text>
+          </AnimatedTouchable>
+
+          <AnimatedTouchable
+            onPress={() => setActiveTab('DISPATCH')}
+            style={[styles.tabItem, activeTab === 'DISPATCH' && styles.activeTabItem]}
+          >
+            <Ionicons name="cube-outline" size={15} color={activeTab === 'DISPATCH' ? '#0284C7' : '#94A3B8'} />
+            <Text style={[styles.tabText, activeTab === 'DISPATCH' && styles.activeTabText]}>Nhặt Xuất Kho</Text>
           </AnimatedTouchable>
 
           <AnimatedTouchable
@@ -1664,10 +1682,53 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
         )}
 
         {/* ========================================================= */}
+        {/* TAB CHUYÊN BIỆT: NHẶT THUỐC XUẤT KHO 2 PHA & QUÉT GS1 */}
+        {/* ========================================================= */}
+        {activeTab === 'DISPATCH' && (
+          <WarehouseDispatchSection navigation={navigation} medicines={medicines} />
+        )}
+
+        {/* ========================================================= */}
         {/* TAB 3: XUẤT CHUYỂN KHO & MÃ QR (TRANSFERS) */}
         {/* ========================================================= */}
         {activeTab === 'TRANSFERS' && (
           <View>
+            {/* Chuyển đổi nhanh giữa Phiếu Xuất Kho (v6) và Lịch sử Vận Đơn Chuyển (QR) */}
+            <View style={{ flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+              <TouchableOpacity
+                onPress={() => setDispatchSubTab('DISPATCH_V6')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 9,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: dispatchSubTab === 'DISPATCH_V6' ? '#0284C7' : 'transparent',
+                }}
+              >
+                <Text style={{ fontWeight: '800', fontSize: 12, color: dispatchSubTab === 'DISPATCH_V6' ? '#FFFFFF' : '#475569' }}>
+                  Phiếu Xuất Kho & Quét GS1
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setDispatchSubTab('STOCK_TRANSFERS')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 9,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: dispatchSubTab === 'STOCK_TRANSFERS' ? '#0284C7' : 'transparent',
+                }}
+              >
+                <Text style={{ fontWeight: '800', fontSize: 12, color: dispatchSubTab === 'STOCK_TRANSFERS' ? '#FFFFFF' : '#475569' }}>
+                  Vận Đơn Đang Giao (QR)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {dispatchSubTab === 'DISPATCH_V6' ? (
+              <WarehouseDispatchSection navigation={navigation} medicines={medicines} />
+            ) : (
+              <View>
             <View style={styles.transferHeaderRow}>
               <View>
                 <Text style={styles.sectionTitle}>Phiếu Xuất & Chuyển Kho</Text>
@@ -1702,7 +1763,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
 
             {/* Transfers List */}
             {displayedTransfers.map((tf, idx) => (
-              <View key={tf.id || tf._id || `tf-${idx}`} style={styles.transferCard}>
+              <View key={tf.id ? `${tf.id}-${idx}` : tf._id ? `${tf._id}-${idx}` : `tf-${tf.transferCode || idx}`} style={styles.transferCard}>
                 <View style={styles.transferCardHeader}>
                   <View>
                     <Text style={styles.transferCodeText}>{tf.transferCode || tf.id}</Text>
@@ -1789,6 +1850,8 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                 <Ionicons name="swap-horizontal-outline" size={42} color="#94A3B8" />
                 <Text style={styles.emptyCardTitle}>Chưa có phiếu chuyển kho</Text>
                 <Text style={styles.emptyCardSub}>Hiện tại không có phiếu điều phối xuất/nhập kho nào cần xử lý.</Text>
+              </View>
+            )}
               </View>
             )}
           </View>

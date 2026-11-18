@@ -130,6 +130,10 @@ export class ApiService {
     return EnvService.getAiBaseUrl();
   }
 
+  public static getAuthHeaders(): Record<string, string> {
+    return this.authHeaders;
+  }
+
   private static clientSessionId: string = '';
 
   public static async getClientSessionId(): Promise<string> {
@@ -210,12 +214,21 @@ export class ApiService {
 
     let batchesList: any[] = [];
     if (Array.isArray(m.batches)) {
-      batchesList = m.batches.map((b: any) => ({
-        batchNo: b.batchNo || 'Lô KD',
-        expDate: b.expDate || '',
-        stock: typeof b.stock === 'number' ? b.stock : parseInt(b.stock, 10) || 0,
-        status: b.status || 'ACTIVE',
-      }));
+      batchesList = m.batches.map((b: any) => {
+        const stock = typeof b.stock === 'number' ? b.stock : parseInt(b.stock, 10) || 0;
+        const reservedQty = typeof b.reservedQty === 'number' ? b.reservedQty : parseInt(b.reservedQty, 10) || 0;
+        return {
+          _id: b._id,
+          id: b._id || b.id,
+          batchNo: b.batchNo || 'Lô KD',
+          expDate: b.expDate || '',
+          stock,
+          reservedQty,
+          availableQty: Math.max(0, stock - reservedQty),
+          status: b.status || 'ACTIVE',
+          location: b.location,
+        };
+      });
     }
 
     const defaultMedImages: Record<string, string> = {
