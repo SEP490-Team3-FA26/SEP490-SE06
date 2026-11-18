@@ -19,6 +19,7 @@ import {
 } from "../../../api-gateway/src/common/kafka.helper";
 import { InspectionRecord } from "./schemas/inspection-record.schema";
 import { RequestForQuotation } from "./schemas/request-for-quotation.schema";
+import { resolveRfqItemPricing } from "./rfq-pricing.helper";
 import { NationalPharmaService } from "../national-pharma/national-pharma.service";
 import * as crypto from "crypto";
 
@@ -3342,9 +3343,11 @@ export class PurchaseService {
       if (query.branchId && query.branchId !== 'all') {
         filter.branchId = query.branchId;
       }
-      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).lean().exec();
+      // Giới hạn tối đa 100 bản ghi để tránh tràn gói tin Kafka > 1MB
+      const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 100);
+      return await this.rfqModel.find(filter).sort({ createdAt: -1 }).limit(limit).lean().exec();
     } catch (error) {
-      throw new RpcException({ message: error.message || 'Lỗi lấy danh sách RFQ' });
+      throw new RpcException({ message: error.message || 'Lỗi lấy danh sách RFQ', statusCode: 500 });
     }
   }
 
@@ -3480,19 +3483,40 @@ export class PurchaseService {
       const quotationId = `QUOTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const minShelfLife = rfq.minShelfLifeMonths || 18;
 
-      // Kiểm tra tuân thủ HSD (FEFO) và Chốt chặn Giá trần kê khai CSDL Dược Quốc gia (NĐ 54/2017)
+      // Kiểm tra tuân thủ HSD (FEFO), đối chiếu MOQ, tính Đơn giá theo bậc số lượng và Chốt chặn Giá trần kê khai BYT (NĐ 54/2017)
+      let computedTotalAmount = 0;
       const formattedItems = (quotationDto.items || []).map((item: any) => {
         const offeredShelfLife = Number(item.committedShelfLifeMonths || item.offeredShelfLifeMonths || 24);
         const isCompliantShelfLife = offeredShelfLife >= minShelfLife;
 
-        // Đối chiếu giá kê khai và SĐK từ mặt hàng trong RFQ
+        // Đối chiếu giá kê khai, SĐK và số lượng đặt yêu cầu từ mặt hàng trong RFQ
         const rfqItem = (rfq.items || []).find((it: any) => it.medicineId === item.medicineId);
+        const requestedQty = Number(rfqItem?.quantityRequested || item.availableQuantity || 1);
         const declaredPrice = Number(rfqItem?.declaredPrice || rfqItem?.targetPrice || 0);
         const nationalDrugCode = rfqItem?.nationalDrugCode || item.nationalDrugCode || '';
-        const isExceedingDeclaredPrice = declaredPrice > 0 && Number(item.quotedPrice) > declaredPrice;
+        const discountPercent = Number(item.discountPercent || 0);
+
+        // Tính đơn giá thực tế theo bậc số lượng (Tiered Pricing) và đánh giá MOQ (Minimum Order Quantity)
+        const pricing = resolveRfqItemPricing(
+          Number(item.quotedPrice || 0),
+          requestedQty,
+          item.priceTiers,
+          item.moq,
+          discountPercent,
+        );
+        computedTotalAmount += pricing.lineTotal;
+
+        const isExceedingDeclaredPrice = declaredPrice > 0 && pricing.effectiveUnitPrice > declaredPrice;
 
         return {
           ...item,
+          quotedPrice: Number(item.quotedPrice || 0),
+          moq: pricing.moq,
+          priceTiers: pricing.normalizedTiers,
+          effectiveUnitPrice: pricing.effectiveUnitPrice,
+          appliedTierMinQuantity: pricing.appliedTierMinQuantity,
+          isMoqMet: pricing.isMoqMet,
+          discountPercent,
           committedShelfLifeMonths: offeredShelfLife,
           offeredShelfLifeMonths: offeredShelfLife,
           isCompliantShelfLife,
@@ -3502,6 +3526,9 @@ export class PurchaseService {
         };
       });
 
+      const finalTotalAmount =
+        formattedItems.length > 0 ? computedTotalAmount : Number(quotationDto.totalAmount || 0);
+
       const newQuotation = {
         quotationId,
         supplierId: quotationDto.supplierId,
@@ -3510,7 +3537,7 @@ export class PurchaseService {
         paymentTermsDays: Number(quotationDto.paymentTermsDays || 30),
         deliveryDays: Number(quotationDto.deliveryDays || 2),
         items: formattedItems,
-        totalAmount: Number(quotationDto.totalAmount || 0),
+        totalAmount: finalTotalAmount,
         notes: quotationDto.notes,
         isSelected: false,
       };
@@ -3541,7 +3568,16 @@ export class PurchaseService {
     }
   }
 
-  async awardRfq(id: string, awardDto: { quotationId: string; supplierId: string; reason?: string; createdBy?: string }) {
+  async awardRfq(
+    id: string,
+    awardDto: {
+      quotationId: string;
+      supplierId: string;
+      reason?: string;
+      createdBy?: string;
+      adjustToMoq?: boolean;
+    },
+  ) {
     if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
       throw new RpcException({ message: 'ID RFQ không hợp lệ', statusCode: 400 });
     }
@@ -3551,12 +3587,12 @@ export class PurchaseService {
       const filter = Types.ObjectId.isValid(id) ? { _id: id } : { rfqCode: id };
       const rfq = await this.rfqModel.findOne(filter).session(session).exec();
       if (!rfq) {
-        throw new RpcException({ message: `Không tìm thấy RFQ: ${id}` });
+        throw new RpcException({ message: `Không tìm thấy RFQ: ${id}`, statusCode: 404 });
       }
 
       const quotation = rfq.quotations.find((q) => q.quotationId === awardDto.quotationId);
       if (!quotation) {
-        throw new RpcException({ message: 'Không tìm thấy bảng báo giá tương ứng' });
+        throw new RpcException({ message: 'Không tìm thấy bảng báo giá tương ứng', statusCode: 404 });
       }
 
       // Đánh dấu trúng thầu
@@ -3569,20 +3605,46 @@ export class PurchaseService {
       rfq.status = 'AWARDED';
       rfq.awardedSupplierId = quotation.supplierId;
 
-      // Tự động sinh PurchaseOrder (PO) từ báo giá trúng thầu
-      const poItems = quotation.items.map((item) => ({
-        medicineId: item.medicineId,
-        medicineName: item.medicineName,
-        quantity: item.availableQuantity || 100,
-        unitPrice: item.quotedPrice,
-        receivedQuantity: 0,
-      }));
+      // Tự động sinh PurchaseOrder (PO) từ báo giá trúng thầu (tính đúng Đơn giá theo bậc số lượng & hỗ trợ tự nâng SL đạt MOQ)
+      let poTotalAmount = 0;
+      const poItems = quotation.items.map((item) => {
+        const rfqItem = (rfq.items || []).find((it: any) => it.medicineId === item.medicineId);
+        let orderQty = Number(rfqItem?.quantityRequested || item.availableQuantity || 100);
+        const itemMoq = Number(item.moq || 1);
+
+        // Nếu bộ phận thu mua chọn tự động nâng số lượng đặt tối thiểu cho khớp MOQ của NCC
+        if (awardDto.adjustToMoq && itemMoq > 1 && orderQty < itemMoq) {
+          orderQty = itemMoq;
+        }
+
+        const pricing = resolveRfqItemPricing(
+          Number(item.quotedPrice || 0),
+          orderQty,
+          item.priceTiers,
+          itemMoq,
+          Number(item.discountPercent || 0),
+        );
+
+        const netUnitPrice =
+          orderQty > 0
+            ? Math.round(pricing.lineTotal / orderQty)
+            : pricing.effectiveUnitPrice;
+        poTotalAmount += pricing.lineTotal;
+
+        return {
+          medicineId: item.medicineId,
+          medicineName: item.medicineName,
+          quantity: orderQty,
+          unitPrice: netUnitPrice,
+          receivedQuantity: 0,
+        };
+      });
 
       const newPo = new this.poModel({
         poCode: `PO-RFQ-${rfq.rfqCode.replace('RFQ-', '')}`,
         supplierId: quotation.supplierId,
         items: poItems,
-        totalAmount: quotation.totalAmount,
+        totalAmount: poTotalAmount > 0 ? poTotalAmount : quotation.totalAmount,
         status: 'PENDING_APPROVAL',
         createdBy: awardDto.createdBy || rfq.createdBy || 'ADMIN',
         paymentType: quotation.paymentTermsDays > 0 ? 'CREDIT' : 'PAID',

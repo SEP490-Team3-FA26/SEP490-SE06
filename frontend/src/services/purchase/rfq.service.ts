@@ -27,10 +27,20 @@ export interface RfqTargetSupplier {
   sentAt?: string;
 }
 
+export interface QuotationPriceTier {
+  minQuantity: number; // Mốc số lượng tối thiểu để hưởng mức đơn giá này
+  unitPrice: number;   // Đơn giá áp dụng theo bậc số lượng (VNĐ)
+}
+
 export interface SupplierQuotationItem {
   medicineId: string;
   medicineName: string;
   quotedPrice: number;
+  moq?: number; // Số lượng đặt hàng tối thiểu (Minimum Order Quantity)
+  priceTiers?: QuotationPriceTier[]; // Bảng đơn giá theo bậc số lượng
+  effectiveUnitPrice?: number; // Đơn giá thực tế áp dụng theo bậc số lượng
+  appliedTierMinQuantity?: number; // Mốc số lượng của bậc giá đang áp dụng
+  isMoqMet?: boolean; // Trạng thái số lượng yêu cầu có đáp ứng MOQ không
   discountPercent?: number;
   offeredShelfLifeMonths: number;
   isCompliantShelfLife: boolean;
@@ -97,6 +107,8 @@ export interface SubmitQuotePayload {
     medicineId: string;
     medicineName: string;
     quotedPrice: number;
+    moq?: number;
+    priceTiers?: QuotationPriceTier[];
     discountPercent?: number;
     offeredShelfLifeMonths: number;
     availableQuantity: number;
@@ -105,6 +117,59 @@ export interface SubmitQuotePayload {
   }[];
   totalAmount: number;
   notes?: string;
+}
+
+/**
+ * Hàm tính toán đơn giá thực tế theo bậc số lượng (Tiered Pricing) & kiểm tra MOQ phía Frontend.
+ * Đồng bộ 1-1 với công thức tính toán ở tầng Backend Microservice.
+ */
+export function calculateRfqItemTieredPricing(
+  baseQuotedPrice: number,
+  quantity: number,
+  priceTiers?: QuotationPriceTier[],
+  moq?: number,
+  discountPercent = 0,
+) {
+  const safeBase = Number.isFinite(Number(baseQuotedPrice)) ? Math.max(0, Number(baseQuotedPrice)) : 0;
+  const safeQty = Number.isFinite(Number(quantity)) ? Math.max(0, Math.floor(Number(quantity))) : 0;
+  const safeMoq = Number.isFinite(Number(moq)) && Number(moq) >= 1 ? Math.floor(Number(moq)) : 1;
+
+  // Chuẩn hóa và sắp xếp bậc giá tăng dần theo mốc số lượng
+  const validTiers = (Array.isArray(priceTiers) ? priceTiers : [])
+    .filter((t) => t && Number(t.minQuantity) >= 1 && Number(t.unitPrice) >= 0)
+    .map((t) => ({ minQuantity: Math.floor(Number(t.minQuantity)), unitPrice: Number(t.unitPrice) }))
+    .sort((a, b) => a.minQuantity - b.minQuantity);
+
+  let effectiveUnitPrice = safeBase;
+  let appliedTierMinQuantity: number | undefined = undefined;
+
+  for (const tier of validTiers) {
+    if (safeQty >= tier.minQuantity) {
+      effectiveUnitPrice = tier.unitPrice;
+      appliedTierMinQuantity = tier.minQuantity;
+    } else {
+      break;
+    }
+  }
+
+  const isMoqMet = safeQty >= safeMoq;
+  const moqShortfall = isMoqMet ? 0 : safeMoq - safeQty;
+  const nextBetterTier = validTiers.find(
+    (t) => t.minQuantity > safeQty && t.unitPrice < effectiveUnitPrice,
+  );
+  const safeDiscount = Math.max(0, Math.min(100, Number(discountPercent) || 0));
+  const lineTotal = Math.round(effectiveUnitPrice * safeQty * (1 - safeDiscount / 100));
+
+  return {
+    moq: safeMoq,
+    normalizedTiers: validTiers,
+    effectiveUnitPrice,
+    appliedTierMinQuantity,
+    isMoqMet,
+    moqShortfall,
+    nextBetterTier,
+    lineTotal,
+  };
 }
 
 export const rfqService = {
@@ -148,8 +213,11 @@ export const rfqService = {
     return response.data;
   },
 
-  // Chọn thầu và tự động sinh PO
-  async awardRfq(id: string, awardPayload: { quotationId: string; supplierId: string; reason?: string }) {
+  // Chọn thầu và tự động sinh PO (hỗ trợ tự động điều chỉnh SL lên bằng MOQ nếu cần)
+  async awardRfq(
+    id: string,
+    awardPayload: { quotationId: string; supplierId: string; reason?: string; adjustToMoq?: boolean },
+  ) {
     if (!id || id === 'undefined' || id === 'null' || (typeof id === 'string' && !id.trim())) {
       throw new Error('ID RFQ không hợp lệ');
     }

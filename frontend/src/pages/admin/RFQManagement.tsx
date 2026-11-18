@@ -39,7 +39,9 @@ import {
   RequestForQuotationData,
   CreateRfqPayload,
   SubmitQuotePayload,
-  SupplierQuotation
+  SupplierQuotation,
+  QuotationPriceTier,
+  calculateRfqItemTieredPricing
 } from '../../services/purchase/rfq.service';
 import { supplierService, Supplier } from '../../services/purchase/supplier.service';
 import { medicineService } from '../../services/inventory/medicine.service';
@@ -152,14 +154,30 @@ export function RFQManagement() {
   const [selectedMedCategory, setSelectedMedCategory] = useState<string>('all');
   const [medStockFilter, setMedStockFilter] = useState<'all' | 'out_of_stock' | 'low_stock'>('all');
 
-  // Manual Add Quote State
+  // Manual Add Quote State (hỗ trợ MOQ & Đơn giá theo bậc số lượng)
   const [quoteSupplierId, setQuoteSupplierId] = useState<string>('');
   const [quotePaymentDays, setQuotePaymentDays] = useState<number>(30);
   const [quoteDeliveryDays, setQuoteDeliveryDays] = useState<number>(2);
   const [quoteNotes, setQuoteNotes] = useState<string>('');
-  const [quoteItemPrices, setQuoteItemPrices] = useState<
-    { [medId: string]: { price: number; shelfLife: number; qty: number } }
-  >({});
+  const [quoteItemPrices, setQuoteItemPrices] = useState<{
+    [medId: string]: {
+      price: number;
+      shelfLife: number;
+      qty: number;
+      moq: number;
+      priceTiers: QuotationPriceTier[];
+    };
+  }>({});
+
+  // Trạng thái ẩn/hiện khung giải thích ngữ cảnh gửi link báo giá cho Bộ phận Sale NCC
+  const [showWorkflowGuide, setShowWorkflowGuide] = useState<boolean>(true);
+
+  // Modal xác nhận chọn thầu (hỗ trợ tùy chọn tự động nâng SL đạt MOQ khi sinh PO)
+  const [awardModal, setAwardModal] = useState<{
+    quotation: SupplierQuotation;
+    unmetMoqItems: { medicineName: string; requestedQty: number; moq: number; unit: string }[];
+    adjustToMoq: boolean;
+  } | null>(null);
 
   const loadData = async () => {
     try {
@@ -505,7 +523,7 @@ export function RFQManagement() {
     }
   };
 
-  // Copy Magic Link to clipboard for Sales (Zalo)
+  // Sao chép tin nhắn mời chào giá kèm Magic Link gửi qua Zalo/Email cho Bộ phận Sale NCC
   const handleCopyMagicLink = (target: any, rfq: RequestForQuotationData) => {
     if (!target.token) {
       showToast('Chưa có mã Token liên kết cho NCC này.', 'warning');
@@ -513,9 +531,33 @@ export function RFQManagement() {
     }
     const origin = window.location.origin;
     const link = `${origin}/supplier-quote/${target.token}`;
-    const message = `Kính gửi anh/chị ${target.salesRepName || 'đại diện'} (${target.supplierName}),\nChuỗi Nhà thuốc Pharmachain trân trọng gửi lời mời tham gia chào giá cho đợt mua hàng [${rfq.rfqCode} - ${rfq.title}].\n👉 Vui lòng truy cập đường link sau để nhập báo giá trực tiếp (Không cần đăng nhập):\n${link}\n⏰ Hạn chót nhận báo giá: ${new Date(rfq.deadline).toLocaleDateString('vi-VN')}\nTrân trọng!`;
+    const message =
+      `Kính gửi Anh/Chị ${target.salesRepName || 'Bộ phận Kinh doanh (Sale)'} - ${target.supplierName},\n\n` +
+      `Phòng Thu Mua Hệ thống Chuỗi Nhà thuốc ABC Pharmacy trân trọng gửi lời mời tham gia báo giá cho đợt thu mua [${rfq.rfqCode} - ${rfq.title}].\n\n` +
+      `👉 Truy cập Liên kết Chào giá Bảo mật riêng của Quý công ty (không cần đăng nhập tài khoản):\n${link}\n\n` +
+      `📋 Nội dung cần khai báo trên link:\n` +
+      `- Đơn giá cơ bản & Bảng đơn giá theo bậc số lượng (nếu có chính sách chiết khấu mua sỉ)\n` +
+      `- Số lượng đặt hàng tối thiểu (MOQ - Minimum Order Quantity) cho từng mặt hàng\n` +
+      `- Hạn sử dụng cam kết (yêu cầu ≥ ${rfq.minShelfLifeMonths || 18} tháng) & Thời hạn công nợ\n\n` +
+      `⏰ Hạn chót nhận báo giá: ${new Date(rfq.deadline).toLocaleDateString('vi-VN')}\n` +
+      `🔒 Lưu ý: Liên kết này gắn định danh riêng cho ${target.supplierName}, bảng giá được bảo mật tuyệt đối với các nhà cung cấp khác.\n` +
+      `Trân trọng cảm ơn!`;
     navigator.clipboard.writeText(message);
-    showToast(`Đã sao chép link báo giá Zalo cho [${target.supplierName}]! Bạn có thể dán (Ctrl+V) vào tin nhắn Zalo gửi cho Sales.`, 'success');
+    showToast(
+      `Đã sao chép lời mời & link báo giá gửi Bộ phận Sale [${target.supplierName}]! Anh/chị có thể dán (Ctrl+V) vào Zalo hoặc Email.`,
+      'success',
+    );
+  };
+
+  // Sao chép riêng đường dẫn URL Magic Link cho Bộ phận Sale NCC
+  const handleCopyDirectUrl = (target: any) => {
+    if (!target.token) {
+      showToast('Chưa có mã Token liên kết cho NCC này.', 'warning');
+      return;
+    }
+    const link = `${window.location.origin}/supplier-quote/${target.token}`;
+    navigator.clipboard.writeText(link);
+    showToast(`Đã sao chép đường link báo giá trực tiếp của [${target.supplierName}]!`, 'info');
   };
 
   // Open Matrix Comparison
@@ -524,7 +566,7 @@ export function RFQManagement() {
     setShowMatrixModal(true);
   };
 
-  // Open Add Quote
+  // Open Add Quote (Khởi tạo đầy đủ MOQ và mảng bậc giá cho từng mặt hàng)
   const openAddQuoteModal = (rfq: RequestForQuotationData) => {
     if (!rfq) return;
     setSelectedRfq(rfq);
@@ -532,20 +574,32 @@ export function RFQManagement() {
     setQuotePaymentDays(rfq.requiredPaymentTermDays || 30);
     setQuoteDeliveryDays(2);
     setQuoteNotes('');
-    const initialItemPrices: any = {};
+    const initialItemPrices: {
+      [medId: string]: {
+        price: number;
+        shelfLife: number;
+        qty: number;
+        moq: number;
+        priceTiers: QuotationPriceTier[];
+      };
+    } = {};
     (rfq.items || []).forEach((item) => {
       if (!item) return;
+      const basePrice = item.targetPrice ? Math.round(item.targetPrice * 0.95) : 45000;
+      const reqQty = item.quantityRequested || 100;
       initialItemPrices[item.medicineId] = {
-        price: item.targetPrice ? Math.round(item.targetPrice * 0.95) : 45000,
+        price: basePrice,
         shelfLife: 24,
-        qty: item.quantityRequested || 0,
+        qty: reqQty,
+        moq: Math.min(reqQty, 50),
+        priceTiers: [],
       };
     });
     setQuoteItemPrices(initialItemPrices);
     setShowAddQuoteModal(true);
   };
 
-  // Submit Manual Quote
+  // Submit Manual Quote (Tính tổng chuẩn xác dựa trên Đơn giá bậc thang & MOQ)
   const handleSubmitQuote = async () => {
     if (!selectedRfq || !quoteSupplierId) return;
     const supp = suppliers.find((s) => (s._id || s.id) === quoteSupplierId) || {
@@ -554,14 +608,21 @@ export function RFQManagement() {
 
     let total = 0;
     const items = (selectedRfq?.items || []).map((item) => {
-      const p = quoteItemPrices[item.medicineId]?.price || 0;
-      const shelf = quoteItemPrices[item.medicineId]?.shelfLife || 24;
-      const qty = quoteItemPrices[item.medicineId]?.qty || item.quantityRequested || 0;
-      total += p * qty;
+      const entry = quoteItemPrices[item.medicineId];
+      const p = entry?.price || 0;
+      const shelf = entry?.shelfLife || 24;
+      const qty = entry?.qty || item.quantityRequested || 0;
+      const moq = Math.max(1, Number(entry?.moq || 1));
+      const priceTiers = entry?.priceTiers || [];
+      const pricing = calculateRfqItemTieredPricing(p, item.quantityRequested || qty, priceTiers, moq, 0);
+      total += pricing.lineTotal;
+
       return {
         medicineId: item.medicineId,
         medicineName: item.medicineName,
         quotedPrice: p,
+        moq: pricing.moq,
+        priceTiers: pricing.normalizedTiers,
         offeredShelfLifeMonths: shelf,
         availableQuantity: qty,
         notes: 'Hàng chính hãng chuẩn GMP',
@@ -582,7 +643,7 @@ export function RFQManagement() {
       setIsSubmitting(true);
       const rfqId = selectedRfq._id || selectedRfq.id || '';
       await rfqService.submitQuotation(rfqId, payload);
-      showToast('Đã ghi nhận báo giá của NCC thành công!', 'success');
+      showToast('Đã ghi nhận báo giá NCC (kèm MOQ & bậc giá) thành công!', 'success');
       setShowAddQuoteModal(false);
 
       // Tự động làm tươi ngay lập tức selectedRfq để bảng ma trận nhảy số realtime không cần F5
@@ -598,32 +659,61 @@ export function RFQManagement() {
     }
   };
 
-  // Award RFQ (Sử dụng modal xác nhận tùy chỉnh thay thế window.confirm)
+  // Mở modal xác nhận Chọn thầu & Kiểm tra điều kiện MOQ của báo giá được chọn
   const handleAward = (quotation: SupplierQuotation) => {
     if (!selectedRfq) return;
-    confirmAction({
-      title: 'Xác nhận chọn thầu & Tạo đơn đặt hàng PO',
-      description: `Xác nhận CHỌN THẦU cho Nhà cung cấp: [${quotation.supplierName}] với tổng giá trị ${quotation.totalAmount.toLocaleString('vi-VN')} đ? Hệ thống sẽ tự động chốt phiên RFQ và tự động phát hành Đơn đặt hàng PO tương ứng!`,
-      confirmText: 'Chốt chọn thầu & Tạo PO',
-      variant: 'primary',
-      onConfirm: async () => {
-        try {
-          setIsSubmitting(true);
-          await rfqService.awardRfq(selectedRfq._id || selectedRfq.id || '', {
-            quotationId: quotation.quotationId,
-            supplierId: quotation.supplierId,
-            reason: 'Giá cạnh tranh, đáp ứng đầy đủ yêu cầu Hạn dùng và thời hạn công nợ',
-          });
-          showToast(`Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO!`, 'success');
-          setShowMatrixModal(false);
-          loadData();
-        } catch (err: any) {
-          showToast(`Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`, 'error');
-        } finally {
-          setIsSubmitting(false);
-        }
-      },
+    const unmetMoqItems: { medicineName: string; requestedQty: number; moq: number; unit: string }[] = [];
+
+    (selectedRfq.items || []).forEach((rfqItem) => {
+      const qItem = quotation.items?.find((it) => it.medicineId === rfqItem.medicineId);
+      if (!qItem) return;
+      const moq = Number(qItem.moq || 1);
+      const reqQty = Number(rfqItem.quantityRequested || 0);
+      if (moq > 1 && reqQty < moq) {
+        unmetMoqItems.push({
+          medicineName: rfqItem.medicineName,
+          requestedQty: reqQty,
+          moq,
+          unit: rfqItem.unit || 'Hộp',
+        });
+      }
     });
+
+    setAwardModal({
+      quotation,
+      unmetMoqItems,
+      adjustToMoq: unmetMoqItems.length > 0, // Mặc định bật gợi ý nâng SL lên bằng MOQ nếu có mặt hàng chưa đủ MOQ
+    });
+  };
+
+  // Thực thi chọn thầu & phát hành PO (kèm cờ adjustToMoq)
+  const confirmAwardExecution = async () => {
+    if (!selectedRfq || !awardModal) return;
+    const { quotation, adjustToMoq } = awardModal;
+    try {
+      setIsSubmitting(true);
+      await rfqService.awardRfq(selectedRfq._id || selectedRfq.id || '', {
+        quotationId: quotation.quotationId,
+        supplierId: quotation.supplierId,
+        adjustToMoq,
+        reason: adjustToMoq
+          ? 'Giá cạnh tranh, đáp ứng hạn dùng GSP và đã tự động điều chỉnh SL đặt đạt MOQ của NCC'
+          : 'Giá cạnh tranh, đáp ứng đầy đủ yêu cầu Hạn dùng và thời hạn công nợ',
+      });
+      showToast(
+        `Đã chọn thầu thành công cho ${quotation.supplierName} và phát hành Đơn đặt hàng PO${
+          adjustToMoq ? ' (đã điều chỉnh SL khớp MOQ)' : ''
+        }!`,
+        'success',
+      );
+      setAwardModal(null);
+      setShowMatrixModal(false);
+      loadData();
+    } catch (err: any) {
+      showToast(`Lỗi chọn thầu: ${err?.response?.data?.message || err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -703,6 +793,80 @@ export function RFQManagement() {
             <TrendingDown size={22} />
           </div>
         </div>
+      </div>
+
+      {/* KHỐI GIẢI THÍCH NGỮ CẢNH GỬI LINK BÁO GIÁ CHO BỘ PHẬN SALE NCC & CHÍNH SÁCH MOQ / ĐƠN GIÁ THEO SỐ LƯỢNG */}
+      <div className="bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 border border-blue-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-100 text-blue-700 rounded-xl shrink-0">
+              <Info size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-900">
+                Ngữ cảnh Quy trình Gửi Link Báo Giá cho Bộ phận Sale Nhà cung cấp (Magic Link) & Chính sách MOQ
+              </h2>
+              <p className="text-[11px] text-slate-600">
+                Áp dụng thực tế ngành Dược B2B: Bộ phận Sale / Trình dược viên của NCC nhận link qua Zalo/Email, không cần tài khoản hệ thống.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowWorkflowGuide((prev) => !prev)}
+            className="text-[11px] font-bold text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer"
+          >
+            {showWorkflowGuide ? 'Thu gọn' : 'Xem quy trình'}
+          </button>
+        </div>
+
+        {showWorkflowGuide && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
+            <div className="bg-white/95 border border-slate-200/80 rounded-xl p-3.5 space-y-1">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-black">
+                1
+              </span>
+              <h3 className="font-bold text-slate-900 text-xs">Gửi Magic Link cho Sale NCC</h3>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Khi khởi tạo RFQ, hệ thống tự sinh <strong>mã truy cập bảo mật riêng</strong> cho từng NCC. Phòng Thu
+                Mua copy lời mời gửi qua Zalo/Email trực tiếp cho nhân viên Sale (Trình dược viên) phụ trách.
+              </p>
+            </div>
+
+            <div className="bg-white/95 border border-slate-200/80 rounded-xl p-3.5 space-y-1">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-[11px] font-black">
+                2
+              </span>
+              <h3 className="font-bold text-slate-900 text-xs">Cách ly giá & Không cần đăng nhập</h3>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Sale NCC bấm link là mở ngay biểu mẫu chào giá định danh theo công ty mình. Mỗi NCC chỉ thấy đúng danh
+                mục mời thầu và <strong>không xem được giá đối thủ</strong>.
+              </p>
+            </div>
+
+            <div className="bg-white/95 border border-amber-200/90 rounded-xl p-3.5 space-y-1">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500 text-white text-[11px] font-black">
+                3
+              </span>
+              <h3 className="font-bold text-slate-900 text-xs">Khai báo MOQ (SL đặt tối thiểu)</h3>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                <strong>MOQ (Minimum Order Quantity)</strong> là số lượng tối thiểu NCC yêu cầu đặt cho mỗi mặt hàng.
+                Ma trận tự cảnh báo nếu SL đặt chưa đạt MOQ và hỗ trợ nâng SL khớp MOQ khi sinh PO.
+              </p>
+            </div>
+
+            <div className="bg-white/95 border border-teal-200/90 rounded-xl p-3.5 space-y-1">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">
+                4
+              </span>
+              <h3 className="font-bold text-slate-900 text-xs">Đơn giá theo bậc số lượng</h3>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                NCC khai báo nhiều mốc giá mua sỉ (VD: ≥ 100, ≥ 500 hộp). Hệ thống tự áp dụng{' '}
+                <strong>đơn giá bậc thang tốt nhất</strong> và gợi ý tăng SL để đạt mức chiết khấu sâu hơn.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -1257,11 +1421,17 @@ export function RFQManagement() {
               </div>
 
               {/* Danh sách NCC mời thầu */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <Users size={14} className="text-blue-600" />
-                  Mời các Nhà cung cấp tham gia chào thầu ({selectedSupplierIds.length}):
-                </span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Users size={14} className="text-blue-600" />
+                    Mời các Nhà cung cấp tham gia chào thầu ({selectedSupplierIds.length}):
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    Hệ thống sẽ tự sinh <strong>Magic Link bảo mật riêng</strong> gắn định danh cho bộ phận Sale / Trình
+                    dược viên của từng NCC được chọn (Sale mở link điền MOQ & bảng đơn giá bậc thang không cần tài khoản).
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
                   {(suppliers || []).map((s) => {
                     const sid = s._id || s.id || '';
@@ -1328,15 +1498,27 @@ export function RFQManagement() {
 
             {/* NỘI DUNG MA TRẬN SO SÁNH */}
             <div className="p-6 space-y-5 overflow-y-auto flex-1">
-              {/* DANH SÁCH NCC & LINK BÁO GIÁ ZALO (MAGIC LINK) */}
+              {/* DANH SÁCH NCC & LINK BÁO GIÁ GỬI BỘ PHẬN SALE (MAGIC LINK) */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Users size={15} className="text-indigo-600" />
-                    Danh Sách Nhà Cung Cấp & Link Gửi Zalo Cho Sales ({selectedRfq.targetSuppliers?.length || 0} NCC)
+                    Gửi Link Báo Giá Bảo Mật Cho Bộ Phận Sale NCC ({selectedRfq.targetSuppliers?.length || 0} NCC)
                   </span>
-                  <span className="text-[11px] text-slate-400">
-                    Sales click link là nhập báo giá được ngay (Không cần tài khoản)
+                  <span className="text-[11px] text-indigo-700 font-semibold">
+                    Không cần đăng nhập • Cách ly giá giữa các NCC • Đồng bộ Realtime
+                  </span>
+                </div>
+
+                {/* Hộp giải thích ngắn gọn ngữ cảnh gửi link cho Sale NCC */}
+                <div className="bg-indigo-50/80 border border-indigo-200/80 rounded-lg px-3.5 py-2.5 text-[11px] text-indigo-950 flex items-start gap-2 leading-relaxed">
+                  <Info size={14} className="text-indigo-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Ngữ cảnh gửi link:</strong> Nhân viên thu mua bấm <strong>"Copy Lời Mời (Zalo/Email)"</strong>{' '}
+                    và gửi trực tiếp cho <strong>Nhân viên Kinh doanh (Sale) / Trình dược viên</strong> phụ trách của từng
+                    NCC. Sale mở link sẽ thấy đúng danh mục cần mua của công ty mình, điền <strong>MOQ (SL tối thiểu)</strong>,{' '}
+                    <strong>Đơn giá theo bậc số lượng</strong> và <strong>HSD cam kết</strong> rồi bấm gửi — dữ liệu lập tức
+                    đổ về bảng so sánh bên dưới.
                   </span>
                 </div>
 
@@ -1371,7 +1553,7 @@ export function RFQManagement() {
                             )}
                           </div>
                           <div className="text-[11px] text-slate-500 mt-1">
-                            Sales: <strong className="text-slate-700">{target.salesRepName || 'Trình dược viên'}</strong>
+                            Bộ phận Sale: <strong className="text-slate-700">{target.salesRepName || 'Trình dược viên'}</strong>
                             {target.salesRepPhone && (
                               <span className="font-mono text-indigo-600 block text-[10px]">
                                 SĐT: {target.salesRepPhone}
@@ -1384,11 +1566,20 @@ export function RFQManagement() {
                           <button
                             type="button"
                             onClick={() => handleCopyMagicLink(target, selectedRfq)}
-                            className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
-                            title="Sao chép lời nhắn và link Zalo gửi cho Sales"
+                            className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                            title="Sao chép đầy đủ tin nhắn mời chào giá và đường link gửi Zalo/Email cho Bộ phận Sale"
                           >
                             <Copy size={12} />
-                            Copy Link Zalo
+                            Copy Lời Mời
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyDirectUrl(target)}
+                            className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                            title="Chỉ sao chép đường link URL báo giá"
+                          >
+                            <Link size={12} />
+                            URL
                           </button>
                           {target.token && (
                             <a
@@ -1396,7 +1587,7 @@ export function RFQManagement() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-                              title="Mở cổng báo giá của NCC này"
+                              title="Mở xem trước Cổng báo giá của Bộ phận Sale NCC này"
                             >
                               <ExternalLink size={13} />
                             </a>
@@ -1490,24 +1681,42 @@ export function RFQManagement() {
                             selectedRfq.minShelfLifeMonths ||
                             24;
                           const isCompliant = qItem?.isCompliantShelfLife !== false;
+                          const pricing = qItem
+                            ? calculateRfqItemTieredPricing(
+                                qItem.quotedPrice,
+                                item.quantityRequested || 0,
+                                qItem.priceTiers,
+                                qItem.moq,
+                                qItem.discountPercent || 0,
+                              )
+                            : null;
+                          const effectivePrice = pricing ? pricing.effectiveUnitPrice : Number(qItem?.quotedPrice || 0);
                           const isOverCeiling = Boolean(
                             qItem?.isExceedingDeclaredPrice ||
-                            (item.declaredPrice && qItem && Number(qItem.quotedPrice) > item.declaredPrice)
+                            (item.declaredPrice && qItem && effectivePrice > item.declaredPrice)
                           );
 
                           return (
                             <td
                               key={target.supplierId}
-                              className={`py-3.5 px-4 border-l border-slate-200 align-middle ${
+                              className={`py-3.5 px-4 border-l border-slate-200 align-top ${
                                 quotation ? 'bg-white' : 'bg-slate-50/30'
                               }`}
                             >
-                              {qItem ? (
-                                <div className="space-y-1">
+                              {qItem && pricing ? (
+                                <div className="space-y-1.5">
+                                  {/* Đơn giá thực tế áp dụng & So sánh giá gốc nếu ăn bậc giá */}
                                   <div className="flex items-center justify-between gap-1 flex-wrap">
-                                    <span className="font-extrabold text-slate-900 text-sm">
-                                      {Number(qItem.quotedPrice).toLocaleString('vi-VN')} đ
-                                    </span>
+                                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                                      <span className="font-extrabold text-slate-900 text-sm">
+                                        {effectivePrice.toLocaleString('vi-VN')} đ
+                                      </span>
+                                      {pricing.appliedTierMinQuantity && effectivePrice !== Number(qItem.quotedPrice) && (
+                                        <span className="text-[10px] text-slate-400 line-through font-medium">
+                                          {Number(qItem.quotedPrice).toLocaleString('vi-VN')} đ
+                                        </span>
+                                      )}
+                                    </div>
                                     {isOverCeiling && (
                                       <span
                                         className="text-[9px] bg-rose-100 text-rose-700 border border-rose-200 font-black px-1.5 py-0.5 rounded"
@@ -1517,7 +1726,9 @@ export function RFQManagement() {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-1">
+
+                                  {/* Nhãn HSD & MOQ (Minimum Order Quantity) */}
+                                  <div className="flex items-center gap-1 flex-wrap">
                                     {isCompliant ? (
                                       <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded font-bold">
                                         HSD: {offeredMonths} tháng
@@ -1527,7 +1738,56 @@ export function RFQManagement() {
                                         <AlertTriangle size={10} /> HSD {offeredMonths} th (Cận date!)
                                       </span>
                                     )}
+
+                                    {/* Badge MOQ */}
+                                    {pricing.isMoqMet ? (
+                                      <span
+                                        className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-bold"
+                                        title={`Minimum Order Quantity: Tối thiểu ${pricing.moq} ${item.unit || 'Hộp'} — Đã đạt điều kiện`}
+                                      >
+                                        ✓ MOQ: {pricing.moq.toLocaleString('vi-VN')}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="text-[10px] text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"
+                                        title={`SL yêu cầu (${item.quantityRequested}) thấp hơn MOQ (${pricing.moq}). Thiếu ${pricing.moqShortfall} ${item.unit || 'Hộp'}.`}
+                                      >
+                                        <AlertTriangle size={10} /> MOQ: {pricing.moq.toLocaleString('vi-VN')} (Thiếu {pricing.moqShortfall})
+                                      </span>
+                                    )}
                                   </div>
+
+                                  {/* Bảng đơn giá theo bậc số lượng (nếu NCC có khai báo) */}
+                                  {pricing.normalizedTiers.length > 0 && (
+                                    <div className="pt-1 border-t border-slate-100 space-y-1">
+                                      <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block">
+                                        Đơn giá theo SL:
+                                      </span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {pricing.normalizedTiers.map((tier, tIdx) => {
+                                          const isActive = pricing.appliedTierMinQuantity === tier.minQuantity;
+                                          return (
+                                            <span
+                                              key={tIdx}
+                                              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                                                isActive
+                                                  ? 'bg-teal-600 text-white border-teal-600'
+                                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                                              }`}
+                                            >
+                                              ≥{tier.minQuantity.toLocaleString('vi-VN')}: {tier.unitPrice.toLocaleString('vi-VN')}đ
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                      {pricing.nextBetterTier && (
+                                        <div className="text-[10px] text-indigo-700 bg-indigo-50/80 border border-indigo-100 rounded px-1.5 py-0.5 font-medium">
+                                          💡 Đặt ≥ {pricing.nextBetterTier.minQuantity.toLocaleString('vi-VN')} giảm còn{' '}
+                                          <strong>{pricing.nextBetterTier.unitPrice.toLocaleString('vi-VN')} đ</strong>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-slate-400 text-xs italic block text-center py-2">
@@ -1550,6 +1810,14 @@ export function RFQManagement() {
                         const quotation = selectedRfq.quotations?.find(
                           (q) => q.supplierId === target.supplierId
                         );
+                        // Đếm số mặt hàng trong báo giá này chưa đạt MOQ của NCC
+                        const unmetMoqCount = quotation
+                          ? (selectedRfq.items || []).filter((rfqItem) => {
+                              const qItem = quotation.items?.find((it) => it.medicineId === rfqItem.medicineId);
+                              if (!qItem) return false;
+                              return Number(qItem.moq || 1) > Number(rfqItem.quantityRequested || 0);
+                            }).length
+                          : 0;
 
                         return (
                           <td
@@ -1563,6 +1831,12 @@ export function RFQManagement() {
                                 <div className="font-black text-base text-blue-900">
                                   {Number(quotation.totalAmount).toLocaleString('vi-VN')} đ
                                 </div>
+                                {unmetMoqCount > 0 && (
+                                  <div className="text-[10px] text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 mt-1">
+                                    <AlertTriangle size={10} />
+                                    {unmetMoqCount} mặt hàng chưa đạt MOQ
+                                  </div>
+                                )}
                                 <div className="mt-2.5">
                                   {selectedRfq.status === 'AWARDED' ? (
                                     quotation.isSelected ? (
@@ -1653,46 +1927,178 @@ export function RFQManagement() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-700">Đơn giá và HSD cam kết từng mặt hàng:</label>
-                {(selectedRfq?.items || []).map((item) => (
-                  <div key={item.medicineId} className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                    <div className="flex-1">
-                      <span className="font-bold text-slate-800 block">{item.medicineName}</span>
-                      <span className="text-[10px] text-slate-400">SL: {item.quantityRequested || 0} {item.unit || 'Hộp'}</span>
+              <div className="space-y-3">
+                <label className="block font-bold text-slate-700">
+                  Đơn giá cơ bản, MOQ (SL đặt tối thiểu), Đơn giá bậc thang & HSD cam kết từng mặt hàng:
+                </label>
+                {(selectedRfq?.items || []).map((item) => {
+                  const entry = quoteItemPrices[item.medicineId] || {
+                    price: 0,
+                    shelfLife: 24,
+                    qty: item.quantityRequested || 100,
+                    moq: 1,
+                    priceTiers: [],
+                  };
+                  const pricing = calculateRfqItemTieredPricing(
+                    entry.price,
+                    item.quantityRequested || 0,
+                    entry.priceTiers,
+                    entry.moq,
+                    0,
+                  );
+
+                  return (
+                    <div key={item.medicineId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex-1">
+                          <span className="font-bold text-slate-800 block">{item.medicineName}</span>
+                          <span className="text-[10px] text-slate-500">
+                            SL yêu cầu: <strong>{(item.quantityRequested || 0).toLocaleString('vi-VN')}</strong> {item.unit || 'Hộp'} •
+                            Đơn giá áp dụng: <strong className="text-blue-700">{pricing.effectiveUnitPrice.toLocaleString('vi-VN')} đ</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Đơn giá cơ bản:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={entry.price || 0}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setQuoteItemPrices((prev) => ({
+                                  ...prev,
+                                  [item.medicineId]: { ...entry, price: val },
+                                }));
+                              }}
+                              className="w-24 px-2 py-1 border rounded bg-white font-bold text-blue-700"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 block" title="Minimum Order Quantity">
+                              MOQ (SL tối thiểu):
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={entry.moq || 1}
+                              onChange={(e) => {
+                                const val = Math.max(1, Number(e.target.value));
+                                setQuoteItemPrices((prev) => ({
+                                  ...prev,
+                                  [item.medicineId]: { ...entry, moq: val },
+                                }));
+                              }}
+                              className={`w-20 px-2 py-1 border rounded bg-white font-bold text-center ${
+                                pricing.isMoqMet ? 'text-emerald-700 border-slate-300' : 'text-amber-700 border-amber-400 bg-amber-50'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">HSD (tháng):</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={entry.shelfLife || 24}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setQuoteItemPrices((prev) => ({
+                                  ...prev,
+                                  [item.medicineId]: { ...entry, shelfLife: val },
+                                }));
+                              }}
+                              className="w-16 px-2 py-1 border rounded bg-white font-bold text-center"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Nhập nhanh bậc đơn giá theo số lượng trong Modal thủ công */}
+                      <div className="pt-2 border-t border-slate-200/70 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                            <Layers size={11} className="text-teal-600" />
+                            Đơn giá theo bậc số lượng ({entry.priceTiers.length} bậc)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextQty =
+                                entry.priceTiers.length > 0
+                                  ? entry.priceTiers[entry.priceTiers.length - 1].minQuantity * 2
+                                  : Math.max(entry.moq || 1, item.quantityRequested || 100);
+                              const nextPrice = Math.max(0, Math.round((entry.price * 0.95) / 100) * 100);
+                              setQuoteItemPrices((prev) => ({
+                                ...prev,
+                                [item.medicineId]: {
+                                  ...entry,
+                                  priceTiers: [...entry.priceTiers, { minQuantity: nextQty, unitPrice: nextPrice }],
+                                },
+                              }));
+                            }}
+                            className="text-[10px] font-bold text-teal-700 hover:bg-teal-50 px-2 py-0.5 rounded border border-teal-200 cursor-pointer"
+                          >
+                            + Thêm bậc giá
+                          </button>
+                        </div>
+
+                        {entry.priceTiers.length > 0 && (
+                          <div className="space-y-1">
+                            {entry.priceTiers.map((tier, tIdx) => (
+                              <div key={tIdx} className="flex items-center gap-2 text-[11px] bg-white p-1.5 rounded border border-slate-200">
+                                <span className="text-slate-500">Từ SL ≥</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={tier.minQuantity}
+                                  onChange={(e) => {
+                                    const nextTiers = [...entry.priceTiers];
+                                    nextTiers[tIdx] = { ...nextTiers[tIdx], minQuantity: Math.max(1, Number(e.target.value)) };
+                                    setQuoteItemPrices((prev) => ({
+                                      ...prev,
+                                      [item.medicineId]: { ...entry, priceTiers: nextTiers },
+                                    }));
+                                  }}
+                                  className="w-20 px-1.5 py-0.5 border rounded font-bold text-center"
+                                />
+                                <span className="text-slate-500">→ Giá:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={500}
+                                  value={tier.unitPrice}
+                                  onChange={(e) => {
+                                    const nextTiers = [...entry.priceTiers];
+                                    nextTiers[tIdx] = { ...nextTiers[tIdx], unitPrice: Math.max(0, Number(e.target.value)) };
+                                    setQuoteItemPrices((prev) => ({
+                                      ...prev,
+                                      [item.medicineId]: { ...entry, priceTiers: nextTiers },
+                                    }));
+                                  }}
+                                  className="w-24 px-1.5 py-0.5 border rounded font-bold text-right text-teal-700"
+                                />
+                                <span className="text-slate-400">đ</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextTiers = entry.priceTiers.filter((_, i) => i !== tIdx);
+                                    setQuoteItemPrices((prev) => ({
+                                      ...prev,
+                                      [item.medicineId]: { ...entry, priceTiers: nextTiers },
+                                    }));
+                                  }}
+                                  className="ml-auto text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">Đơn giá chào (VNĐ):</span>
-                      <input
-                        type="number"
-                        value={quoteItemPrices[item.medicineId]?.price || 0}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setQuoteItemPrices((prev) => ({
-                            ...prev,
-                            [item.medicineId]: { ...prev[item.medicineId], price: val },
-                          }));
-                        }}
-                        className="w-28 px-2 py-1 border rounded bg-white font-bold text-blue-700"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">HSD còn lại (tháng):</span>
-                      <input
-                        type="number"
-                        value={quoteItemPrices[item.medicineId]?.shelfLife || 24}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setQuoteItemPrices((prev) => ({
-                            ...prev,
-                            [item.medicineId]: { ...prev[item.medicineId], shelfLife: val },
-                          }));
-                        }}
-                        className="w-16 px-2 py-1 border rounded bg-white font-bold"
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -1711,6 +2117,83 @@ export function RFQManagement() {
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
               >
                 {isSubmitting ? 'Đang lưu...' : 'Lưu Báo Giá NCC'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL 4: XÁC NHẬN CHỌN THẦU & PHÁT HÀNH PO (CẢNH BÁO MOQ + TÙY CHỌN TỰ ĐỘNG NÂNG SL KHỚP MOQ) */}
+      {typeof document !== 'undefined' && awardModal && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-100 space-y-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
+                <Award size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900">
+                  Xác nhận chọn thầu & Sinh Đơn đặt hàng (PO)
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Chọn Nhà cung cấp <strong>{awardModal.quotation.supplierName}</strong> với tổng giá trị chào thầu{' '}
+                  <strong className="text-sky-700">
+                    {Number(awardModal.quotation.totalAmount).toLocaleString('vi-VN')} đ
+                  </strong>{' '}
+                  (đã áp dụng bậc đơn giá theo số lượng).
+                </p>
+              </div>
+            </div>
+
+            {awardModal.unmetMoqItems.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-2.5 text-xs">
+                <div className="flex items-start gap-2 text-amber-900 font-bold">
+                  <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    Có {awardModal.unmetMoqItems.length} mặt hàng có SL yêu cầu thấp hơn MOQ (Số lượng đặt tối thiểu) của NCC:
+                  </span>
+                </div>
+                <ul className="space-y-1 pl-6 list-disc text-[11px] text-amber-900/90">
+                  {awardModal.unmetMoqItems.map((it, idx) => (
+                    <li key={idx}>
+                      <strong>{it.medicineName}</strong>: SL yêu cầu {it.requestedQty.toLocaleString('vi-VN')} {it.unit} &lt; MOQ{' '}
+                      <strong>{it.moq.toLocaleString('vi-VN')} {it.unit}</strong>
+                    </li>
+                  ))}
+                </ul>
+                <label className="flex items-start gap-2 bg-white/90 p-2.5 rounded-xl border border-amber-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={awardModal.adjustToMoq}
+                    onChange={(e) =>
+                      setAwardModal((prev) => (prev ? { ...prev, adjustToMoq: e.target.checked } : null))
+                    }
+                    className="mt-0.5 rounded text-sky-600"
+                  />
+                  <span className="text-[11px] text-slate-700 leading-snug">
+                    <strong>Tự động nâng số lượng đặt trên PO lên đúng mức MOQ</strong> của NCC (và tự động cập nhật
+                    đơn giá bậc thang mới tương ứng nếu đạt mốc chiết khấu sâu hơn).
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAwardModal(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={confirmAwardExecution}
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? 'Đang phát hành PO...' : 'Chốt Chọn Thầu & Sinh PO'}
               </button>
             </div>
           </div>
