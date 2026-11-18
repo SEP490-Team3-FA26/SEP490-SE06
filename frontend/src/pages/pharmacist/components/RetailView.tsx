@@ -1961,22 +1961,22 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
             <button
               onClick={() => setIsLiveCameraOpen(true)}
               className="px-4 py-3.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
-              title="Bật Webcam máy tính quét trực tiếp Barcode & QR Code tự động nạp giỏ hàng"
+              title="Bật Camera máy tính quét trực tiếp mã vạch sản phẩm để thêm vào giỏ hàng"
             >
-              <Camera size={15} /> Quét Camera Live
+              <Camera size={15} /> Quét bằng Camera
             </button>
             <button
               onClick={() => setIsWifiScannerOpen(true)}
               className="px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
-              title="Biến điện thoại di động thành súng quét Barcode Wi-Fi không dây"
+              title="Dùng điện thoại di động quét mã vạch sản phẩm không dây"
             >
-              <Wifi size={15} /> Súng quét Wi-Fi
+              <Wifi size={15} /> Quét bằng điện thoại
             </button>
             <button
               onClick={() => setVoiceModalOpen(true)}
               className="px-5 py-3.5 bg-gradient-to-r from-purple-600 to-[#0057cd] hover:from-purple-700 hover:to-[#00419e] text-white font-extrabold rounded-[12px] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider shrink-0"
             >
-              <Sparkles size={15} /> Ghi âm & Tư vấn AI
+              <Sparkles size={15} /> Ghi âm tư vấn khách
             </button>
           </div>
 
@@ -2877,7 +2877,7 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               ÁP DỤNG MÃ GIẢM GIÁ
             </span>
             <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
-              Bảo mật Rủi ro 7 SBA
+              Kiểm soát mã ưu đãi
             </span>
           </div>
           {appliedVoucher ? (

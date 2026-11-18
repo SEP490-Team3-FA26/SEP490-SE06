@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2,
@@ -30,6 +30,9 @@ import { inventoryCheckService, InventoryCheckItem, InventoryCheckMedicine } fro
 import { authService } from "../../services/auth/auth.service";
 import { branchService } from "../../services/admin/branch.service";
 
+// Số lượng thẻ thuốc hiển thị mỗi lượt trong Modal chọn thuốc để chống đơ/lag DOM
+const CHECK_MODAL_PAGE_SIZE = 24;
+
 export function InventoryCheck() {
   const [checks, setChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,10 +40,14 @@ export function InventoryCheck() {
   const [batchError, setBatchError] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Trạng thái Modal chọn thuốc có ảnh
+  // Trạng thái Modal chọn thuốc có ảnh + Progressive Rendering chống lag
   const [isMedicineModalOpen, setIsMedicineModalOpen] = useState(false);
   const [modalSearchTerm, setModalSearchTerm] = useState("");
+  const deferredModalSearchTerm = useDeferredValue(modalSearchTerm);
   const [modalSelectedCategory, setModalSelectedCategory] = useState("all");
+  const [visibleModalCount, setVisibleModalCount] = useState(CHECK_MODAL_PAGE_SIZE);
+  const modalScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreModalRef = useRef<HTMLDivElement | null>(null);
 
   // Phân quyền và phạm vi kho kiểm kê
   const currentUser = authService.getCurrentUser();
@@ -143,9 +150,9 @@ export function InventoryCheck() {
     return ["all", ...Array.from(cats)];
   }, [medicines]);
 
-  // Bộ lọc thuốc hiển thị trong Modal (theo tên, số đăng ký, mã vạch, danh mục, hoặc số lô)
+  // Bộ lọc thuốc hiển thị trong Modal (dùng deferred search tránh giật khung hình khi gõ phím nhanh)
   const filteredModalMedicines = useMemo(() => {
-    const term = modalSearchTerm.trim().toLowerCase();
+    const term = deferredModalSearchTerm.trim().toLowerCase();
     return medicines.filter(m => {
       const matchCategory = modalSelectedCategory === "all" || m.category === modalSelectedCategory;
       if (!matchCategory) return false;
@@ -154,10 +161,51 @@ export function InventoryCheck() {
       const nameMatch = m.name?.toLowerCase().includes(term);
       const catMatch = m.category?.toLowerCase().includes(term);
       const regMatch = m.registrationNumber?.toLowerCase().includes(term);
+      const barcodeMatch = m.barcode?.toLowerCase().includes(term);
       const batchMatch = m.batches?.some(b => b.batchNo.toLowerCase().includes(term));
-      return nameMatch || catMatch || regMatch || batchMatch;
+      return nameMatch || catMatch || regMatch || barcodeMatch || batchMatch;
     });
-  }, [medicines, modalSearchTerm, modalSelectedCategory]);
+  }, [medicines, deferredModalSearchTerm, modalSelectedCategory]);
+
+  // Chỉ cắt 24 thẻ thuốc mỗi lượt để render tức thì, cuộn tới đâu nạp thêm tới đó
+  const visibleModalMedicines = useMemo(
+    () => filteredModalMedicines.slice(0, visibleModalCount),
+    [filteredModalMedicines, visibleModalCount]
+  );
+  const hasMoreModalMedicines = visibleModalCount < filteredModalMedicines.length;
+
+  // Reset số lượng hiển thị về 24 thẻ mỗi khi mở Modal hoặc đổi từ khóa/danh mục lọc
+  useEffect(() => {
+    if (!isMedicineModalOpen) return;
+    setVisibleModalCount(CHECK_MODAL_PAGE_SIZE);
+    if (modalScrollContainerRef.current) {
+      modalScrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isMedicineModalOpen, deferredModalSearchTerm, modalSelectedCategory]);
+
+  // Tự động nạp thêm 24 thẻ thuốc khi người dùng cuộn xuống đáy danh sách trong Modal
+  useEffect(() => {
+    if (!isMedicineModalOpen || !hasMoreModalMedicines) return;
+    const sentinel = loadMoreModalRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleModalCount((prev) =>
+            Math.min(prev + CHECK_MODAL_PAGE_SIZE, filteredModalMedicines.length)
+          );
+        }
+      },
+      {
+        root: modalScrollContainerRef.current,
+        rootMargin: "200px",
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isMedicineModalOpen, hasMoreModalMedicines, filteredModalMedicines.length]);
 
   // Xử lý chọn thuốc từ Modal
   const handleSelectMedicineFromModal = (med: InventoryCheckMedicine, preselectedBatchId?: string) => {
@@ -825,8 +873,8 @@ export function InventoryCheck() {
               </div>
             </div>
 
-            {/* Danh sách lưới các thẻ thuốc có ảnh */}
-            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+            {/* Danh sách lưới các thẻ thuốc có ảnh (Progressive Rendering chống lag) */}
+            <div ref={modalScrollContainerRef} className="flex-1 overflow-y-auto p-5 custom-scrollbar">
               {filteredModalMedicines.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">
                   <Package size={40} className="mx-auto mb-2 opacity-50" />
@@ -834,33 +882,36 @@ export function InventoryCheck() {
                   <p className="text-xs text-slate-400 mt-0.5">Vui lòng thử từ khóa tìm kiếm hoặc danh mục khác</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredModalMedicines.map((med) => {
-                    const isSelected = selectedMedId === med.id;
-                    const totalBranchStock = med.batches.reduce((sum, b) => sum + (b.stock || 0), 0);
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {visibleModalMedicines.map((med) => {
+                      const isSelected = selectedMedId === med.id;
+                      const totalBranchStock = med.batches.reduce((sum, b) => sum + (b.stock || 0), 0);
 
-                    return (
-                      <div
-                        key={med.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                          isSelected
-                            ? "bg-blue-50/60 border-[#0057cd] shadow-md ring-1 ring-[#0057cd]"
-                            : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-md"
-                        }`}
-                      >
-                        <div>
-                          {/* Ảnh thuốc + Huy hiệu danh mục */}
-                          <div className="relative w-full h-36 bg-slate-50 rounded-xl overflow-hidden mb-3 border border-slate-100 flex items-center justify-center group">
-                            {med.image ? (
-                              <img
-                                src={med.image}
-                                alt={med.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = "none";
-                                }}
-                              />
-                            ) : (
+                      return (
+                        <div
+                          key={med.id}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-blue-50/60 border-[#0057cd] shadow-md ring-1 ring-[#0057cd]"
+                              : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-md"
+                          }`}
+                        >
+                          <div>
+                            {/* Ảnh thuốc + Huy hiệu danh mục */}
+                            <div className="relative w-full h-36 bg-slate-50 rounded-xl overflow-hidden mb-3 border border-slate-100 flex items-center justify-center group">
+                              {med.image ? (
+                                <img
+                                  src={med.image}
+                                  alt={med.name}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
                               <div className="flex flex-col items-center justify-center text-slate-300">
                                 <Package size={36} />
                                 <span className="text-[10px] text-slate-400 mt-1">Chưa có ảnh</span>
@@ -943,16 +994,36 @@ export function InventoryCheck() {
                             )}
                           </button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Điểm neo tự động nạp thêm khi cuộn xuống + nút dự phòng */}
+                  {hasMoreModalMedicines && (
+                    <div ref={loadMoreModalRef} className="flex justify-center pt-5 pb-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleModalCount((prev) =>
+                            Math.min(prev + CHECK_MODAL_PAGE_SIZE, filteredModalMedicines.length)
+                          )
+                        }
+                        className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-[#0057cd] font-bold text-xs border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        Tải thêm ({filteredModalMedicines.length - visibleModalMedicines.length} dược phẩm còn lại)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs text-slate-500 shrink-0 px-6">
-              <span>Đang hiển thị <strong>{filteredModalMedicines.length}</strong> dược phẩm trong {isCheckingCentral ? "Kho Tổng GSP" : "kho chi nhánh"}</span>
+              <span>
+                Đang hiển thị <strong>{visibleModalMedicines.length}</strong> / <strong>{filteredModalMedicines.length}</strong> dược phẩm trong {isCheckingCentral ? "Kho Tổng GSP" : "kho chi nhánh"}
+              </span>
               <button
                 onClick={() => setIsMedicineModalOpen(false)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer"

@@ -62,17 +62,17 @@ export const OcrHistoryView: React.FC<OcrHistoryViewProps> = ({ showToast }) => 
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-200">
-              UC-69 • GPP Audit
+              Lưu trữ đơn thuốc • Chuẩn GPP
             </span>
             <span className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-              <Sparkles size={13} className="text-amber-500" /> AI Vision Multimodal
+              <Sparkles size={13} className="text-amber-500" /> Nhận diện đơn thuốc tự động
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
-            Lịch Sử Quét Đơn Thuốc OCR & Đối Soát Lâm Sàng
+            Lịch Sử Đọc Đơn Thuốc & Đối Soát Lâm Sàng
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Lưu vết tự động hình ảnh hóa đơn, kết quả bóc tách AI và toàn bộ điều chỉnh chuyên môn của Dược sĩ
+            Lưu vết tự động hình ảnh đơn thuốc, danh sách thuốc nhận diện và toàn bộ điều chỉnh chuyên môn của Dược sĩ
           </p>
         </div>
 

@@ -1151,7 +1151,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
       },
       {
         id: 'ai_chat',
-        label: 'Tư vấn Dược sĩ AI 24/7',
+        label: 'Tư vấn Dược sĩ 24/7',
         iconName: 'chatbubbles-outline',
         badge: '24/7',
         badgeVariant: 'info',
@@ -1383,7 +1383,7 @@ export const CustomerScreen: React.FC<{ navigation: any; route?: any }> = ({ nav
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.consultantCalloutTitle}>
-                    Dược Sĩ ABC & AI Sẵn Sàng 24/7
+                    Dược Sĩ ABC Sẵn Sàng 24/7
                   </Text>
                   <Text style={styles.consultantCalloutSub}>
                     Bạn cần hỏi về triệu chứng, đơn thuốc hay cách dùng thuốc an toàn?
