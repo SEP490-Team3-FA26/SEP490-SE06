@@ -307,14 +307,9 @@ export class PurchaseService {
   }
 
   /**
-<<<<<<< HEAD
-  /**
    * Danh sách tất cả PR (cho Warehouse Manager xem để gom đơn, hoặc HQ xem để duyệt).
-   * Hỗ trợ lọc status đơn lẻ, mảng hoặc chuỗi comma-separated, phân trang tối đa 100.
+   * Hỗ trợ lọc status đơn lẻ, mảng hoặc chuỗi comma-separated, phân trang mặc định và tối đa 100 theo Rule 9.
    * Đồng thời hỗ trợ gộp trạng thái URGENT_PENDING vào SUBMITTED cho tab Chờ xử lý.
-=======
-   * Danh sách tất cả PR (hỗ trợ lọc status đơn lẻ hoặc dạng chuỗi comma-separated, phân trang mặc định 100).
->>>>>>> f88ec444b41e814d43b8e190ee34dd0193a99bd4
    */
   async listPurchaseRequisitions(query: any = {}) {
     const filter: any = {};
