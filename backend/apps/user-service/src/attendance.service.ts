@@ -72,10 +72,55 @@ export class AttendanceService {
   ) {}
 
   /**
+   * Đối soát thông tin nhân viên trong user-service DB theo ObjectId,
+   * tự động fallback theo email nếu tài khoản bị lệch _id giữa auth-service DB và user-service DB
+   */
+  private async resolveEmployee(employeeId: string, employeeEmail?: string) {
+    let user: any = null;
+    if (employeeId && Types.ObjectId.isValid(employeeId)) {
+      user = await this.userModel.findById(employeeId)?.lean()?.exec();
+    }
+
+    if (!user && employeeEmail && typeof this.userModel.findOne === 'function') {
+      const normalizedEmail = String(employeeEmail).toLowerCase().trim();
+      if (normalizedEmail) {
+        user = await this.userModel.findOne({ email: normalizedEmail })?.lean()?.exec();
+        if (!user) {
+          const escaped = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          user = await this.userModel
+            .findOne({ email: { $regex: `^${escaped}$`, $options: 'i' } })
+            ?.lean()
+            ?.exec();
+        }
+      }
+    }
+
+    const canonicalEmployeeId = user?._id ? String(user._id) : employeeId;
+    const candidateIdStrings = Array.from(new Set([canonicalEmployeeId, employeeId].filter(Boolean)));
+    const candidateObjectIds = candidateIdStrings
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+    const employeeIdQuery =
+      candidateObjectIds.length > 1
+        ? { $in: candidateObjectIds }
+        : candidateObjectIds.length === 1
+        ? candidateObjectIds[0]
+        : canonicalEmployeeId;
+
+    return {
+      user,
+      canonicalEmployeeId,
+      candidateIdStrings,
+      employeeIdQuery,
+    };
+  }
+
+  /**
    * Check-in ca làm việc bằng tọa độ GPS từ mobile app
    */
   async checkIn(dto: {
     employeeId: string;
+    employeeEmail?: string;
     branchId?: string;
     shiftId?: string;
     latitude: number;
@@ -100,7 +145,8 @@ export class AttendanceService {
       throw new RpcException('Tọa độ GPS không hợp lệ hoặc thiết bị chưa cấp quyền định vị');
     }
 
-    const user = await this.userModel.findById(dto.employeeId)?.lean()?.exec();
+    const { user, canonicalEmployeeId, candidateIdStrings, employeeIdQuery } =
+      await this.resolveEmployee(dto.employeeId, dto.employeeEmail);
     if (!user) {
       throw new RpcException('Không tìm thấy thông tin nhân viên');
     }
@@ -155,7 +201,7 @@ export class AttendanceService {
     // 1. Tìm các bản ghi điểm danh hiện có hôm nay và hôm qua của nhân viên
     const existingDayAttendances = await this.attendanceModel
       .find({
-        employeeId: new Types.ObjectId(dto.employeeId),
+        employeeId: employeeIdQuery,
         date: { $in: [todayStr, yesterdayStr] },
       })
       .exec();
@@ -181,7 +227,7 @@ export class AttendanceService {
     const candidateAssignments: Array<{ assign: any; dateStr: string; isYesterdayOvernight: boolean }> = [];
     for (const schedule of schedules) {
       for (const a of schedule.assignments || []) {
-        if (String(a.employeeId) !== String(dto.employeeId)) continue;
+        if (!candidateIdStrings.includes(String(a.employeeId))) continue;
         const aDateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : '';
         if (aDateStr === todayStr) {
           candidateAssignments.push({ assign: a, dateStr: todayStr, isYesterdayOvernight: false });
@@ -311,7 +357,7 @@ export class AttendanceService {
     // Kiểm tra xem đã check-in ca này chưa (hoặc đã có bản ghi DEFAULT đang mở trong ngày để tránh tạo trùng)
     let existing = await this.attendanceModel
       .findOne({
-        employeeId: new Types.ObjectId(dto.employeeId),
+        employeeId: employeeIdQuery,
         date: attendanceDateStr,
         shiftId: effectiveShiftId,
       })
@@ -320,7 +366,7 @@ export class AttendanceService {
     if (!existing) {
       existing = await this.attendanceModel
         .findOne({
-          employeeId: new Types.ObjectId(dto.employeeId),
+          employeeId: employeeIdQuery,
           date: attendanceDateStr,
           $or: [
             { shiftId: 'DEFAULT', status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] } },
@@ -352,8 +398,11 @@ export class AttendanceService {
       };
     }
 
+    const persistedEmployeeId = Types.ObjectId.isValid(canonicalEmployeeId)
+      ? new Types.ObjectId(canonicalEmployeeId)
+      : new Types.ObjectId(dto.employeeId);
     const attendance = await this.attendanceModel.create({
-      employeeId: new Types.ObjectId(dto.employeeId),
+      employeeId: persistedEmployeeId,
       employeeName: user.fullName,
       employeeRole: user.role,
       branchId,
@@ -382,6 +431,7 @@ export class AttendanceService {
    */
   async checkOut(dto: {
     employeeId: string;
+    employeeEmail?: string;
     branchId?: string;
     latitude?: number;
     longitude?: number;
@@ -404,7 +454,7 @@ export class AttendanceService {
       throw new RpcException('Tọa độ GPS không hợp lệ hoặc thiết bị chưa cấp quyền định vị khi check-out');
     }
 
-    const user = await this.userModel.findById(dto.employeeId)?.lean()?.exec();
+    const { user, employeeIdQuery } = await this.resolveEmployee(dto.employeeId, dto.employeeEmail);
     if (!user) {
       throw new RpcException('Không tìm thấy thông tin nhân viên');
     }
@@ -455,7 +505,7 @@ export class AttendanceService {
     // 1. Tìm bản ghi ca trực đang mở của ngày hôm nay
     let attendance = await this.attendanceModel
       .findOne({
-        employeeId: new Types.ObjectId(dto.employeeId),
+        employeeId: employeeIdQuery,
         date: todayStr,
         status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
         checkOutTime: null,
@@ -468,7 +518,7 @@ export class AttendanceService {
       const recentOpenCutoff = new Date(Date.now() - 14 * 3600 * 1000);
       attendance = await this.attendanceModel
         .findOne({
-          employeeId: new Types.ObjectId(dto.employeeId),
+          employeeId: employeeIdQuery,
           date: yesterdayStr,
           status: { $in: [AttendanceStatus.CHECKED_IN, AttendanceStatus.LATE] },
           checkOutTime: null,
@@ -482,7 +532,7 @@ export class AttendanceService {
     if (!attendance) {
       const submittedHandoverAtt = await this.attendanceModel
         .findOne({
-          employeeId: new Types.ObjectId(dto.employeeId),
+          employeeId: employeeIdQuery,
           date: { $in: [todayStr, yesterdayStr] },
           isHandoverSubmitted: true,
           status: AttendanceStatus.COMPLETED,
@@ -537,8 +587,11 @@ export class AttendanceService {
   /**
    * Lấy thông tin trạng thái ca trực hiện tại của nhân viên
    */
-  async getMyCurrentShiftStatus(employeeId: string, branchId?: string) {
-    const user = await this.userModel.findById(employeeId).lean().exec();
+  async getMyCurrentShiftStatus(employeeId: string, branchId?: string, employeeEmail?: string) {
+    const { user, candidateIdStrings, employeeIdQuery } = await this.resolveEmployee(
+      employeeId,
+      employeeEmail,
+    );
     if (!user) throw new RpcException('User not found');
 
     const effectiveBranchId = branchId || user.branchId || 'BR-001';
@@ -555,7 +608,7 @@ export class AttendanceService {
     // 1. Lấy toàn bộ các bản ghi điểm danh hôm nay và ca đêm mở từ hôm qua
     const dayAttendances = await this.attendanceModel
       .find({
-        employeeId: new Types.ObjectId(employeeId),
+        employeeId: employeeIdQuery,
         $or: [
           { date: todayStr },
           {
@@ -592,7 +645,7 @@ export class AttendanceService {
     const candidateAssignments: Array<{ assign: any; dateStr: string; isYesterdayOvernight: boolean }> = [];
     for (const schedule of schedules) {
       for (const a of schedule.assignments || []) {
-        if (String(a.employeeId) !== String(employeeId)) continue;
+        if (!candidateIdStrings.includes(String(a.employeeId))) continue;
         const aDateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : '';
         if (aDateStr === todayStr) {
           candidateAssignments.push({ assign: a, dateStr: todayStr, isYesterdayOvernight: false });
@@ -695,8 +748,8 @@ export class AttendanceService {
    * Dùng cho chốt chặn bán hàng POS (POS Shift Guard):
    * Xác nhận xem Dược sĩ có ca trực đang hoạt động và ĐÃ CHECK-IN hay chưa.
    */
-  async verifyPharmacistActiveShift(pharmacistId: string, branchId?: string) {
-    const status = await this.getMyCurrentShiftStatus(pharmacistId, branchId);
+  async verifyPharmacistActiveShift(pharmacistId: string, branchId?: string, pharmacistEmail?: string) {
+    const status = await this.getMyCurrentShiftStatus(pharmacistId, branchId, pharmacistEmail);
     if (status.isCompleted) {
       return {
         allowed: false,
@@ -759,8 +812,9 @@ export class AttendanceService {
   /**
    * Lấy lịch sử điểm danh của cá nhân nhân viên
    */
-  async getMyAttendanceHistory(employeeId: string, startDate?: string, endDate?: string) {
-    const filter: any = { employeeId: new Types.ObjectId(employeeId) };
+  async getMyAttendanceHistory(employeeId: string, startDate?: string, endDate?: string, employeeEmail?: string) {
+    const { employeeIdQuery } = await this.resolveEmployee(employeeId, employeeEmail);
+    const filter: any = { employeeId: employeeIdQuery };
     if (startDate && endDate) {
       filter.date = { $gte: startDate, $lte: endDate };
     } else if (startDate) {

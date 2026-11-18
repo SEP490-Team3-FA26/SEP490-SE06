@@ -54,6 +54,7 @@ export class SalesController implements OnModuleInit {
     if (req.user?.role === 'pharmacist') {
       const shiftVerification: any = await sendKafkaMessage(this.userClient, 'hr.attendance.verify_active_shift', {
         pharmacistId: req.user.sub,
+        pharmacistEmail: req.user.email,
         branchId: req.user.branchId || data.branchId,
       });
       if (!shiftVerification?.allowed) {

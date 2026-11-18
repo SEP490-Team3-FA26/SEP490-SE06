@@ -1206,8 +1206,10 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
     }
 
     // Đồng bộ tài khoản nhân sự sang Auth Service và phát sự kiện gửi email chào mừng
+    // Gửi kèm _id gốc của user-service để 2 database giữ cùng ObjectId, tránh lệch sub khi điểm danh/phân ca
     try {
       this.authClient.emit('auth.employee.welcome_reset_password', {
+        _id: newUser._id.toString(),
         email: data.email,
         fullName: data.fullName,
         branchId: data.branchId,
@@ -1668,9 +1670,10 @@ export class UserService implements OnModuleInit, OnApplicationShutdown {
 
     await employee.save();
 
-    // Đồng bộ thông tin nhân sự sang Auth Service
+    // Đồng bộ thông tin nhân sự sang Auth Service (đính kèm _id để đồng nhất danh tính giữa 2 DB)
     try {
       this.authClient.emit('auth.employee.sync', {
+        _id: employee._id.toString(),
         email: employee.email,
         fullName: employee.fullName,
         branchId: employee.branchId,
