@@ -856,14 +856,15 @@ export class MedicineService implements OnModuleInit {
               // Truy vấn bảng cân bằng kho và tồn kho vật lý chi nhánh cho kết quả AI Search
               const aiBranchBalancesMap = new Map<string, number>();
               const aiBranchInvMap = new Map<string, any[]>();
-              if (query.branchId && query.branchId !== 'CENTRAL_WH') {
+              if (query.branchId && query.branchId !== 'CENTRAL_WH' && query.branchId !== 'all') {
+                const branchQueryFilter = this.inventoryCheckBranchFilter(query.branchId);
                 const [balances, branchInvs] = await Promise.all([
                   this.balanceModel.find({
-                    branchId: query.branchId,
+                    ...branchQueryFilter,
                     medicineId: { $in: aiMedIds }
                   }).lean().exec(),
                   this.branchInvModel.find({
-                    branchId: query.branchId,
+                    ...branchQueryFilter,
                     medicineId: { $in: aiMedIds },
                     status: 'ACTIVE',
                     stock: { $gt: 0 }
@@ -938,14 +939,15 @@ export class MedicineService implements OnModuleInit {
           // Truy vấn bảng cân bằng kho và tồn kho vật lý chi nhánh cho Mongoose Fallback Search
           const fallbackBranchBalancesMap = new Map<string, number>();
           const fallbackBranchInvMap = new Map<string, any[]>();
-          if (query.branchId && query.branchId !== 'CENTRAL_WH') {
+          if (query.branchId && query.branchId !== 'CENTRAL_WH' && query.branchId !== 'all') {
+            const branchQueryFilter = this.inventoryCheckBranchFilter(query.branchId);
             const [balances, branchInvs] = await Promise.all([
               this.balanceModel.find({
-                branchId: query.branchId,
+                ...branchQueryFilter,
                 medicineId: { $in: medIds }
               }).lean().exec(),
               this.branchInvModel.find({
-                branchId: query.branchId,
+                ...branchQueryFilter,
                 medicineId: { $in: medIds },
                 status: 'ACTIVE',
                 stock: { $gt: 0 }
@@ -1054,14 +1056,15 @@ export class MedicineService implements OnModuleInit {
         const branchBalancesMap = new Map<string, number>();
         const branchInvMap = new Map<string, any[]>();
 
-        if (query.branchId && query.branchId !== 'CENTRAL_WH') {
+        if (query.branchId && query.branchId !== 'CENTRAL_WH' && query.branchId !== 'all') {
+          const branchQueryFilter = this.inventoryCheckBranchFilter(query.branchId);
           const [balances, branchInvs] = await Promise.all([
             this.balanceModel.find({
-              branchId: query.branchId,
+              ...branchQueryFilter,
               medicineId: { $in: medIds }
             }).lean().exec(),
             this.branchInvModel.find({
-              branchId: query.branchId,
+              ...branchQueryFilter,
               medicineId: { $in: medIds },
               status: 'ACTIVE',
               stock: { $gt: 0 }
@@ -1570,14 +1573,21 @@ export class MedicineService implements OnModuleInit {
   }
 
   private inventoryCheckBranchFilter(branchId = 'CENTRAL_WH') {
-    return { branchId: branchId === 'CENTRAL_WH' ? { $in: ['CENTRAL_WH', null, ''] } : branchId };
+    const normalized = this.normalizeBranchCode(branchId);
+    if (normalized === 'CENTRAL_WH') {
+      return { branchId: { $in: ['CENTRAL_WH', null, ''] } };
+    }
+    const raw = String(branchId || '').trim();
+    const candidates = Array.from(new Set([normalized, raw].filter(Boolean)));
+    return { branchId: candidates.length === 1 ? candidates[0] : { $in: candidates } };
   }
 
   async listInventoryCheckBatches(branchId: string) {
+    const normalizedBranchId = this.normalizeBranchCode(branchId);
     const filter = this.inventoryCheckBranchFilter(branchId);
     const batchFilter = { ...filter, status: { $ne: 'DISPOSED' } };
     const fields = 'medicineId batchNo stock expDate status';
-    const batches = branchId === 'CENTRAL_WH'
+    const batches = normalizedBranchId === 'CENTRAL_WH'
       ? await this.batchModel.find(batchFilter).select(fields).lean().exec()
       : await this.branchInvModel.find(batchFilter).select(fields).lean().exec();
     const medicineIds = [...new Set(batches.map(batch => batch.medicineId))];
@@ -1589,23 +1599,34 @@ export class MedicineService implements OnModuleInit {
       list.push(batch);
       grouped.set(batch.medicineId, list);
     }
-    return medicines.map(medicine => ({
-      id: medicine._id.toString(),
-      name: medicine.name,
-      unit: medicine.unit,
-      image: (medicine as any).image || ((medicine as any).images && (medicine as any).images[0]) || '',
-      category: (medicine as any).category || '',
-      price: (medicine as any).price || 0,
-      registrationNumber: (medicine as any).registration_number || '',
-      barcode: (medicine as any).barcode || '',
-      batches: (grouped.get(medicine._id.toString()) ?? []).map(batch => ({
-        id: batch._id.toString(),
-        batchNo: batch.batchNo,
-        stock: batch.stock,
-        expDate: batch.expDate,
-        status: batch.status,
-      })),
-    }));
+    return medicines.map(medicine => {
+      // Sắp xếp lô hàng theo thứ tự ưu tiên: lô còn tồn (> 0) lên trước, sau đó ưu tiên cận hạn nhất (FEFO)
+      const sortedBatches = (grouped.get(medicine._id.toString()) ?? []).slice().sort((a, b) => {
+        const aInStock = Number(a.stock || 0) > 0 ? 1 : 0;
+        const bInStock = Number(b.stock || 0) > 0 ? 1 : 0;
+        if (aInStock !== bInStock) return bInStock - aInStock;
+        const aExp = a.expDate ? new Date(a.expDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const bExp = b.expDate ? new Date(b.expDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return aExp - bExp;
+      });
+      return {
+        id: medicine._id.toString(),
+        name: medicine.name,
+        unit: medicine.unit,
+        image: (medicine as any).image || ((medicine as any).images && (medicine as any).images[0]) || '',
+        category: (medicine as any).category || '',
+        price: (medicine as any).price || 0,
+        registrationNumber: (medicine as any).registration_number || '',
+        barcode: (medicine as any).barcode || '',
+        batches: sortedBatches.map(batch => ({
+          id: batch._id.toString(),
+          batchNo: batch.batchNo,
+          stock: batch.stock,
+          expDate: batch.expDate,
+          status: batch.status,
+        })),
+      };
+    });
   }
 
   private async resolveInventoryCheckBatch(
@@ -1616,13 +1637,14 @@ export class MedicineService implements OnModuleInit {
     if (item.batchId && !Types.ObjectId.isValid(item.batchId)) {
       throw new RpcException({ message: 'ID lô kiểm kê không hợp lệ', statusCode: 400 });
     }
+    const normalizedBranchId = this.normalizeBranchCode(branchId);
     const filter = {
       ...this.inventoryCheckBranchFilter(branchId),
       medicineId: item.medicineId,
       batchNo: item.batchNo,
       ...(item.batchId ? { _id: item.batchId } : {}),
     };
-    const matches = branchId === 'CENTRAL_WH'
+    const matches = normalizedBranchId === 'CENTRAL_WH'
       ? await this.batchModel.find(filter).limit(2).session(session ?? null).exec()
       : await this.branchInvModel.find(filter).limit(2).session(session ?? null).exec();
     if (matches.length !== 1) {
@@ -1882,8 +1904,15 @@ export class MedicineService implements OnModuleInit {
   }
 
   private async syncStockAfterCheck(medicineId: string, branchId: string, session?: ClientSession) {
-    if (branchId === 'CENTRAL_WH') {
-      const q = this.batchModel.find({ medicineId, status: 'ACTIVE', stock: { $gt: 0 } }).select('stock');
+    const normalizedBranchId = this.normalizeBranchCode(branchId);
+    if (normalizedBranchId === 'CENTRAL_WH') {
+      // Chỉ cộng dồn các lô ACTIVE thuộc phạm vi Kho Tổng (CENTRAL_WH), không gộp nhầm lô chi nhánh
+      const q = this.batchModel.find({
+        ...this.inventoryCheckBranchFilter('CENTRAL_WH'),
+        medicineId,
+        status: 'ACTIVE',
+        stock: { $gt: 0 },
+      }).select('stock');
       if (session) q.session(session);
       const batches = await q.lean().exec();
       const stock = batches.reduce((sum, batch) => sum + batch.stock, 0);
@@ -1893,13 +1922,17 @@ export class MedicineService implements OnModuleInit {
       return;
     }
 
+    // Chi nhánh bán lẻ: chỉ cộng dồn các lô ACTIVE thuộc đúng chi nhánh kiểm kê
     const q = this.branchInvModel.find({
-      branchId, medicineId, status: 'ACTIVE', stock: { $gt: 0 },
+      ...this.inventoryCheckBranchFilter(branchId),
+      medicineId,
+      status: 'ACTIVE',
+      stock: { $gt: 0 },
     }).select('stock');
     if (session) q.session(session);
     const batches = await q.lean().exec();
     const totalStock = batches.reduce((sum, batch) => sum + batch.stock, 0);
-    await this.balanceModel.updateOne({ branchId, medicineId }, {
+    await this.balanceModel.updateOne({ branchId: normalizedBranchId, medicineId }, {
       $set: { totalStock, status: totalStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK', lastSyncedAt: new Date() },
     }, session ? { session, upsert: true } : { upsert: true }).exec();
   }

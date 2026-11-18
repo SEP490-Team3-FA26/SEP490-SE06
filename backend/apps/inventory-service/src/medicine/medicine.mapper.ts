@@ -50,6 +50,8 @@ export interface MedicineMappingContext {
   branchId?: string;
   specificBranchInvs?: any[];
   balanceStock?: number;
+  /** Toàn bộ danh sách lô hàng (bao gồm lô tồn 0 chưa tiêu hủy) để tính hạn dùng thực tế */
+  allBatches?: any[];
 }
 
 /**
@@ -141,9 +143,11 @@ export class MedicineMapper {
     const specificBranchInvs = context?.specificBranchInvs || [];
     const balanceStock = context?.balanceStock;
     const branchId = context?.branchId;
+    const allBatches = context?.allBatches || activeBatches;
 
-    if (branchId && branchId !== 'CENTRAL_WH') {
-      // Chi nhánh bán lẻ: Ưu tiên số dư bảng cân bằng kho -> collection kho vật lý -> lô hàng chi nhánh -> tồn kho tổng
+    if (branchId && branchId !== 'CENTRAL_WH' && branchId !== 'all') {
+      // Chi nhánh bán lẻ: Ưu tiên số dư bảng cân bằng kho -> collection kho vật lý -> lô hàng chi nhánh
+      // Tuyệt đối không fallback sang med.stock (tồn tổng toàn chuỗi) để tránh sai lệch và rò rỉ dữ liệu kho
       if (balanceStock !== undefined) {
         totalStock = Math.max(0, Number(balanceStock) || 0);
       } else if (specificBranchInvs.length > 0) {
@@ -151,32 +155,46 @@ export class MedicineMapper {
       } else if (activeBatches.length > 0) {
         totalStock = Math.max(0, activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
       } else {
-        totalStock = Math.max(0, Number(context?.dbMed?.stock || med?.stock || 0));
+        totalStock = 0;
       }
 
       if (specificBranchInvs.length > 0) {
         earliestExpiryStr = this.calculateEarliestExpiry(specificBranchInvs);
       } else if (activeBatches.length > 0) {
         earliestExpiryStr = this.calculateEarliestExpiry(activeBatches);
+      } else {
+        const nonDisposedBranchBatches = allBatches.filter(
+          (b) => String(b?.status || '').toUpperCase() !== 'DISPOSED',
+        );
+        if (nonDisposedBranchBatches.length > 0) {
+          earliestExpiryStr = this.calculateEarliestExpiry(nonDisposedBranchBatches);
+        }
       }
-    } else if (branchId === 'CENTRAL_WH') {
-      // Kho tổng GSP: Tổng tồn tính theo các lô hàng thuộc kho tổng
-      totalStock = Math.max(
-        0,
-        activeBatches.length > 0
-          ? activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0)
-          : Number(context?.dbMed?.stock || med?.stock || 0)
+    } else if (branchId === 'all') {
+      // Toàn chuỗi: cộng dồn toàn bộ các lô ACTIVE còn tồn trên toàn hệ thống
+      totalStock = Math.max(0, activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
+      const nonDisposedAll = allBatches.filter(
+        (b) => String(b?.status || '').toUpperCase() !== 'DISPOSED',
       );
-      earliestExpiryStr = this.calculateEarliestExpiry(activeBatches);
+      earliestExpiryStr = this.calculateEarliestExpiry(
+        activeBatches.length > 0 ? activeBatches : nonDisposedAll,
+      );
     } else {
-      // KHO TỔNG (CENTRAL_WH) mặc định khi không truyền branchId:
-      // CHỈ tính tồn các lô ACTIVE của Kho Tổng (CENTRAL_WH)!
-      // Tuyệt đối KHÔNG cộng dồn bất kỳ chi nhánh nào vào Kho Tổng!
+      // KHO TỔNG (CENTRAL_WH - kể cả truyền branchId='CENTRAL_WH' hoặc bỏ trống branchId):
+      // CHỈ tính tồn từ các lô ACTIVE thuộc Kho Tổng, KHÔNG fallback sang med.stock cũ
+      // nhằm đồng bộ 100% giữa màn Tổng quan kho và Biên bản kiểm kê Kho Tổng GSP.
       const centralActiveBatches = activeBatches.filter(
         (b) => !b.branchId || b.branchId === 'CENTRAL_WH',
       );
+      const centralNonDisposedBatches = allBatches.filter(
+        (b) =>
+          (!b.branchId || b.branchId === 'CENTRAL_WH') &&
+          String(b?.status || '').toUpperCase() !== 'DISPOSED',
+      );
       totalStock = Math.max(0, centralActiveBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0));
-      earliestExpiryStr = this.calculateEarliestExpiry(centralActiveBatches);
+      earliestExpiryStr = this.calculateEarliestExpiry(
+        centralActiveBatches.length > 0 ? centralActiveBatches : centralNonDisposedBatches,
+      );
     }
 
     return { totalStock, earliestExpiryStr };
@@ -195,7 +213,10 @@ export class MedicineMapper {
     const activeBatches = this.filterActiveBatches(medBatches);
 
     const actualPrice = dbMed?.price || med.price || 50000;
-    const { totalStock, earliestExpiryStr } = this.computeStockAndExpiry(med, activeBatches, context);
+    const { totalStock, earliestExpiryStr } = this.computeStockAndExpiry(med, activeBatches, {
+      ...context,
+      allBatches: context?.allBatches ?? medBatches,
+    });
 
     const barcode =
       dbMed?.barcode ||
