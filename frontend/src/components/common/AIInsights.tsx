@@ -254,12 +254,12 @@ export function AIInsights() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">AI Insights & Trợ Lý Phân Tích Chuỗi Cung Ứng</h1>
+              <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">Trợ Lý Phân Tích Kinh Doanh & Kho Vận</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm flex items-center gap-1">
-                <Zap size={11} /> RTX 3050 GPU
+                <Zap size={11} /> Phân tích tự động
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">Trợ lý AI thông minh phân tích toàn diện kho vận, dịch bệnh, thời tiết và dự báo tài chính theo thời gian thực.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Phân tích toàn diện tình hình kho vận, nhu cầu mùa vụ, dịch bệnh và hiệu quả tài chính theo thời gian thực.</p>
           </div>
         </div>
 
@@ -268,13 +268,13 @@ export function AIInsights() {
             onClick={() => navigate('/admin/ai-forecast')}
             className="px-3.5 py-2 bg-white border border-slate-200 hover:border-purple-300 text-slate-700 hover:text-purple-700 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
           >
-            <ShoppingCart size={14} className="text-purple-600" /> Màn hình Dự Báo AI
+            <ShoppingCart size={14} className="text-purple-600" /> Xem dự báo nhập hàng
           </button>
           <button
             onClick={fetchInsightData}
             disabled={loading}
             className="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition-all shadow-sm disabled:opacity-50"
-            title="Làm mới dữ liệu AI"
+            title="Làm mới dữ liệu phân tích"
           >
             <Loader2 size={15} className={loading ? "animate-spin text-emerald-600" : ""} />
           </button>

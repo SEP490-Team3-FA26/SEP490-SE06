@@ -439,8 +439,8 @@ export function AIForecast() {
             <Sparkles size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dự Báo Nhu Cầu Nhập Hàng Theo Kỳ (AI Forecast)</h1>
-            <p className="text-slate-500 mt-1 text-sm">Hệ thống AI Deep Learning (PyTorch GPU) tự động phân tích doanh số và dự báo nhu cầu toàn kho.</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dự Báo Nhu Cầu Nhập Hàng Theo Kỳ</h1>
+            <p className="text-slate-500 mt-1 text-sm">Tự động phân tích lịch sử doanh số và đề xuất số lượng nhập kho phù hợp từng giai đoạn.</p>
           </div>
         </div>
         
@@ -450,10 +450,10 @@ export function AIForecast() {
             onClick={handleTriggerGpuRetrain}
             disabled={isRetraining || loading}
             className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
-            title="Kích hoạt mô hình PyTorch huấn luyện lại trên GPU RTX 3050 CUDA"
+            title="Cập nhật lại số liệu dự báo theo dữ liệu bán hàng mới nhất"
           >
             {isRetraining ? <Loader2 size={14} className="animate-spin text-white" /> : <Zap size={14} />}
-            {isRetraining ? "Đang Train GPU..." : "Huấn Luyện Lại (GPU)"}
+            {isRetraining ? "Đang tính toán lại..." : "Cập Nhật Dự Báo Mới"}
           </button>
 
           <button

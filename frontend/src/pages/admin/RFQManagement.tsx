@@ -727,13 +727,13 @@ export function RFQManagement() {
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                Yêu Cầu Báo Giá Hàng Loạt (RFQ)
+                Mời Báo Giá Nhà Cung Cấp
                 <span className="text-[10px] bg-blue-100 text-blue-800 font-mono px-2 py-0.5 rounded-full font-bold">
-                  Procurement v2.0
+                  Thu mua tập trung
                 </span>
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                Tự động gom nhu cầu thiếu hụt, gửi RFQ đa kênh đến NCC GDP và chọn thầu thông minh chống bẫy hàng cận date.
+                Gom nhu cầu thiếu hụt, gửi lời mời báo giá đồng loạt cho Nhà cung cấp và so sánh chọn thầu chống hàng cận hạn.
               </p>
             </div>
           </div>
@@ -744,7 +744,7 @@ export function RFQManagement() {
           className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all active:scale-95"
         >
           <Plus size={16} />
-          Tạo Yêu Cầu Báo Giá (RFQ)
+          Tạo đợt mời báo giá
         </button>
       </div>
 

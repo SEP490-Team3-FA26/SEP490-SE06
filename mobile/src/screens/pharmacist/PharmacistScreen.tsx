@@ -552,7 +552,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
         title="ABC Pharmacy"
-        subtitle={user?.branchName ? `Quầy POS • ${user.branchName}` : 'Quầy Bán Hàng Dược Sĩ POS'}
+        subtitle={user?.branchName ? `Quầy bán hàng • ${user.branchName}` : 'Quầy Bán Hàng Dược Sĩ'}
         gradientVariant="sky"
         leftAction={{
           icon: 'menu',
@@ -593,7 +593,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             color={activeTab === 'POS' ? '#0369A1' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'POS' && styles.activeTabText]}>
-            POS Bán Hàng ({cart.reduce((a, b) => a + b.quantity, 0)})
+            Bán Hàng ({cart.reduce((a, b) => a + b.quantity, 0)})
           </Text>
         </AnimatedTouchable>
 
@@ -607,7 +607,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             color={activeTab === 'OCR' ? '#0369A1' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'OCR' && styles.activeTabText]}>
-            Quét Đơn OCR
+            Đọc Đơn Thuốc
           </Text>
         </AnimatedTouchable>
 
