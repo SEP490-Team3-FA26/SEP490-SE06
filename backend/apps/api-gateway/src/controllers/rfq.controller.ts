@@ -133,7 +133,7 @@ export class RfqController implements OnModuleInit {
   })
   async awardRfq(
     @Param('id') id: string,
-    @Body() body: { quotationId: string; supplierId: string; reason?: string },
+    @Body() body: { quotationId: string; supplierId: string; reason?: string; adjustToMoq?: boolean },
     @Req() req: any,
   ) {
     if (!id || id === 'undefined' || id === 'null' || !id.trim()) {

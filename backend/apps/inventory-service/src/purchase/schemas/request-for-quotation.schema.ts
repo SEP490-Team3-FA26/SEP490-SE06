@@ -70,6 +70,16 @@ export class RfqTargetSupplier {
 export const RfqTargetSupplierSchema = SchemaFactory.createForClass(RfqTargetSupplier);
 
 @Schema({ _id: false })
+export class QuotationPriceTier {
+  @Prop({ type: Number, required: true, min: 1 })
+  minQuantity: number; // Mốc số lượng đặt hàng tối thiểu để hưởng mức đơn giá này
+
+  @Prop({ type: Number, required: true, min: 0 })
+  unitPrice: number; // Đơn giá áp dụng theo bậc số lượng (VNĐ)
+}
+export const QuotationPriceTierSchema = SchemaFactory.createForClass(QuotationPriceTier);
+
+@Schema({ _id: false })
 export class SupplierQuotationItem {
   @Prop({ type: String, required: true })
   medicineId: string;
@@ -78,7 +88,22 @@ export class SupplierQuotationItem {
   medicineName: string;
 
   @Prop({ type: Number, required: true, min: 0 })
-  quotedPrice: number; // Giá chào của NCC
+  quotedPrice: number; // Đơn giá chào cơ bản của NCC (VNĐ)
+
+  @Prop({ type: Number, default: 1, min: 1 })
+  moq?: number; // Số lượng đặt hàng tối thiểu (MOQ - Minimum Order Quantity)
+
+  @Prop({ type: [QuotationPriceTierSchema], default: [] })
+  priceTiers?: QuotationPriceTier[]; // Bảng đơn giá theo bậc số lượng (mua càng nhiều giá càng giảm)
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  effectiveUnitPrice?: number; // Đơn giá thực tế áp dụng cho số lượng yêu cầu dựa trên bậc giá
+
+  @Prop({ type: Number })
+  appliedTierMinQuantity?: number; // Mốc số lượng của bậc giá đang được áp dụng
+
+  @Prop({ type: Boolean, default: true })
+  isMoqMet?: boolean; // Số lượng yêu cầu của nhà thuốc có đáp ứng MOQ của NCC hay không
 
   @Prop({ type: Number, default: 0 })
   declaredPrice?: number; // Giá trần kê khai BYT đối chiếu
