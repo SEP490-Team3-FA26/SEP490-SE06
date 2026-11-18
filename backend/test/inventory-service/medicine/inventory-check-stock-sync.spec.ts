@@ -238,4 +238,63 @@ describe('InventoryCheck & Warehouse Stock Synchronization (Central vs Branch)',
       );
     });
   });
+
+  // =========================================================================
+  // 4. Đồng bộ danh sách lô chi tiết (`dto.batches`) của Kho Chi Nhánh (branch_inventories)
+  // =========================================================================
+  describe('4. Đồng bộ danh sách lô chi tiết (dto.batches) của Kho Chi Nhánh với branch_inventories', () => {
+    it('[Normal] Chi nhánh BR-001 phải trả về dto.batches từ branch_inventories (sắp xếp FEFO) thay vì lô legacy medicinebatches bị cũ', () => {
+      const staleLegacyBatches = [
+        { batchNo: 'INIT-BATCH', stock: 35, expDate: new Date('2027-02-03'), status: 'ACTIVE', branchId: 'BR-001' },
+      ];
+      const realBranchInvs = [
+        { batchNo: 'LOT-BR-LATE', stock: 8, expDate: new Date('2028-01-01'), status: 'ACTIVE', branchId: 'BR-001' },
+        { batchNo: 'INIT-BATCH', stock: 12, expDate: new Date('2027-02-03'), status: 'ACTIVE', branchId: 'BR-001' },
+      ];
+
+      const dto = MedicineMapper.toListItemDto(salonpasMaster, staleLegacyBatches, {
+        branchId: 'BR-001',
+        balanceStock: 20,
+        specificBranchInvs: realBranchInvs,
+        dbMed: salonpasMaster,
+      });
+
+      expect(dto.stock).toBe(20);
+      // Ưu tiên lô cận hạn nhất (FEFO) và lấy đúng tồn 12 (không lấy tồn cũ 35 từ legacy batches)
+      expect(dto.batches.map((b) => ({ batchNo: b.batchNo, stock: b.stock }))).toEqual([
+        { batchNo: 'INIT-BATCH', stock: 12 },
+        { batchNo: 'LOT-BR-LATE', stock: 8 },
+      ]);
+    });
+
+    it('[Boundary] Chi nhánh đã bán hết (balanceStock = 0, specificBranchInvs = []) -> dto.batches phải rỗng, không rò rỉ lô cũ còn tồn từ legacy medicinebatches', () => {
+      const staleLegacyBatches = [
+        { batchNo: 'INIT-BATCH', stock: 35, expDate: new Date('2027-02-03'), status: 'ACTIVE', branchId: 'BR-001' },
+      ];
+
+      const dto = MedicineMapper.toListItemDto(salonpasMaster, staleLegacyBatches, {
+        branchId: 'BR-001',
+        balanceStock: 0,
+        specificBranchInvs: [],
+        dbMed: salonpasMaster,
+      });
+
+      expect(dto.stock).toBe(0);
+      expect(dto.batches).toEqual([]);
+    });
+
+    it('[Abnormal] Kho Tổng (CENTRAL_WH) bị truyền lẫn lô chi nhánh BR-001 -> dto.batches phải loại bỏ lô chi nhánh đó', () => {
+      const mixedBatches = [
+        { batchNo: 'INIT-BATCH', stock: 0, expDate: new Date('2027-02-03'), status: 'ACTIVE', branchId: 'CENTRAL_WH' },
+        { batchNo: 'BR-LEAK-LOT', stock: 50, expDate: new Date('2027-09-01'), status: 'ACTIVE', branchId: 'BR-001' },
+      ];
+
+      const dto = MedicineMapper.toListItemDto(salonpasMaster, mixedBatches, {
+        branchId: 'CENTRAL_WH',
+        dbMed: salonpasMaster,
+      });
+
+      expect(dto.batches.map((b) => b.batchNo)).toEqual(['INIT-BATCH']);
+    });
+  });
 });

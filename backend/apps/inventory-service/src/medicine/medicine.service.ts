@@ -418,10 +418,11 @@ export class MedicineService implements OnModuleInit {
 
     if (query.branchStockOnly === 'true' || query.branchStockOnly === true) {
       // Lấy danh sách medicineIds có tồn kho ở chi nhánh từ branch_inventories, branch_stock_balances hoặc legacy batches
+      const branchQueryFilter = this.inventoryCheckBranchFilter(query.branchId);
       const [branchInvs, balances, branchBatches] = await Promise.all([
-        this.branchInvModel.find({ branchId: query.branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
-        this.balanceModel.find({ branchId: query.branchId, totalStock: { $gt: 0 } }).select('medicineId').lean().exec(),
-        this.batchModel.find({ branchId: query.branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.branchInvModel.find({ ...branchQueryFilter, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.balanceModel.find({ ...branchQueryFilter, totalStock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.batchModel.find({ ...branchQueryFilter, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
       ]);
       const medicineIds = [...new Set([
         ...branchInvs.map(b => b.medicineId),
@@ -496,11 +497,12 @@ export class MedicineService implements OnModuleInit {
     // BƯỚC 1: LỌC DANH SÁCH THUỐC CÓ TỒN TẠI CHI NHÁNH NẾU BẬT branchStockOnly
     // =========================================================================
     let branchAllowedIds: string[] | null = null;
+    const branchQueryFilter = this.inventoryCheckBranchFilter(branchId);
     if (query.branchStockOnly === true || String(query.branchStockOnly) === 'true') {
       const [branchInvs, balances, branchBatches] = await Promise.all([
-        this.branchInvModel.find({ branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
-        this.balanceModel.find({ branchId, totalStock: { $gt: 0 } }).select('medicineId').lean().exec(),
-        this.batchModel.find({ branchId, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.branchInvModel.find({ ...branchQueryFilter, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.balanceModel.find({ ...branchQueryFilter, totalStock: { $gt: 0 } }).select('medicineId').lean().exec(),
+        this.batchModel.find({ ...branchQueryFilter, stock: { $gt: 0 } }).select('medicineId').lean().exec(),
       ]);
       branchAllowedIds = [...new Set([
         ...branchInvs.map((b) => b.medicineId),
@@ -605,9 +607,9 @@ export class MedicineService implements OnModuleInit {
     };
 
     const [balances, branchInvs, batches] = await Promise.all([
-      this.balanceModel.find({ branchId, medicineId: { $in: medIds } }).lean().exec(),
+      this.balanceModel.find({ ...branchQueryFilter, medicineId: { $in: medIds } }).lean().exec(),
       this.branchInvModel
-        .find({ branchId, medicineId: { $in: medIds }, status: 'ACTIVE', stock: { $gt: 0 } })
+        .find({ ...branchQueryFilter, medicineId: { $in: medIds }, status: 'ACTIVE', stock: { $gt: 0 } })
         .lean()
         .exec(),
       this.batchModel.find(batchFilter).lean().exec(),

@@ -265,6 +265,39 @@ export class MedicineMapper {
 
     const units = this.normalizeUnits(med, actualPrice, dbMed);
 
+    // Chọn nguồn danh sách lô hàng khớp tuyệt đối với kho đang xem (Kho Tổng vs Kho Chi Nhánh):
+    // - Chi nhánh bán lẻ: ưu tiên `branch_inventories` (specificBranchInvs) vì đây là nguồn sự thật
+    //   mà POS và Biên bản kiểm kê chi nhánh trực tiếp trừ/cập nhật; nếu số dư chi nhánh = 0 thì không
+    //   rò rỉ lô legacy cũ từ bảng medicinebatches.
+    // - Kho Tổng (CENTRAL_WH): chỉ lấy lô thuộc Kho Tổng.
+    const branchId = context?.branchId;
+    const isSpecificBranch = Boolean(branchId && branchId !== 'CENTRAL_WH' && branchId !== 'all');
+    const specificBranchInvs = context?.specificBranchInvs || [];
+    let resolvedBatches: any[];
+    if (isSpecificBranch) {
+      if (specificBranchInvs.length > 0) {
+        resolvedBatches = specificBranchInvs;
+      } else if (context?.balanceStock !== undefined && Number(context.balanceStock) <= 0) {
+        resolvedBatches = [];
+      } else {
+        resolvedBatches = medBatches;
+      }
+    } else if (branchId === 'all') {
+      resolvedBatches = medBatches;
+    } else {
+      resolvedBatches = medBatches.filter((b) => !b.branchId || b.branchId === 'CENTRAL_WH');
+    }
+
+    // Sắp xếp lô ưu tiên còn tồn (> 0) lên trước, sau đó theo hạn dùng sớm nhất (FEFO)
+    const sortedBatches = resolvedBatches.slice().sort((a, b) => {
+      const aInStock = Number(a.stock || 0) > 0 ? 1 : 0;
+      const bInStock = Number(b.stock || 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      const aExp = a.expDate ? new Date(a.expDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bExp = b.expDate ? new Date(b.expDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return aExp - bExp;
+    });
+
     return {
       id: medId,
       name: med.name,
@@ -298,7 +331,7 @@ export class MedicineMapper {
       active_ingredient: med.active_ingredient || dbMed?.active_ingredient || '',
       supplierId: med.supplierId || dbMed?.supplierId || '',
       priceTiers: med.priceTiers || dbMed?.priceTiers || [],
-      batches: medBatches.map((b) => ({
+      batches: sortedBatches.map((b) => ({
         batchNo: b.batchNo,
         expDate: b.expDate,
         stock: b.stock,
