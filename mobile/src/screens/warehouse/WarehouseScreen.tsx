@@ -1067,7 +1067,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             style={[styles.tabItem, activeTab === 'TRANSFERS' && styles.activeTabItem]}
           >
             <Ionicons name="swap-horizontal" size={15} color={activeTab === 'TRANSFERS' ? '#0284C7' : '#94A3B8'} />
-            <Text style={[styles.tabText, activeTab === 'TRANSFERS' && styles.activeTabText]}>Xuất Chuyển (QR)</Text>
+            <Text style={[styles.tabText, activeTab === 'TRANSFERS' && styles.activeTabText]}>Xuất Chuyển</Text>
           </AnimatedTouchable>
 
           <AnimatedTouchable
@@ -1099,7 +1099,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             style={[styles.tabItem, activeTab === 'FORECAST' && styles.activeTabItem]}
           >
             <Ionicons name="analytics" size={15} color={activeTab === 'FORECAST' ? '#0284C7' : '#94A3B8'} />
-            <Text style={[styles.tabText, activeTab === 'FORECAST' && styles.activeTabText]}>Dự Báo AI</Text>
+            <Text style={[styles.tabText, activeTab === 'FORECAST' && styles.activeTabText]}>Dự Báo Nhập</Text>
           </AnimatedTouchable>
         </ScrollView>
       </View>
@@ -2717,7 +2717,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="scan-circle" size={24} color="#0284C7" style={{ marginRight: 6, flexShrink: 0 }} />
-                <Text style={styles.inspectModalTitle} numberOfLines={1}>Kiểm Định AI Vision</Text>
+                <Text style={styles.inspectModalTitle} numberOfLines={1}>Kiểm Đếm Bằng Camera</Text>
               </View>
               <Text style={styles.inspectModalSub} numberOfLines={1}>
                 Phiếu #{selectedReceiptForInspection?.id || selectedReceiptForInspection?._id || selectedReceiptForInspection?.poCode || 'GRN-01'} • {selectedReceiptForInspection?.supplier || selectedReceiptForInspection?.supplierName || 'Nhà cung cấp đối tác'}
@@ -2815,7 +2815,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                   <View style={styles.laserLine} />
                   <View style={styles.scanningIndicatorBox}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.scanningText}>AI đang đếm hộp (NMS), đối chiếu tên thuốc & OCR...</Text>
+                    <Text style={styles.scanningText}>Đang đếm số lượng hộp và đối chiếu tên thuốc...</Text>
                   </View>
                 </View>
               )}
@@ -2833,7 +2833,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
             </View>
 
             <GradientButton
-              title={isAiScanning ? 'ĐANG QUÉT AI...' : '⚡ BẮT ĐẦU QUÉT AI VISION (ĐẾM & ĐỐI CHIẾU)'}
+              title={isAiScanning ? 'ĐANG KIỂM ĐẾM...' : 'BẮT ĐẦU ĐẾM & ĐỐI CHIẾU HÀNG'}
               onPress={() => handleRunAiInspection()}
               gradientVariant="cyan"
               size="md"
@@ -2842,12 +2842,12 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
               icon={<Ionicons name="sparkles" size={18} color="#FFFFFF" />}
             />
 
-            {/* Khung Kết Quả AI hoặc Đếm Thực Tế Bằng Tay */}
+            {/* Khung Kết Quả Kiểm Đếm Tự Động hoặc Đếm Thực Tế Bằng Tay */}
             <View style={styles.aiResultCard}>
               {aiScanResult && (
                 <>
                   <View style={styles.aiResultHeader}>
-                    <Text style={styles.aiResultTitle}>Kết Quả AI Vision</Text>
+                    <Text style={styles.aiResultTitle}>Kết Quả Kiểm Đếm Tự Động</Text>
                     <View
                       style={[
                         styles.confidenceBadge,
@@ -2866,7 +2866,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                           ? '⚠️ Sai loại thuốc'
                           : aiScanResult.isExpectedMedicine === true
                           ? `✓ Đúng thuốc • ${aiScanResult.confidence}%`
-                          : `Tin cậy AI: ${aiScanResult.confidence}%`}
+                          : `Độ tin cậy: ${aiScanResult.confidence}%`}
                       </Text>
                     </View>
                   </View>
@@ -2888,7 +2888,7 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                       </Text>
                       <Text style={{ fontSize: 11, color: '#7F1D1D', lineHeight: 16 }}>
                         {aiScanResult.mismatchReason ||
-                          `Ảnh chụp nhận diện là "${aiScanResult.detectedMedicineName || 'thuốc khác'}", không khớp mặt hàng "${aiScanResult.medName}" trên đơn PO.`}
+                          `Ảnh chụp nhận diện là "${aiScanResult.detectedMedicineName || 'thuốc khác'}", không khớp mặt hàng "${aiScanResult.medName}" trên đơn nhập hàng.`}
                       </Text>
                     </View>
                   )}
@@ -2909,11 +2909,11 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                   ) : null}
 
                   <View style={styles.aiRow}>
-                    <Text style={styles.aiRowLabel}>📦 Số lượng AI đếm:</Text>
+                    <Text style={styles.aiRowLabel}>📦 Số lượng đếm được:</Text>
                     <Text style={styles.aiRowValueBold}>{aiScanResult.aiCount} Hộp</Text>
                   </View>
                   <View style={styles.aiRow}>
-                    <Text style={styles.aiRowLabel}>🏷️ Số Lô (Batch OCR):</Text>
+                    <Text style={styles.aiRowLabel}>🏷️ Số lô trên vỏ hộp:</Text>
                     <Text style={styles.aiRowValue}>{aiScanResult.batchNo}</Text>
                   </View>
                   <View style={styles.aiRow}>

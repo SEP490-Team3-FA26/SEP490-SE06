@@ -73,17 +73,17 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
-              UC-70 • Voice Audit
+              Hồ sơ tư vấn • Chuẩn GPP
             </span>
             <span className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-              <Headphones size={13} className="text-emerald-600" /> Whisper STT & RAG Phác Đồ
+              <Headphones size={13} className="text-emerald-600" /> Ghi âm & Gợi ý phác đồ
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
-            Quản Lý Lịch Sử Ghi Âm Tư Vấn & Truy Vết Quyết Định
+            Lịch Sử Ghi Âm Tư Vấn & Xác Nhận Dược Sĩ
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Hỗ trợ khách offline tại quầy: truy vết đơn thuốc AI gợi ý, quyết định của Dược sĩ và đồng bộ với đơn hàng
+            Hỗ trợ tư vấn tại quầy: lưu vết gợi ý phác đồ, xác nhận chuyên môn của Dược sĩ và đồng bộ với đơn hàng
           </p>
         </div>
 
@@ -245,7 +245,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                 <th className="p-3.5 pl-5">Ghi Âm & Mã Phiên</th>
-                <th className="p-3.5">Lời Thoại Triệu Chứng (Whisper STT)</th>
+                <th className="p-3.5">Nội Dung Triệu Chứng Khách Kể</th>
                 <th className="p-3.5">AI Gợi Ý Ban Đầu</th>
                 <th className="p-3.5">Quyết Định Của Dược Sĩ</th>
                 <th className="p-3.5">Cam Kết GPP</th>
@@ -462,7 +462,7 @@ export const VoiceConsultationHistoryView: React.FC<VoiceConsultationHistoryView
               {/* Customer Voice Transcript Box */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <Mic size={12} className="text-emerald-600" /> Văn Bản Bóc Tách Giọng Nói (Whisper STT)
+                  <Mic size={12} className="text-emerald-600" /> Nội Dung Chuyển Đổi Từ Bản Ghi Âm
                 </span>
                 <p className="text-sm font-medium text-slate-800 italic mt-1 leading-relaxed bg-white p-3 rounded-xl border border-slate-200">
                   "{inspectRecord.transcription}"

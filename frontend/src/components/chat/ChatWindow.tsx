@@ -1016,8 +1016,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="flex flex-col">
               <span className="font-semibold text-slate-800 text-xs sm:text-[13px] leading-tight">
                 {isFullscreen
-                  ? activeSession?.title || "Dược Sĩ Bồ Câu AI"
-                  : "Dược Sĩ Bồ Câu AI"}
+                  ? activeSession?.title || "Trợ Lý Dược Sĩ Bồ Câu"
+                  : "Trợ Lý Dược Sĩ Bồ Câu"}
               </span>
               <span className="text-[10px] flex items-center gap-1 text-slate-400 font-normal">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
@@ -1051,7 +1051,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onClick={() => setShowTermsModal(true)}
               aria-label="Xem nội quy & điều khoản sử dụng AI"
               className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Nội quy & Điều khoản Dược sĩ AI"
+              title="Nội quy & Điều khoản Tư vấn"
             >
               <ShieldCheck size={15} />
             </button>

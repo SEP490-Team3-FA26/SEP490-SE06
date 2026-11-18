@@ -156,8 +156,8 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <HeaderBar
-        title="Admin Dashboard"
-        subtitle="Giám sát Microservices & Nhân viên hệ thống"
+        title="Quản Trị Hệ Thống"
+        subtitle="Giám sát vận hành & Nhân sự toàn chuỗi"
         gradientVariant="sky"
         rightAction={{
           icon: 'person-circle-outline',
@@ -209,7 +209,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             color={activeTab === 'AUDIT' ? '#0284C7' : '#94A3B8'}
           />
           <Text style={[styles.tabText, activeTab === 'AUDIT' && styles.activeTabText]}>
-            Audit Logs
+            Nhật Ký
           </Text>
         </AnimatedTouchable>
       </View>
@@ -226,7 +226,7 @@ export const AdminScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               <GradientCard gradientVariant="sky" style={styles.kpiCard}>
                 <Ionicons name="flash" size={24} color="#FFFFFF" />
                 <Text style={styles.kpiValue}>{healthData.latencyMs} ms</Text>
-                <Text style={styles.kpiLabel}>Độ Trễ Gateway</Text>
+                <Text style={styles.kpiLabel}>Tốc Độ Phản Hồi</Text>
               </GradientCard>
 
               <GradientCard gradientVariant="ocean" style={styles.kpiCard}>
