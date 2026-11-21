@@ -5,9 +5,11 @@ import { AppWebsocketGateway } from './websocket.gateway';
 import { WebsocketController } from './websocket.controller';
 import { SseService } from './sse.service';
 import { SseController } from './sse.controller';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
+    NotificationModule,
     // Import JwtModule để AppWebsocketGateway & SseController có thể inject JwtService
     JwtModule.registerAsync({
       imports: [ConfigModule],

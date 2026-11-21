@@ -24,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * Sau khi passport xác minh token hợp lệ, method này được gọi
    * Giá trị return sẽ được gán vào req.user trong controller
    */
-  async validate(payload: { sub: string; email: string; role: string; fullName: string; branchId?: string; phone?: string }) {
+  async validate(payload: { sub: string; email: string; role: string; fullName: string; branchId?: string; phone?: string; isBranchPIC?: boolean }) {
     return {
       sub: payload.sub,
       id: payload.sub,
@@ -34,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: payload.fullName,
       branchId: payload.branchId || null,
       phone: payload.phone || null,
+      isBranchPIC: Boolean(payload.isBranchPIC),
     };
   }
 }

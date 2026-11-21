@@ -24,6 +24,10 @@ export class NotificationService {
     prCode?: string;
     poId?: string;
     grnId?: string;
+    dispatchOrderId?: string;
+    dispatchCode?: string;
+    transferId?: string;
+    transferCode?: string;
     branchId?: string;
     branchName?: string;
     itemsCount?: number;
@@ -45,9 +49,9 @@ export class NotificationService {
   }
 
   /**
-   * Xác định rooms mà user thuộc về dựa trên role + branchId
+   * Xác định rooms mà user thuộc về dựa trên role + branchId + cờ Dược sĩ PIC
    */
-  private getUserRooms(role: string, branchId?: string): string[] {
+  private getUserRooms(role: string, branchId?: string, isBranchPIC?: boolean): string[] {
     const rooms: string[] = [];
 
     if (role === "admin" || role === "head_branch" || role === "director") {
@@ -55,6 +59,9 @@ export class NotificationService {
     }
     if (role === "warehouse") {
       rooms.push("warehouse");
+    }
+    if (role === "pharmacist" && isBranchPIC) {
+      rooms.push("pic");
     }
     if ((role === "branch" || role === "pharmacist") && branchId) {
       rooms.push(`branch-${branchId}`);
@@ -70,9 +77,9 @@ export class NotificationService {
     userId: string,
     role: string,
     branchId?: string,
-    options?: { unreadOnly?: boolean; limit?: number; offset?: number },
+    options?: { unreadOnly?: boolean; limit?: number; offset?: number; isBranchPIC?: boolean },
   ) {
-    const rooms = this.getUserRooms(role, branchId);
+    const rooms = this.getUserRooms(role, branchId, options?.isBranchPIC);
     if (rooms.length === 0) return [];
 
     const query: any = { targetRoom: { $in: rooms } };
@@ -98,8 +105,9 @@ export class NotificationService {
     role: string,
     branchId: string | undefined,
     afterTimestamp: Date,
+    isBranchPIC?: boolean,
   ) {
-    const rooms = this.getUserRooms(role, branchId);
+    const rooms = this.getUserRooms(role, branchId, isBranchPIC);
     if (rooms.length === 0) return [];
 
     return this.notificationModel
@@ -129,8 +137,8 @@ export class NotificationService {
   /**
    * Đánh dấu tất cả đã đọc cho user
    */
-  async markAllAsRead(userId: string, role: string, branchId?: string) {
-    const rooms = this.getUserRooms(role, branchId);
+  async markAllAsRead(userId: string, role: string, branchId?: string, isBranchPIC?: boolean) {
+    const rooms = this.getUserRooms(role, branchId, isBranchPIC);
     if (rooms.length === 0) return;
 
     return this.notificationModel
@@ -155,8 +163,9 @@ export class NotificationService {
     userId: string,
     role: string,
     branchId?: string,
+    isBranchPIC?: boolean,
   ): Promise<number> {
-    const rooms = this.getUserRooms(role, branchId);
+    const rooms = this.getUserRooms(role, branchId, isBranchPIC);
     if (rooms.length === 0) return 0;
 
     return this.notificationModel

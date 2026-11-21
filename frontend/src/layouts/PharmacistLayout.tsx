@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { BaseDashboardLayout } from "./BaseDashboardLayout";
+import { authService } from "../services/auth/auth.service";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -12,12 +14,35 @@ import {
 } from "lucide-react";
 
 export function PharmacistLayout() {
+  // Kiểm tra cờ Dược sĩ Phụ trách chuyên môn (isBranchPIC) để hiển thị mục duyệt thuốc KSĐB & hủy
+  const [isBranchPIC, setIsBranchPIC] = useState<boolean>(() => {
+    const user = authService.getCurrentUser();
+    return Boolean(user?.isBranchPIC);
+  });
+
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user?.isBranchPIC === undefined) {
+      authService
+        .getProfile()
+        .then((profile) => {
+          if (profile?.isBranchPIC !== undefined) {
+            setIsBranchPIC(Boolean(profile.isBranchPIC));
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   const pharmacistNavItems = [
     { name: "Tổng quan Cá nhân", href: "/pharmacist", icon: <LayoutDashboard size={20} /> },
     { name: "Bán hàng tại quầy", href: "/pharmacist/sales", icon: <ShoppingCart size={20} /> },
     { name: "Lịch sử đọc đơn thuốc", href: "/pharmacist/ocr-history", icon: <ScanLine size={20} /> },
     { name: "Lịch sử ghi âm tư vấn", href: "/pharmacist/ai-consultation", icon: <Mic size={20} /> },
     { name: "Liên thông Dược Quốc gia", href: "/pharmacist/gpp-sync", icon: <ShieldCheck size={20} /> },
+    ...(isBranchPIC
+      ? [{ name: "Duyệt xuất kho (PIC)", href: "/pharmacist/dispatch-approvals", icon: <ShieldCheck size={20} /> }]
+      : []),
     { name: "Truy xuất Lô & Hạn dùng", href: "/pharmacist/lot-tracking", icon: <PackageSearch size={20} /> },
     { name: "Lịch Làm Việc", href: "/pharmacist/schedule", icon: <Calendar size={20} /> },
     { name: "Yêu Cầu Đổi Ca", href: "/pharmacist/shift-swaps", icon: <RefreshCcw size={20} /> },

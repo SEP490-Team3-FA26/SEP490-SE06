@@ -81,11 +81,7 @@ Mọi PR được đánh giá dọc theo 2 trục tách biệt nhằm tránh tì
   - Không dùng `alert()` hoặc `confirm()` gốc của trình duyệt cho luồng nghiệp vụ chính; dùng Modal / Toast / Confirm Dialog tùy chỉnh.
   - Xử lý đầy đủ 3 trạng thái: `loading` (Skeleton/Spinner), `error` (thông báo lỗi thân thiện), `empty` (trạng thái trống).
 - [ ] **Ngôn ngữ chú thích mã nguồn:**
-<<<<<<< HEAD
-  - Toàn bộ comment trong code bắt buộc là **Tiếng Việt** (`.agents/rules/sep.md`).
-=======
-  - Toàn bộ comment trong code được viết bằng **Tiếng Việt 100%**.
->>>>>>> fe63c200e41e555b7fcf79f73265ab428bd8de34
+  - Toàn bộ comment trong code bắt buộc là **Tiếng Việt 100%** (`.agents/rules/sep.md`).
 
 ### 2.3. Quy Chuẩn Bất Biến Về Dữ Liệu (Zero Mock Data Policy)
 - [ ] **Tuyệt đối không chứa Mock Data cứng:**

@@ -34,6 +34,7 @@ export interface UserProfile {
   avatar?: string;
   isVerified?: boolean;
   isActive?: boolean;
+  isBranchPIC?: boolean;
   address?: string;
   gender?: string;
   birthDate?: string;
@@ -41,11 +42,15 @@ export interface UserProfile {
 }
 
 export interface MedicineBatch {
+  _id?: string;
+  id?: string;
   batchNo: string;
   expDate: string;
   stock: number;
+  reservedQty?: number;
+  availableQty?: number;
   status?: string;
-  location?: { zone: string; rack: string; shelf: number };
+  location?: { zone: string; rack: string; shelf: number; bin?: number; slotType?: string };
   importPrice?: number;
 }
 
@@ -204,6 +209,130 @@ export interface Order {
   shippingAddress?: string;
   note?: string;
   createdAt?: string;
+}
+
+// =========================================================================
+// KIỂU DỮ LIỆU LUỒNG XUẤT KHO TỔNG HAI GIAI ĐOẠN (DISPATCH ORDER & TOTE)
+// =========================================================================
+
+export type DispatchOrderStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'PICKING'
+  | 'STAGED'
+  | 'DISPATCHED'
+  | 'PARTIALLY_DISPATCHED'
+  | 'CANCELLED';
+
+export interface DispatchSuggestedLocation {
+  zone: string;
+  rack: string;
+  shelf: number;
+  bin: number;
+  slotType?: 'MAIN' | 'RESERVE' | string;
+  binCode: string;
+}
+
+export interface DispatchPickingLine {
+  lineId: string;
+  medicineId: string;
+  medicineName: string;
+  unit: string;
+  medicineBarcode?: string;
+  specialControlType?: number;
+  batchId: string;
+  batchNo: string;
+  expDate: string;
+  suggestedLocation: DispatchSuggestedLocation;
+  requestedQty: number;
+  pickedQty: number;
+  itemStatus: 'PENDING' | 'PICKED' | 'SHORTAGE';
+  shortageReason?: string;
+}
+
+export interface DispatchPickRecord {
+  pickId: string;
+  lineId: string;
+  medicineId: string;
+  batchId: string;
+  batchNo: string;
+  expDate?: string;
+  binCode: string;
+  qty: number;
+  returnedQty: number;
+  toteCode: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+  gs1Scanned?: boolean;
+  manualReason?: string;
+  pickedBy: string;
+  pickedByName?: string;
+  pickedAt?: string;
+}
+
+export interface DispatchReturnLog {
+  returnId: string;
+  pickId: string;
+  lineId: string;
+  medicineId: string;
+  batchNo: string;
+  qty: number;
+  outcome: 'RESTOCK' | 'DAMAGED' | 'QUARANTINE';
+  originalBinCode?: string;
+  targetBinCode?: string;
+  reason?: string;
+  returnedAt?: string;
+}
+
+export interface DispatchOrder {
+  _id: string;
+  id?: string;
+  dispatchCode: string;
+  type: 'TRANSFER' | 'DISPOSE';
+  status: DispatchOrderStatus;
+  fromBranchId: string;
+  referenceId?: string;
+  referenceCode?: string;
+  toBranchId?: string;
+  toBranchName?: string;
+  disposalReportCode?: string;
+  stockTransferId?: string;
+  stockTransferCode?: string;
+  hasControlledDrugs: boolean;
+  createdBy: string;
+  createdByName?: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  rejectedReason?: string;
+  pickingList: DispatchPickingLine[];
+  picks: DispatchPickRecord[];
+  returnLogs: DispatchReturnLog[];
+  toteCode?: string;
+  toteCodes: string[];
+  totalPicked: number;
+  isStale: boolean;
+  lastActivityAt?: string;
+  handoverRecipient?: {
+    driverName: string;
+    vehiclePlate?: string;
+    carrierNote?: string;
+  };
+  notes?: string;
+  version: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ToteItem {
+  _id: string;
+  toteCode: string;
+  label?: string;
+  status: 'AVAILABLE' | 'IN_USE';
+  currentDispatchOrderId?: string | null;
+  currentDispatchCode?: string | null;
+  lockedBy?: string | null;
+  lockedAt?: string | null;
 }
 
 export interface Employee {

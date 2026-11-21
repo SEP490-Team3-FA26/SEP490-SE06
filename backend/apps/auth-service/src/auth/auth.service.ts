@@ -208,6 +208,7 @@ export class AuthService implements OnApplicationBootstrap {
       branchName: userFromDb.branchName || null,
       phone: userFromDb.phone || null,
       avatarUrl: userFromDb.avatarUrl || null,
+      isBranchPIC: Boolean(userFromDb.isBranchPIC),
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -224,6 +225,7 @@ export class AuthService implements OnApplicationBootstrap {
         phone: userFromDb.phone || null,
         avatarUrl: userFromDb.avatarUrl || null,
         points: userFromDb.points || 0,
+        isBranchPIC: Boolean(userFromDb.isBranchPIC),
       },
     };
   }
@@ -233,7 +235,7 @@ export class AuthService implements OnApplicationBootstrap {
   // ============================================================
   async googleLogin(profile: any): Promise<{
     access_token: string;
-    user: { id: string; email: string; fullName: string; role: string; branchId?: string; branchName?: string };
+    user: { id: string; email: string; fullName: string; role: string; branchId?: string; branchName?: string; isBranchPIC?: boolean };
   }> {
     const email = (profile.email || '').toLowerCase().trim();
     const fullName = profile.fullName || profile.name || 'Người dùng Google';
@@ -268,6 +270,7 @@ export class AuthService implements OnApplicationBootstrap {
       branchName: userFromDb.branchName || null,
       phone: userFromDb.phone || null,
       avatarUrl: userFromDb.avatarUrl || null,
+      isBranchPIC: Boolean(userFromDb.isBranchPIC),
     };
 
     const access_token = this.jwtService.sign(payload);
@@ -281,6 +284,7 @@ export class AuthService implements OnApplicationBootstrap {
         role: userFromDb.role,
         branchId: userFromDb.branchId || null,
         branchName: userFromDb.branchName || null,
+        isBranchPIC: Boolean(userFromDb.isBranchPIC),
       },
     };
   }
@@ -861,6 +865,7 @@ export class AuthService implements OnApplicationBootstrap {
       role: user.role,
       fullName: user.fullName,
       branchId: user.branchId,
+      isBranchPIC: Boolean(user.isBranchPIC),
     };
 
     const access_token = this.jwtService.sign(finalPayload);
@@ -872,6 +877,7 @@ export class AuthService implements OnApplicationBootstrap {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        isBranchPIC: Boolean(user.isBranchPIC),
       },
     };
   }
@@ -1167,6 +1173,7 @@ export class AuthService implements OnApplicationBootstrap {
       branchName: user.branchName || null,
       phone: user.phone || null,
       avatarUrl: user.avatarUrl || null,
+      isBranchPIC: Boolean(user.isBranchPIC),
     };
 
     const access_token = this.jwtService.sign(jwtPayload);
@@ -1182,6 +1189,7 @@ export class AuthService implements OnApplicationBootstrap {
         branchId: user.branchId || null,
         branchName: user.branchName || null,
         avatarUrl: user.avatarUrl || null,
+        isBranchPIC: Boolean(user.isBranchPIC),
       },
     };
   }

@@ -88,4 +88,57 @@ describe('[UC-36] Branch Purchase Requisition (Đề xuất mua hàng chi nhánh
       ).toThrow(/Mã chi nhánh/);
     });
   });
+
+  describe('4. [List PR Query & Filter Logic] Bộ lọc danh sách và gộp trạng thái khẩn cấp', () => {
+    // Hàm mô phỏng logic truy vấn PR của PurchaseService
+    const filterPrList = (
+      prs: Array<{ prCode: string; status: string; createdAt: Date; isUrgent?: boolean }>,
+      query: { status?: string; limit?: number },
+    ) => {
+      let result = [...prs];
+      if (query.status) {
+        if (query.status === 'SUBMITTED') {
+          result = result.filter(p => p.status === 'SUBMITTED' || p.status === 'URGENT_PENDING');
+        } else {
+          result = result.filter(p => p.status === query.status);
+        }
+      }
+      result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      if (query.limit && query.limit > 0) {
+        result = result.slice(0, query.limit);
+      }
+      return result;
+    };
+
+    const mockPrs = [
+      { prCode: 'PR-01', status: 'CONSOLIDATED', createdAt: new Date('2026-11-10T10:00:00Z'), isUrgent: true },
+      { prCode: 'PR-02', status: 'SUBMITTED', createdAt: new Date('2026-11-13T09:00:00Z'), isUrgent: false },
+      { prCode: 'PR-03', status: 'URGENT_PENDING', createdAt: new Date('2026-11-13T10:00:00Z'), isUrgent: true },
+      { prCode: 'PR-04', status: 'CONSOLIDATED', createdAt: new Date('2026-11-12T10:00:00Z'), isUrgent: true },
+    ];
+
+    describe('4.1. [Normal Values] Lọc theo SUBMITTED và gộp đơn khẩn cấp URGENT_PENDING', () => {
+      it('TC-UC36-LIST-NORM-01: Lấy thành công cả đơn SUBMITTED và URGENT_PENDING sắp xếp mới nhất', () => {
+        const filtered = filterPrList(mockPrs, { status: 'SUBMITTED' });
+        expect(filtered.length).toBe(2);
+        expect(filtered[0].prCode).toBe('PR-03'); // Tạo lúc 10:00 mới hơn
+        expect(filtered[1].prCode).toBe('PR-02'); // Tạo lúc 09:00
+      });
+    });
+
+    describe('4.2. [Boundary Values] Giới hạn số lượng limit = 1', () => {
+      it('TC-UC36-LIST-BOUND-01: Giới hạn limit = 1 chỉ lấy đúng 1 bản ghi mới nhất', () => {
+        const filtered = filterPrList(mockPrs, { limit: 1 });
+        expect(filtered.length).toBe(1);
+        expect(filtered[0].prCode).toBe('PR-03');
+      });
+    });
+
+    describe('4.3. [Abnormal Values] Lọc trạng thái không tồn tại', () => {
+      it('TC-UC36-LIST-ABNORM-01: Trả về mảng rỗng an toàn khi trạng thái không tồn tại', () => {
+        const filtered = filterPrList(mockPrs, { status: 'NON_EXISTENT_STATUS' });
+        expect(filtered).toEqual([]);
+      });
+    });
+  });
 });

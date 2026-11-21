@@ -27,8 +27,8 @@ export class PurchaseController {
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException({
-        message: error.message || 'Lỗi hệ thống khi lấy danh sách PR',
         statusCode: 500,
+        message: error.message || 'Lỗi hệ thống khi lấy danh sách PR',
       });
     }
   }
@@ -41,8 +41,8 @@ export class PurchaseController {
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException({
-        message: error.message || 'Lỗi hệ thống khi lấy số lượng PR theo trạng thái',
         statusCode: 500,
+        message: error.message || 'Lỗi hệ thống khi lấy số lượng PR theo trạng thái',
       });
     }
   }

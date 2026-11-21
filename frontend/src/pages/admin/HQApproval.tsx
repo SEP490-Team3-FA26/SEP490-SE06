@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { purchaseRequisitionService, purchaseOrderService, supplierService, stockTransferService } from "../../services";
+import { DispatchOrdersPage } from "../warehouse/DispatchOrdersPage";
 
 /**
  * Admin phê duyệt & thanh toán các Đơn Đặt Hàng (PO) đã được tự động tách theo NCC.
@@ -16,7 +17,7 @@ export function HQApproval() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tab, setTab] = useState<"URGENT" | "PENDING_APPROVAL" | "SHIPPING" | "CANCELLED" | "GRN_APPROVAL">("URGENT");
+  const [tab, setTab] = useState<"URGENT" | "PENDING_APPROVAL" | "DISPATCH_APPROVAL" | "GRN_APPROVAL" | "SHIPPING" | "CANCELLED">("URGENT");
   const [selectedPos, setSelectedPos] = useState<string[]>([]);
   const [selectedPrs, setSelectedPrs] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
@@ -271,6 +272,7 @@ export function HQApproval() {
         {([
           ...(safeUrgentPrs.length > 0 ? [{ key: "URGENT" as const, label: `🔥 Yêu cầu Hỏa tốc (${safeUrgentPrs.length})` }] : []),
           { key: "PENDING_APPROVAL" as const, label: "Chờ thanh toán PO" },
+          { key: "DISPATCH_APPROVAL" as const, label: "Duyệt Xuất Kho Tổng" },
           { key: "SHIPPING" as const, label: "PO Đang giao" },
           { key: "CANCELLED" as const, label: "Đã hủy" },
         ]).map(t => (
@@ -283,6 +285,13 @@ export function HQApproval() {
           </button>
         ))}
       </div>
+
+      {tab === "DISPATCH_APPROVAL" ? (
+        <div className="mt-2 overflow-y-auto flex-1">
+          <DispatchOrdersPage mode="DIRECTOR_APPROVAL" embedded />
+        </div>
+      ) : (
+        <>
 
       {/* Action bar for PRs */}
       {tab === "URGENT" && selectedPrs.length > 0 && (
@@ -443,6 +452,8 @@ export function HQApproval() {
           ) : null}
         </div>
       </div>
+        </>
+      )}
 
       {/* Detail Modal */}
       <AnimatePresence>

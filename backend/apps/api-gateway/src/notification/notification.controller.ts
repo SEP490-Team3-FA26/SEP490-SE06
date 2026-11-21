@@ -34,6 +34,7 @@ export class NotificationController {
         unreadOnly: unreadOnly === 'true',
         limit: limit ? parseInt(limit, 10) : 50,
         offset: offset ? parseInt(offset, 10) : 0,
+        isBranchPIC: Boolean(user.isBranchPIC),
       },
     );
 
@@ -58,6 +59,7 @@ export class NotificationController {
       user.role,
       user.branchId,
       afterDate,
+      Boolean(user.isBranchPIC),
     );
 
     const result = notifications.map((n: any) => ({
@@ -72,7 +74,12 @@ export class NotificationController {
   @ApiOperation({ summary: 'Đếm notifications chưa đọc' })
   async getUnreadCount(@Req() req: any) {
     const user = req.user;
-    const count = await this.notificationService.getUnreadCount(user.sub || user._id, user.role, user.branchId);
+    const count = await this.notificationService.getUnreadCount(
+      user.sub || user._id,
+      user.role,
+      user.branchId,
+      Boolean(user.isBranchPIC),
+    );
     return { success: true, data: count };
   }
 
@@ -80,7 +87,12 @@ export class NotificationController {
   @ApiOperation({ summary: 'Đánh dấu tất cả đã đọc' })
   async markAllAsRead(@Req() req: any) {
     const user = req.user;
-    await this.notificationService.markAllAsRead(user.sub || user._id, user.role, user.branchId);
+    await this.notificationService.markAllAsRead(
+      user.sub || user._id,
+      user.role,
+      user.branchId,
+      Boolean(user.isBranchPIC),
+    );
     return { success: true, message: 'All notifications marked as read' };
   }
 

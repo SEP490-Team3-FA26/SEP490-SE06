@@ -118,6 +118,26 @@ export const API_ENDPOINTS = {
     TRACE_BATCH: (batchNo: string) => `/api/inventory-transactions/trace/${encodeURIComponent(batchNo)}`,
   },
 
+  // 🚚 Xuất Kho Tổng Hai Giai Đoạn (Dispatch Orders & Totes)
+  DISPATCH_ORDERS: {
+    LIST: '/api/dispatch-orders',
+    CREATE: '/api/dispatch-orders',
+    CREATE_SYNC: '/api/dispatch-orders/sync',
+    DETAIL: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}`,
+    APPROVE: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/approve`,
+    REJECT: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/reject`,
+    PICK_ITEM: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/pick-item`,
+    RETURN_ITEM: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/return-item`,
+    SHORTAGE: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/shortage`,
+    STAGE: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/stage`,
+    DISPATCH: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/dispatch`,
+    CANCEL: (id: string) => `/api/dispatch-orders/${encodeURIComponent(id)}/cancel`,
+  },
+
+  TOTES: {
+    LIST: '/api/totes',
+  },
+
   // 📡 IoT Sensors
   SENSORS: {
     LATEST: '/api/sensor/latest',
@@ -146,6 +166,7 @@ export const API_ENDPOINTS = {
 
   PURCHASE_REQUISITIONS: {
     LIST: '/api/purchase-requisitions',
+    STATUS_COUNTS: '/api/purchase-requisitions/status-counts',
     CREATE: '/api/purchase-requisitions',
     DETAIL: (id: string) => `/api/purchase-requisitions/${encodeURIComponent(id)}`,
     UPDATE: (id: string) => `/api/purchase-requisitions/${encodeURIComponent(id)}`,

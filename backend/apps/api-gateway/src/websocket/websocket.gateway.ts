@@ -105,6 +105,14 @@ export class AppWebsocketGateway
           );
         }
 
+        // Dược sĩ phụ trách chuyên môn (PIC) tham gia phòng 'pic' để nhận thông báo duyệt thuốc đặc biệt / hủy
+        if (role === "pharmacist" && (decoded.isBranchPIC || decoded.isPIC)) {
+          client.join("pic");
+          this.logger.log(
+            `🛡️ PIC Pharmacist connected: ${email} (${client.id}) → joined room 'pic'`,
+          );
+        }
+
         // Join personal room for targeted messages
         if (userId) {
           client.join(`user-${userId}`);

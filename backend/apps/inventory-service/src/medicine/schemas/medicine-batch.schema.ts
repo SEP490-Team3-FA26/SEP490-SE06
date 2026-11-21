@@ -19,6 +19,9 @@ export class MedicineBatch extends Document {
   stock: number; // Tổng tồn kho theo đơn vị chuẩn của thuốc (Hộp / Chai / Lọ / Tuýp / Gói)
 
   @Prop({ type: Number, default: 0, min: 0 })
+  reservedQty: number; // Số lượng đang giữ chỗ tạm thời trong giỏ gom hàng (Tote), chưa trừ kho thật
+
+  @Prop({ type: Number, default: 0, min: 0 })
   openedStock: number; // Số lượng lẻ trong hộp đang mở dở của lô này (chỉ dùng ở chi nhánh bán lẻ)
 
   @Prop({ type: Number, required: true, default: 0, min: 0 })

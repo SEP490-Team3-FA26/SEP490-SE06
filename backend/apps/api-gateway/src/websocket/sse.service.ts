@@ -30,6 +30,7 @@ export class SseService {
     email: string;
     role: string;
     branchId?: string;
+    isBranchPIC?: boolean;
   }): Observable<MessageEvent> {
     const userRooms = new Set<string>(["all"]);
 
@@ -42,6 +43,9 @@ export class SseService {
     }
     if (user.role === "warehouse") {
       userRooms.add("warehouse");
+    }
+    if (user.role === "pharmacist" && user.isBranchPIC) {
+      userRooms.add("pic");
     }
     if (user.branchId) {
       userRooms.add(`branch-${user.branchId}`);

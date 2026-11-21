@@ -46,7 +46,8 @@ export class SseController {
       userId: 'anonymous',
       email: 'anonymous@system',
       role: 'guest',
-      branchId: undefined,
+      branchId: undefined as string | undefined,
+      isBranchPIC: false,
     };
 
     if (token) {
@@ -57,6 +58,7 @@ export class SseController {
           email: decoded.email || 'user',
           role: decoded.role || 'guest',
           branchId: decoded.branchId,
+          isBranchPIC: Boolean(decoded.isBranchPIC || decoded.isPIC),
         };
       } catch (err) {
         this.logger.warn(`⚠️ [SSE] Invalid token: ${err.message}`);
