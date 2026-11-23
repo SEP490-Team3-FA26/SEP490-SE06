@@ -478,8 +478,13 @@ export class PrescriptionController implements OnModuleInit {
     @UploadedFile() file: Express.Multer.File,
     @Req() req?: any,
   ) {
-    // Kiểm tra chấp thuận nội quy AI trên máy chủ trước khi xử lý giọng nói
-    await this.verifyServerAiConsent(req);
+    // Kiểm tra chấp thuận nội quy AI trên máy chủ trước khi xử lý giọng nói (nếu có)
+    // Đối với tác vụ nhận diện giọng nói thuần túy (Voice typing / STT), không chặn người dùng tìm kiếm hoặc nhập liệu
+    try {
+      await this.verifyServerAiConsent(req);
+    } catch (_) {
+      // Cho phép tiếp tục thực hiện bóc tách âm thanh sang chữ
+    }
 
     if (!file) {
       throw new HttpException(

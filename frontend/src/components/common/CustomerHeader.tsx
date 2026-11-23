@@ -5,10 +5,11 @@ import {
   PhoneCall, FileText, MapPin, UploadCloud, ChevronDown,
   ChevronRight, X, Loader2, BrainCircuit, Star, LogOut,
   User, ClipboardList, Pill, Flame, CheckCircle2, AlertCircle,
-  Menu, XCircle, PackageSearch, Mic, ScanLine, Smartphone,
+  Menu, XCircle, PackageSearch, Mic, ScanLine, Smartphone, Square,
   Sparkles, HeartPulse, Stethoscope, Scale, Eye, Apple, Brain,
   Droplets, Wind, Bone, MoreHorizontal, Activity
 } from "lucide-react";
+import { useVoiceInput } from "../../hooks/useVoiceInput";
 import { authService, userService, cartService, medicineService } from "../../services";
 import { wishlistService } from "../../services/sales/wishlist.service";
 import {
@@ -630,6 +631,31 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
     setSearchQuery(searchParams.get("search") || "");
   }, [searchParams]);
 
+  // Tích hợp Voice-to-Text Hybrid vào thanh tìm kiếm sản phẩm (hỗ trợ cả Chrome, Brave, Safari)
+  const {
+    isListening: isSearchListening,
+    isTranscribingBE: isSearchTranscribing,
+    voiceError: searchVoiceError,
+    toggleVoiceInput: toggleSearchVoiceInput,
+  } = useVoiceInput({
+    currentText: searchQuery,
+    onTextChange: (newText) => {
+      setSearchQuery(newText);
+      setShowSearchDropdown(true);
+    },
+    onTranscribeComplete: (finalText) => {
+      setSearchQuery(finalText);
+      setShowSearchDropdown(true);
+    },
+  });
+
+  // Hiển thị toast cảnh báo nếu microphone bị chặn hoặc có lỗi nhận diện giọng nói
+  useEffect(() => {
+    if (searchVoiceError) {
+      showHeaderToast(searchVoiceError, "warning");
+    }
+  }, [searchVoiceError]);
+
   // Auth & Loyalty Loading
   const syncAuthState = () => {
     const curToken = localStorage.getItem("token") || "";
@@ -955,11 +981,30 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                   </button>
                 <button
                   type="button"
-                  title="Tìm bằng giọng nói"
-                  onClick={() => navigate("/customer/ai-consult")}
-                  className="p-1.5 hover:text-[#0057cd] hover:bg-slate-100 rounded-full cursor-pointer transition-colors"
+                  title={
+                    isSearchListening
+                      ? "Nhấn để dừng ghi âm"
+                      : isSearchTranscribing
+                      ? "Dược sĩ AI đang phân tích âm thanh..."
+                      : "Tìm bằng giọng nói (Voice to text)"
+                  }
+                  onClick={toggleSearchVoiceInput}
+                  disabled={isSearchTranscribing}
+                  className={`p-1.5 rounded-full cursor-pointer transition-all ${
+                    isSearchListening
+                      ? "bg-rose-500 text-white animate-pulse shadow-xs"
+                      : isSearchTranscribing
+                      ? "bg-blue-100 text-[#0057cd] cursor-wait"
+                      : "text-slate-400 hover:text-[#0057cd] hover:bg-slate-100"
+                  }`}
                 >
-                  <Mic size={15} />
+                  {isSearchTranscribing ? (
+                    <Loader2 size={15} className="animate-spin text-[#0057cd]" />
+                  ) : isSearchListening ? (
+                    <Square size={13} className="fill-white text-white" />
+                  ) : (
+                    <Mic size={15} />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -1364,14 +1409,37 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
               placeholder="Tìm tên thuốc, bệnh lý, TPCN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-4 pr-10 py-2 bg-white text-slate-800 rounded-full text-xs font-semibold placeholder:text-slate-400 outline-none"
+              className="w-full pl-4 pr-20 py-2 bg-white text-slate-800 rounded-full text-xs font-semibold placeholder:text-slate-400 outline-none"
             />
-            <button
-              type="submit"
-              className="absolute right-1.5 bg-[#0047a5] text-white p-1 rounded-full text-xs"
-            >
-              <Search size={14} />
-            </button>
+            <div className="absolute right-1.5 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleSearchVoiceInput}
+                disabled={isSearchTranscribing}
+                className={`p-1 rounded-full text-xs transition-colors ${
+                  isSearchListening
+                    ? "bg-rose-500 text-white animate-pulse"
+                    : isSearchTranscribing
+                    ? "bg-blue-100 text-[#0057cd] cursor-wait"
+                    : "text-slate-400 hover:text-[#0057cd]"
+                }`}
+                title="Tìm bằng giọng nói (Voice to text)"
+              >
+                {isSearchTranscribing ? (
+                  <Loader2 size={13} className="animate-spin text-[#0057cd]" />
+                ) : isSearchListening ? (
+                  <Square size={11} className="fill-white" />
+                ) : (
+                  <Mic size={14} />
+                )}
+              </button>
+              <button
+                type="submit"
+                className="bg-[#0047a5] text-white p-1 rounded-full text-xs"
+              >
+                <Search size={14} />
+              </button>
+            </div>
           </form>
         </div>
 

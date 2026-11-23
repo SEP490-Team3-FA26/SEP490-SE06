@@ -5,17 +5,20 @@ interface UseVoiceInputParams {
   currentText: string;
   onTextChange: (newText: string) => void;
   lang?: string;
+  onTranscribeComplete?: (finalText: string) => void;
 }
 
 /**
- * Custom Hook tách biệt toàn bộ logic nhận diện giọng nói (Speech-to-Text)
- * và giao tiếp API Backend xử lý âm thanh (Whisper STT / Web Speech API)
- * ra khỏi tầng hiển thị giao diện UI ChatInput.
+ * Custom Hook nhận diện giọng nói tiếng Việt chuẩn Hybrid:
+ * 1. Chạy Web Speech API (Google Speech API) để hiển thị chữ thời gian thực (nếu trình duyệt hỗ trợ như Chrome/Edge).
+ * 2. Luôn thu âm song song qua MediaRecorder và tự động Fallback gửi lên Backend AI (Groq Whisper Large V3)
+ *    khi chạy trên Brave, Firefox, Safari hoặc khi Web Speech bị chặn kết nối mạng.
  */
 export function useVoiceInput({
   currentText,
   onTextChange,
   lang = "vi-VN",
+  onTranscribeComplete,
 }: UseVoiceInputParams) {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isTranscribingBE, setIsTranscribingBE] = useState<boolean>(false);
@@ -26,6 +29,7 @@ export function useVoiceInput({
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const baseTextRef = useRef<string>("");
+  const hasWebSpeechResultRef = useRef<boolean>(false);
 
   // Dọn dẹp tài nguyên khi component unmount
   useEffect(() => {
@@ -43,7 +47,38 @@ export function useVoiceInput({
     };
   }, []);
 
-  // Hàm dừng nghe
+  // Gửi audio blob lên Backend AI Service để bóc tách giọng nói qua Groq Whisper STT
+  const transcribeAudioViaBackend = async (blob: Blob) => {
+    try {
+      setIsTranscribingBE(true);
+      const formData = new FormData();
+      formData.append("audio", blob, "voice_input.webm");
+
+      // Gọi endpoint bóc tách âm thanh siêu tốc của server (Whisper Large V3)
+      const res = await prescriptionService.transcribeAudio(formData);
+      const transcribed = res?.text || (res as any)?.transcribed_text;
+      if (transcribed && transcribed.trim()) {
+        const combined = baseTextRef.current
+          ? `${baseTextRef.current} ${transcribed.trim()}`
+          : transcribed.trim();
+        onTextChange(combined);
+        if (onTranscribeComplete) {
+          onTranscribeComplete(combined);
+        }
+      } else {
+        setVoiceError("Không nhận diện được giọng nói. Vui lòng nói to và thử lại.");
+        setTimeout(() => setVoiceError(null), 3500);
+      }
+    } catch (err: any) {
+      console.warn("Lỗi nhận diện âm thanh qua Backend Whisper:", err);
+      setVoiceError("Không thể xử lý âm thanh từ máy chủ AI.");
+      setTimeout(() => setVoiceError(null), 3500);
+    } finally {
+      setIsTranscribingBE(false);
+    }
+  };
+
+  // Hàm dừng nghe và chuyển đổi âm thanh
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
       try {
@@ -51,7 +86,9 @@ export function useVoiceInput({
       } catch {
         // Recognition đã dừng trước đó
       }
+      recognitionRef.current = null;
     }
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       try {
         mediaRecorderRef.current.stop();
@@ -62,50 +99,96 @@ export function useVoiceInput({
     setIsListening(false);
   }, []);
 
-  // Gửi audio blob lên Backend AI Service để bóc tách giọng nói qua Groq Whisper STT (dự phòng)
-  const transcribeAudioViaBackend = async (blob: Blob) => {
-    try {
-      setIsTranscribingBE(true);
-      const formData = new FormData();
-      formData.append("audio", blob, "voice_input.webm");
-
-      // Gọi endpoint bóc tách âm thanh siêu tốc của server
-      const res = await prescriptionService.transcribeAudio(formData);
-      const transcribed = res?.text || (res as any)?.transcribed_text;
-      if (transcribed && transcribed.trim()) {
-        const combined = baseTextRef.current
-          ? `${baseTextRef.current} ${transcribed.trim()}`
-          : transcribed.trim();
-        onTextChange(combined);
-      }
-    } catch (err: any) {
-      console.warn("Lỗi nhận diện âm thanh qua Backend:", err);
-      setVoiceError("Không thể xử lý âm thanh từ máy chủ.");
-      setTimeout(() => setVoiceError(null), 3000);
-    } finally {
-      setIsTranscribingBE(false);
-    }
-  };
-
-  // Khởi động nhận diện giọng nói
+  // Khởi động nhận diện giọng nói Hybrid
   const startListening = async () => {
     setVoiceError(null);
     baseTextRef.current = currentText.trim();
+    hasWebSpeechResultRef.current = false;
+    audioChunksRef.current = [];
 
-    // 1. Kiểm tra Web Speech API trên trình duyệt
-    const SpeechRecognition =
+    // 1. Kiểm tra trình duyệt có hỗ trợ thu âm qua MediaDevices không
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVoiceError("Trình duyệt không hỗ trợ microphone hoặc ghi âm.");
+      setTimeout(() => setVoiceError(null), 3500);
+      return;
+    }
+
+    // 2. Yêu cầu quyền truy cập Microphone và tạo MediaStream
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+    } catch (permErr: any) {
+      console.warn("[VoiceInput] Quyền microphone bị từ chối hoặc không có mic:", permErr);
+      setVoiceError("Vui lòng cấp quyền truy cập Microphone trong trình duyệt.");
+      setIsListening(false);
+      setTimeout(() => setVoiceError(null), 3500);
+      return;
+    }
+
+    // 3. Khởi tạo MediaRecorder để luôn lưu trữ âm thanh cho tầng Whisper AI Backend
+    try {
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "";
+
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Tắt micro ngay khi ghi âm xong
+        stream.getTracks().forEach((track) => track.stop());
+
+        // Nếu Web Speech API không bóc tách được chữ (trường hợp dùng Brave, Firefox, hoặc lỗi mạng),
+        // tự động gửi âm thanh lên Backend Groq Whisper AI để bóc tách
+        if (!hasWebSpeechResultRef.current && audioChunksRef.current.length > 0) {
+          const recordedBlob = new Blob(audioChunksRef.current, {
+            type: mediaRecorder.mimeType || "audio/webm",
+          });
+          // Nếu dung lượng âm thanh > 500 bytes (có tiếng nói), gửi lên Whisper STT
+          if (recordedBlob.size > 500) {
+            await transcribeAudioViaBackend(recordedBlob);
+          } else {
+            setVoiceError("Không nhận diện được giọng nói. Vui lòng nói to và thử lại.");
+            setTimeout(() => setVoiceError(null), 3500);
+          }
+        }
+      };
+
+      // Bắt đầu ghi âm chunk mỗi 200ms
+      mediaRecorder.start(200);
+      setIsListening(true);
+    } catch (recErr) {
+      console.warn("[VoiceInput] Lỗi khởi tạo MediaRecorder:", recErr);
+      stream.getTracks().forEach((t) => t.stop());
+      setVoiceError("Không thể kích hoạt thiết bị thu âm.");
+      setIsListening(false);
+      return;
+    }
+
+    // 4. Đồng thời kích hoạt Web Speech API (nếu có) để tạo hiệu ứng chữ chạy thời gian thực trên Chrome/Edge
+    const SpeechRecognitionClass =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (SpeechRecognition) {
+    if (SpeechRecognitionClass) {
       try {
-        const recognition = new SpeechRecognition();
+        const recognition = new SpeechRecognitionClass();
         recognition.lang = lang;
         recognition.continuous = true;
         recognition.interimResults = true;
-
-        recognition.onstart = () => {
-          setIsListening(true);
-        };
 
         recognition.onresult = (event: any) => {
           let transcript = "";
@@ -113,69 +196,33 @@ export function useVoiceInput({
             transcript += event.results[i][0].transcript;
           }
 
-          const combined = baseTextRef.current
-            ? `${baseTextRef.current} ${transcript.trim()}`
-            : transcript.trim();
-
-          onTextChange(combined);
+          if (transcript.trim()) {
+            hasWebSpeechResultRef.current = true;
+            const combined = baseTextRef.current
+              ? `${baseTextRef.current} ${transcript.trim()}`
+              : transcript.trim();
+            onTextChange(combined);
+          }
         };
 
         recognition.onerror = (event: any) => {
-          if (event.error === "not-allowed") {
-            setVoiceError("Vui lòng cấp quyền truy cập Microphone trong trình duyệt.");
-          } else if (event.error !== "no-speech") {
-            setVoiceError("Không nhận diện được giọng nói. Vui lòng thử lại.");
-          }
-          setIsListening(false);
-          setTimeout(() => setVoiceError(null), 3500);
+          // Khi chạy trên Brave hoặc mạng lỗi, Web Speech API sẽ ném lỗi network / service-not-allowed.
+          // Tuyệt đối không hủy ngang hay báo lỗi đỏ ở đây vì MediaRecorder vẫn đang thu âm phía dưới!
+          console.warn(
+            "[VoiceInput] Web Speech API không khả dụng trên trình duyệt này (sẽ tự động dùng Whisper AI khi bấm dừng):",
+            event.error
+          );
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          // Web speech có thể tự dừng sau khoảng lặng, không tắt isListening của MediaRecorder
         };
 
         recognition.start();
         recognitionRef.current = recognition;
-        return;
-      } catch (err) {
-        console.warn("Khởi tạo Web Speech thất bại, chuyển sang ghi âm Backend:", err);
+      } catch (speechErr) {
+        console.warn("[VoiceInput] Web Speech không hỗ trợ, dùng cơ chế ghi âm Whisper thuần túy:", speechErr);
       }
-    }
-
-    // 2. Dự phòng: Ghi âm qua MediaStream và gọi API Backend (Whisper STT)
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setVoiceError("Trình duyệt không hỗ trợ thu âm hoặc nhận diện giọng nói.");
-        setTimeout(() => setVoiceError(null), 3500);
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      audioChunksRef.current = [];
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType || "audio/webm",
-        });
-        stream.getTracks().forEach((track) => track.stop());
-        await transcribeAudioViaBackend(audioBlob);
-      };
-
-      mediaRecorder.start();
-      mediaRecorderRef.current = mediaRecorder;
-      setIsListening(true);
-    } catch {
-      setIsListening(false);
-      setVoiceError("Không thể kích hoạt microphone. Vui lòng cấp quyền.");
-      setTimeout(() => setVoiceError(null), 3500);
     }
   };
 
