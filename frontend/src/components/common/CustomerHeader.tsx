@@ -71,9 +71,8 @@ const DEFAULT_SUGGESTED_MEDICINES = [
   }
 ];
 
-// S3 Public CDN cho tài nguyên Mega Menu (mặc định trỏ về bucket AWS S3 chính thức)
-const DEFAULT_MEGA_MENU_CDN = "https://wdp301-images-dev-211888002777.s3.ap-southeast-1.amazonaws.com/images/mega-menu";
-const MEGA_MENU_CDN = (import.meta as any).env?.VITE_MEGA_MENU_CDN_URL || DEFAULT_MEGA_MENU_CDN;
+// Đường dẫn tài nguyên Mega Menu (ưu tiên CDN từ biến môi trường, fallback về thư mục tĩnh nội bộ)
+const MEGA_MENU_CDN = (import.meta as any).env?.VITE_MEGA_MENU_CDN_URL || "/images/mega-menu";
 
 // Type definitions for Long Chau style Mega Menu
 export interface QuickSubCard {
