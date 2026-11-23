@@ -71,8 +71,9 @@ const DEFAULT_SUGGESTED_MEDICINES = [
   }
 ];
 
-// S3 Public CDN for Mega Menu assets from environment variable
-const MEGA_MENU_CDN = (import.meta as any).env?.VITE_MEGA_MENU_CDN_URL || '';
+// S3 Public CDN cho tài nguyên Mega Menu (mặc định trỏ về bucket AWS S3 chính thức)
+const DEFAULT_MEGA_MENU_CDN = "https://wdp301-images-dev-211888002777.s3.ap-southeast-1.amazonaws.com/images/mega-menu";
+const MEGA_MENU_CDN = (import.meta as any).env?.VITE_MEGA_MENU_CDN_URL || DEFAULT_MEGA_MENU_CDN;
 
 // Type definitions for Long Chau style Mega Menu
 export interface QuickSubCard {
@@ -1598,6 +1599,11 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                               src={card.image}
                               alt={card.title}
                               className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // Tự động fallback về ảnh mặc định an toàn nếu link gặp sự cố
+                                (e.currentTarget as HTMLImageElement).src =
+                                  "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150&auto=format&fit=crop&q=60";
+                              }}
                             />
                           </div>
                         )}
@@ -1660,6 +1666,11 @@ export function CustomerHeader({ cartIconRef }: CustomerHeaderProps = {}) {
                               src={prod.image}
                               alt={prod.name}
                               className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                              onError={(e) => {
+                                // Tự động fallback về ảnh mặc định an toàn nếu link gặp sự cố
+                                (e.currentTarget as HTMLImageElement).src =
+                                  "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150&auto=format&fit=crop&q=60";
+                              }}
                             />
                           </div>
 
