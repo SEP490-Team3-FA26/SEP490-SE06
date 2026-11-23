@@ -1,0 +1,10 @@
+# Antigravity Rules - Cross-Platform Execution & Performance
+
+## Shell Execution
+- Windows OS: Always use 'cmd /c' for shell executions to ensure processes terminate cleanly and send proper EOF signals.
+- macOS / Linux OS: Run commands directly in the default shell (bash/zsh) with non-interactive flags where appropriate.
+- Avoid hanging interactive shell sessions or unbuffered long-running loops without timeouts.
+
+## Workspace & Monorepo Guidance
+- This project is a monorepo containing `backend`, `frontend`, `mobile`, `infra`, and `bot-simulator`.
+- Refer to `package.json` and dependency manifests for packages; do not scan or index files inside `node_modules` or build directories.

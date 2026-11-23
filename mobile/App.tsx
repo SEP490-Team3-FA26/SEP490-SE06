@@ -185,7 +185,7 @@ const App: React.FC = () => {
           <NotificationProvider>
             <NavigationContainer linking={linking}>
               <StatusBar style="dark" />
-              <NavigationBar style="dark" />
+              {Platform.OS === 'android' && <NavigationBar style="dark" />}
               <AppNavigator />
             </NavigationContainer>
           </NotificationProvider>

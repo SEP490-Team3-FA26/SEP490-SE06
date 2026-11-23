@@ -15,7 +15,6 @@ import {
   StatusBar,
   TouchableOpacity,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -1557,15 +1556,14 @@ export const WarehouseScreen: React.FC<{ navigation?: any; route?: any }> = ({ n
                     onPress={() => setExpandedMedId(isExpanded ? null : med.id)}
                     style={styles.medHeaderRow}
                   >
-                    <ExpoImage
+                    <Image
                       source={{
                         uri:
                           med.image ||
                           'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
                       }}
                       style={styles.inventoryThumb}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
+                      resizeMode="cover"
                     />
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
