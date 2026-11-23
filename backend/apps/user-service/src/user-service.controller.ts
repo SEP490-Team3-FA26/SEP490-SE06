@@ -593,23 +593,23 @@ export class UserServiceController {
 
   // --- HR: ATTENDANCE & GPS CHECK-IN ---
   @MessagePattern('hr.attendance.check_in')
-  handleAttendanceCheckIn(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string; latitude: number; longitude: number; isMockLocation?: boolean; note?: string }) {
+  handleAttendanceCheckIn(@Payload() data: { employeeId: string; employeeEmail?: string; branchId?: string; shiftId?: string; latitude: number; longitude: number; isMockLocation?: boolean; note?: string }) {
     return this.attendanceService.checkIn(data);
   }
 
   @MessagePattern('hr.attendance.check_out')
-  handleAttendanceCheckOut(@Payload() data: { employeeId: string; latitude?: number; longitude?: number; note?: string }) {
+  handleAttendanceCheckOut(@Payload() data: { employeeId: string; employeeEmail?: string; branchId?: string; latitude?: number; longitude?: number; note?: string }) {
     return this.attendanceService.checkOut(data);
   }
 
   @MessagePattern('hr.attendance.my_current_shift')
-  handleGetMyCurrentShiftStatus(@Payload() data: { employeeId: string; branchId?: string }) {
-    return this.attendanceService.getMyCurrentShiftStatus(data.employeeId, data.branchId);
+  handleGetMyCurrentShiftStatus(@Payload() data: { employeeId: string; employeeEmail?: string; branchId?: string }) {
+    return this.attendanceService.getMyCurrentShiftStatus(data.employeeId, data.branchId, data.employeeEmail);
   }
 
   @MessagePattern('hr.attendance.verify_active_shift')
-  handleVerifyPharmacistActiveShift(@Payload() data: { pharmacistId: string; branchId?: string }) {
-    return this.attendanceService.verifyPharmacistActiveShift(data.pharmacistId, data.branchId);
+  handleVerifyPharmacistActiveShift(@Payload() data: { pharmacistId: string; pharmacistEmail?: string; branchId?: string }) {
+    return this.attendanceService.verifyPharmacistActiveShift(data.pharmacistId, data.branchId, data.pharmacistEmail);
   }
 
   @MessagePattern('hr.attendance.branch_today')
@@ -618,8 +618,8 @@ export class UserServiceController {
   }
 
   @MessagePattern('hr.attendance.history')
-  handleGetMyAttendanceHistory(@Payload() data: { employeeId: string; startDate?: string; endDate?: string }) {
-    return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate);
+  handleGetMyAttendanceHistory(@Payload() data: { employeeId: string; employeeEmail?: string; startDate?: string; endDate?: string }) {
+    return this.attendanceService.getMyAttendanceHistory(data.employeeId, data.startDate, data.endDate, data.employeeEmail);
   }
 
   @MessagePattern('hr.attendance.branch_history')
@@ -650,7 +650,7 @@ export class UserServiceController {
 
   // --- HR: SHIFT HANDOVER (BÀN GIAO CA & CHỐT KÉT) ---
   @MessagePattern('hr.shift_handover.live_stats')
-  handleGetShiftLiveStats(@Payload() data: { employeeId: string; branchId?: string; shiftId?: string }) {
+  handleGetShiftLiveStats(@Payload() data: { employeeId: string; employeeEmail?: string; branchId?: string; shiftId?: string }) {
     return this.shiftHandoverService.getShiftLiveStats(data);
   }
 

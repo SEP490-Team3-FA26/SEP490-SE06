@@ -212,6 +212,98 @@ export class PurchaseService {
   }
 
   // ===========================================================================================
+  // HELPER: SINH MÃ ĐỊNH DANH THEO MÚI GIỜ VIỆT NAM (GMT+7) & SỐ THỨ TỰ LỚN NHẤT
+  // ===========================================================================================
+
+  /**
+   * Lấy chuỗi ngày định dạng YYYYMMDD theo chuẩn múi giờ Việt Nam (Asia/Ho_Chi_Minh - GMT+7).
+   * Giúp triệt tiêu hoàn toàn lỗi lệch ngày giữa máy chủ chạy UTC và giờ thực tế của người dùng.
+   */
+  getVietnamDateString(date: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date).replace(/-/g, '');
+  }
+
+  /**
+   * Sinh mã PR định dạng PR-YYYYMMDD-XXXX dựa trên số thứ tự lớn nhất hiện có trong ngày theo múi giờ VN.
+   * Chống trùng lặp tuyệt đối (E11000 duplicate key) kể cả khi có đơn bị xóa hoặc thao tác ban đêm (00:00 - 07:00).
+   */
+  async generatePrCode(dateStr: string): Promise<string> {
+    const latest = await this.prModel
+      .findOne({ prCode: new RegExp(`^PR-${dateStr}-`) })
+      .sort({ prCode: -1 })
+      .select('prCode')
+      .lean()
+      .exec();
+
+    let nextSeq = 1;
+    if (latest && (latest as any).prCode) {
+      const parts = String((latest as any).prCode).split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq) && lastSeq >= nextSeq) {
+        nextSeq = lastSeq + 1;
+      }
+    }
+
+    return `PR-${dateStr}-${String(nextSeq).padStart(4, '0')}`;
+  }
+
+  /**
+   * Sinh mã chuyển kho ST-YYYYMMDD-XXXX dựa trên số thứ tự lớn nhất hiện có trong ngày.
+   */
+  async generateTransferCode(dateStr: string, session?: any): Promise<string> {
+    const query = this.transferModel
+      .findOne({ transferCode: new RegExp(`^ST-${dateStr}-`) })
+      .sort({ transferCode: -1 })
+      .select('transferCode')
+      .lean();
+
+    if (session) {
+      query.session(session);
+    }
+
+    const latest = await query.exec();
+    let nextSeq = 1;
+    if (latest && (latest as any).transferCode) {
+      const parts = String((latest as any).transferCode).split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq) && lastSeq >= nextSeq) {
+        nextSeq = lastSeq + 1;
+      }
+    }
+
+    return `ST-${dateStr}-${String(nextSeq).padStart(4, '0')}`;
+  }
+
+  /**
+   * Sinh mã RFQ (RFQ-YYYYMMDD-XXXX) dựa trên số thứ tự lớn nhất hiện có trong ngày.
+   */
+  async generateRfqCode(dateStr: string): Promise<string> {
+    const latest = await this.rfqModel
+      .findOne({ rfqCode: new RegExp(`^RFQ-${dateStr}-`) })
+      .sort({ rfqCode: -1 })
+      .select('rfqCode')
+      .lean()
+      .exec();
+
+    let nextSeq = 1;
+    if (latest && (latest as any).rfqCode) {
+      const parts = String((latest as any).rfqCode).split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq) && lastSeq >= nextSeq) {
+        nextSeq = lastSeq + 1;
+      }
+    }
+
+    return `RFQ-${dateStr}-${String(nextSeq).padStart(4, '0')}`;
+  }
+
+  // ===========================================================================================
   // BƯỚC 1: PR - PURCHASE REQUISITION (Yêu cầu mua hàng từ chi nhánh)
   // ===========================================================================================
 
@@ -256,22 +348,11 @@ export class PurchaseService {
       });
     }
 
-    const today = new Date();
     const branchId = data.branchId || "BRANCH_HQ";
 
-    // Generate PR code: PR-YYYYMMDD-XXXX
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-    const count = await this.prModel.countDocuments({
-      createdAt: {
-        $gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-        $lt: new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          today.getDate() + 1,
-        ),
-      },
-    });
-    const prCode = `PR-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+    // Sinh mã PR: PR-YYYYMMDD-XXXX theo múi giờ Việt Nam và số thứ tự lớn nhất chống trùng lặp
+    const dateStr = this.getVietnamDateString();
+    const prCode = await this.generatePrCode(dateStr);
 
     const isUrgent = !!data.isUrgent;
     const status = isUrgent ? "URGENT_PENDING" : "SUBMITTED";
@@ -2061,26 +2142,9 @@ export class PurchaseService {
         }
       }
 
-      // Tạo mã chuyển kho ST-YYYYMMDD-XXXX
-      const today = new Date();
-      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-      const count = await this.transferModel
-        .countDocuments({
-          createdAt: {
-            $gte: new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate(),
-            ),
-            $lt: new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate() + 1,
-            ),
-          },
-        })
-        .session(session);
-      const transferCode = `ST-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+      // Tạo mã chuyển kho ST-YYYYMMDD-XXXX theo múi giờ Việt Nam và số thứ tự lớn nhất
+      const dateStr = this.getVietnamDateString();
+      const transferCode = await this.generateTransferCode(dateStr, session);
 
       const transfer = new this.transferModel({
         transferCode,
@@ -2933,26 +2997,9 @@ export class PurchaseService {
         }
       }
 
-      // Tạo mã chuyển kho ST-YYYYMMDD-XXXX
-      const today = new Date();
-      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-      const count = await this.transferModel
-        .countDocuments({
-          createdAt: {
-            $gte: new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate(),
-            ),
-            $lt: new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate() + 1,
-            ),
-          },
-        })
-        .session(session);
-      const transferCode = `ST-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+      // Tạo mã chuyển kho ST-YYYYMMDD-XXXX theo múi giờ Việt Nam và số thứ tự lớn nhất
+      const dateStr = this.getVietnamDateString();
+      const transferCode = await this.generateTransferCode(dateStr, session);
 
       const transfer = new this.transferModel({
         transferCode,
@@ -3387,10 +3434,8 @@ export class PurchaseService {
   // ==========================================
   async createRfq(payload: any) {
     try {
-      const now = new Date();
-      const count = await this.rfqModel.countDocuments();
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-      const rfqCode = `RFQ-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+      const dateStr = this.getVietnamDateString();
+      const rfqCode = await this.generateRfqCode(dateStr);
 
       // Tự động sinh One-time Token định danh bí mật riêng cho từng Sales / NCC
       const targetSuppliers = (payload.targetSuppliers || []).map((s: any) => ({
