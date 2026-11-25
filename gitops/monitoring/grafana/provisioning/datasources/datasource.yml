@@ -9,4 +9,6 @@ datasources:
     isDefault: true
     editable: true
     jsonData:
-      timeInterval: 5s
+      timeInterval: 10s
+      httpMethod: POST
+      timeout: 60

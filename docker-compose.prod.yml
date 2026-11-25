@@ -378,7 +378,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.time=3d'
+      - '--storage.tsdb.retention.size=512MB'
       - '--storage.tsdb.wal-compression'
       - '--web.enable-lifecycle'
     volumes:
@@ -390,7 +391,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
+          memory: 256m
     networks: [wdp301-network]
 
   grafana:

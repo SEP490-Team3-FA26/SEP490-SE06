@@ -1485,7 +1485,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "5s",
+  "refresh": "15s",
   "schemaVersion": 39,
   "tags": [
     "abc-pharmacy",
@@ -1502,11 +1502,11 @@
   },
   "timepicker": {
     "refresh_intervals": [
-      "2s",
-      "5s",
       "10s",
+      "15s",
       "30s",
-      "1m"
+      "1m",
+      "5m"
     ]
   },
   "timezone": "browser",

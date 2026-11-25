@@ -132,3 +132,7 @@ docker/mongo/keyfile
 **/keyfile
 *.keyfile
 docker/mongo/*.key
+
+# Generated Loadtest User Fixtures
+backend/scripts/loadtest-users.csv
+backend/scripts/loadtest-users.json
