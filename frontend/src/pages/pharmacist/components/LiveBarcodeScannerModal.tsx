@@ -69,6 +69,7 @@ export function LiveBarcodeScannerModal({
   const lastSuccessScanRef = useRef<number>(0);
   const lastSuccessCodeRef = useRef<string>("");
   const lastAttemptTimeRef = useRef<number>(0);
+  const lastEmptyFrameTimeRef = useRef<number>(0);
   const frameCounterRef = useRef<number>(0);
   const isPausedRef = useRef<boolean>(false);
 
@@ -251,15 +252,15 @@ export function LiveBarcodeScannerModal({
 
         const now = Date.now();
 
-        // 1. Cooldown quét: nếu cùng một mã vạch thì cách nhau 1200ms; mã vạch khác thì 500ms
+        // 1. Cooldown quét: nếu cùng một mã vạch thì cách nhau 700ms (hoặc 400ms nếu đã nhấc sản phẩm ra); mã vạch khác thì 400ms
         const timeSinceLastSuccess = now - lastSuccessScanRef.current;
-        if (timeSinceLastSuccess < 500) {
+        if (timeSinceLastSuccess < 350) {
           animId = requestAnimationFrame(scanFrame);
           return;
         }
 
-        // 2. Throttling CPU: tối đa 1 lần decode mỗi 200ms
-        if (now - lastAttemptTimeRef.current < 200) {
+        // 2. Throttling CPU: tối đa 1 lần decode mỗi 150ms
+        if (now - lastAttemptTimeRef.current < 150) {
           animId = requestAnimationFrame(scanFrame);
           return;
         }
@@ -326,10 +327,15 @@ export function LiveBarcodeScannerModal({
           } catch (_) {}
         }
 
-        if (scannedCode && active) {
-          // Tránh quét liên tục cùng 1 mã khi người dùng chưa kịp nhấc hộp thuốc ra
+        if (!scannedCode) {
+          lastEmptyFrameTimeRef.current = now;
+        } else if (scannedCode && active) {
+          // Tránh quét dập mã khi người dùng giữ nguyên sản phẩm, nhưng cho phép cộng dồn tức thì khi quét liên tiếp (ví dụ 3 miếng cao dán)
           const isSameCode = scannedCode === lastSuccessCodeRef.current;
-          if (!isSameCode || timeSinceLastSuccess >= 1200) {
+          const hasLiftedGap = lastEmptyFrameTimeRef.current > lastSuccessScanRef.current && (now - lastEmptyFrameTimeRef.current < 1200);
+          const minCooldown = isSameCode ? (hasLiftedGap ? 400 : 700) : 400;
+
+          if (!isSameCode || timeSinceLastSuccess >= minCooldown) {
             lastSuccessScanRef.current = now;
             lastSuccessCodeRef.current = scannedCode;
             handleDetectedCode(scannedCode);

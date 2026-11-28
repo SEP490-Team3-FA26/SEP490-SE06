@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, ChangeEvent } from "react";
 import {
   XCircle, AlertTriangle, CheckCircle2, QrCode, FileText, Stethoscope,
   ShoppingCart, Minus, Plus, Banknote, CreditCard, Sparkles, Printer, SearchIcon, Check,
-  ShieldAlert, Loader2, X, Filter, ShieldCheck, FileCheck2, BadgeCheck, UserCheck
+  ShieldAlert, Loader2, X, Filter, ShieldCheck, FileCheck2, BadgeCheck, UserCheck,
+  Trash2, RefreshCw, Zap
 } from "lucide-react";
 import { medicineService } from "../../../services/inventory/medicine.service";
 import { prescriptionService } from "../../../services/sales/prescription.service";
@@ -139,6 +140,17 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
   const [aiPharmacistConfirmation, setAiPharmacistConfirmation] = useState<AIPharmacistConfirmationData | null>(null);
   const [pharmacistAgreementCheck, setPharmacistAgreementCheck] = useState<boolean>(true);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
+
+  // Trạng thái tìm kiếm & Đề xuất thuốc tương đương (Alternatives)
+  const [showAiAlternativesModal, setShowAiAlternativesModal] = useState<boolean>(false);
+  const [selectedAiItemForAlt, setSelectedAiItemForAlt] = useState<any>(null);
+  const [selectedAiItemIdx, setSelectedAiItemIdx] = useState<number | null>(null);
+  const [aiAlternativesList, setAiAlternativesList] = useState<any[]>([]);
+  const [loadingAiAlternatives, setLoadingAiAlternatives] = useState<boolean>(false);
+
+  // Đổi thuốc tương đương cho giỏ hàng Cart
+  const [showCartAlternativesModal, setShowCartAlternativesModal] = useState<boolean>(false);
+  const [selectedCartMedForAlt, setSelectedCartMedForAlt] = useState<any>(null);
 
   // Lang nghe su kien Paste (Ctrl + V) khi mo modal quet don thuoc AI
   useEffect(() => {
@@ -332,6 +344,283 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
     setAiPharmacistConfirmation(confirmationInfo);
     setShowAIScanModal(false);
     showToast(`✅ Dược sĩ ${confirmationInfo.pharmacistName} đã xác nhận bước cuối thành công! (Mã duyệt: ${auditCode})`, "success");
+  };
+
+  // =========================================================================
+  // 🔄 CƠ CHẾ ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG CHUẨN GPP (ĐỒNG BỘ 100% MODAL AI & CART)
+  // =========================================================================
+
+  // Phân tích & Đánh giá lâm sàng chuẩn GPP cho từng thuốc ứng viên
+  const evaluateGppAlternative = (originName: string, originActive: string, originForm: string, candidate: any) => {
+    const cName = (candidate.name || "").toLowerCase();
+    const cActive = (candidate.active_ingredient || "").toLowerCase();
+    const cForm = (candidate.dosage_form || "").toLowerCase();
+    const oName = (originName || "").toLowerCase();
+    const oActive = (originActive || "").toLowerCase();
+
+    // 1. Nhận diện đường dùng gốc (Route of administration)
+    const originIsInjection = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm|lo tiem/i.test(oName + " " + originForm);
+    const candidateIsInjection = /tiêm|tiem|injection|dung môi pha tiêm/i.test(cName + " " + cForm);
+
+    // 2. Nhận diện chất giãn cơ / phối hợp đặc biệt
+    const candidateHasMuscleRelaxant = /methocarbamol/i.test(cActive + " " + cName); // SaViMetoc
+    const originHasMuscleRelaxant = /methocarbamol/i.test(oActive + " " + oName);
+
+    // 3. Nhận diện đa sinh tố tổng hợp (Multivitamin) vs Vitamin C đơn chất
+    const originIsVitaminC = /vitamin c|acid ascorbic|ascorbic acid/i.test(oName + " " + oActive);
+    const candidateIsMultivitamin = /nhân sâm|ginseng|retinol|thiamin|khoáng chất|multivitamin/i.test(cActive + " " + cName);
+
+    // 4. Nhận diện thuốc cảm sốt (Paracetamol)
+    const originIsParacetamol = /paracetamol|acetaminophen|ameflu/i.test(oName + " " + oActive);
+    const candidateIsParacetamol = /paracetamol|acetaminophen/i.test(cActive + " " + cName);
+
+    let tier: 1 | 2 | 3 = 2;
+    let isGppEligible = true;
+    let badgeLabel = "Cùng hoạt chất";
+    let badgeClass = "bg-sky-100 text-sky-800 border-sky-300";
+    let clinicalWarning: string | undefined = undefined;
+
+    // PHÁN QUYẾT 1: THUỐC GỐC LÀ DẠNG TIÊM (INJECTION)
+    if (originIsInjection) {
+      if (!candidateIsInjection) {
+        tier = 3;
+        isGppEligible = false;
+        badgeLabel = "⚠️ Khác đường dùng (Dạng uống/siro)";
+        badgeClass = "bg-amber-100 text-amber-900 border-amber-300 font-bold";
+        clinicalWarning = "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro mà phải có chỉ định của Bác sĩ điều trị!";
+      } else {
+        tier = 1;
+        badgeLabel = "✓ Chuẩn GPP: Cùng hoạt chất & Dạng tiêm";
+        badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+      }
+    }
+
+    // PHÁN QUYẾT 2: THUỐC CÓ CHẤT GIÃN CƠ (SAVIMETOC) TRONG KHI ĐƠN LÀ CẢM CÚM / HẠ SỐT
+    if (originIsParacetamol && !originHasMuscleRelaxant && candidateHasMuscleRelaxant) {
+      tier = 3;
+      isGppEligible = false;
+      badgeLabel = "⛔ Không chuẩn GPP: Có chất giãn cơ";
+      badgeClass = "bg-rose-100 text-rose-800 border-rose-300 font-black";
+      clinicalWarning = "Thuốc chứa Methocarbamol (chất giãn cơ trung ương, gây an thần, buồn ngủ). Không dùng thay thế cho thuốc cảm sốt thông thường!";
+    }
+
+    // PHÁN QUYẾT 3: THUỐC ĐA SINH TỐ (HOMTAMIN) TRONG KHI ĐƠN LÀ VITAMIN C ĐIỀU TRỊ
+    if (originIsVitaminC && candidateIsMultivitamin) {
+      tier = 3;
+      isGppEligible = false;
+      badgeLabel = "⚠️ Đa sinh tố & khoáng chất tổng hợp";
+      badgeClass = "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+      clinicalWarning = originIsInjection && !candidateIsInjection
+        ? "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro (Đa sinh tố) mà phải có chỉ định của Bác sĩ điều trị!"
+        : "Thuốc gốc là Vitamin C đơn chất liều điều trị. Thuốc này là Đa sinh tố & khoáng chất tổng hợp, không tương đương về dược động học.";
+    }
+
+    // PHÁN QUYẾT 4: THUỐC ĐƠN CHẤT CÙNG HOẠT CHẤT & DẠNG UỐNG
+    if (originIsParacetamol && candidateIsParacetamol && !candidateHasMuscleRelaxant && !originIsInjection && !candidateIsInjection) {
+      const isLowDoseChild = /150mg|250mg|gói|goi|sủi/i.test(cName + " " + cActive);
+      if (isLowDoseChild) {
+        tier = 2;
+        badgeLabel = "⚠️ Khác hàm lượng (Liều trẻ em)";
+        badgeClass = "bg-amber-50 text-amber-800 border-amber-200 font-bold";
+        clinicalWarning = "Thuốc có hàm lượng thấp (dành cho trẻ em), cần điều chỉnh số lượng nếu dùng cho người lớn.";
+      } else {
+        tier = 1;
+        badgeLabel = "✓ Chuẩn GPP: Khớp hoạt chất & Hàm lượng";
+        badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+      }
+    }
+
+    return {
+      id: candidate.id || candidate._id,
+      name: candidate.name,
+      active_ingredient: candidate.active_ingredient,
+      dosage_form: candidate.dosage_form,
+      unit: candidate.unit || "Hộp",
+      price: candidate.price || 0,
+      stock: Number(candidate.stock || candidate.branchStock || 0),
+      fefoBatchNo: candidate.fefoBatchNo,
+      fefoExpDate: candidate.fefoExpDate,
+      isGppEligible,
+      tier,
+      badgeLabel,
+      badgeClass,
+      clinicalWarning,
+    };
+  };
+
+  // Hàm tra cứu chuẩn hóa GPP dùng chung duy nhất cho CẢ Modal AI và Cart
+  const fetchGppAlternativesUnified = async (originName: string, originActive: string, originForm: string, medicineId?: string) => {
+    setLoadingAiAlternatives(true);
+    setAiAlternativesList([]);
+
+    try {
+      const { branchId } = getBranchInfoFromToken();
+      const currentBranch = branchId || "BR-001";
+      let candidates: any[] = [];
+
+      // 1. Xác định từ khóa hoạt chất tìm kiếm sạch sẽ
+      let primaryKeyword = "";
+      const cleanedActive = (originActive || "").trim();
+      const cleanedName = (originName || "").trim();
+
+      if (/vitamin c|acid ascorbic|ascorbic acid/i.test(cleanedActive + " " + cleanedName)) {
+        primaryKeyword = "Vitamin C";
+      } else if (/paracetamol|acetaminophen|ameflu/i.test(cleanedActive + " " + cleanedName)) {
+        primaryKeyword = "Paracetamol";
+      } else if (cleanedActive) {
+        primaryKeyword = cleanedActive.split(/[,;\(\)\/]/)[0].trim();
+      } else {
+        primaryKeyword = cleanedName.split(/[,;\(\)\/]/)[0].trim();
+      }
+
+      // 2. Tra cứu kho chi nhánh theo từ khóa hoạt chất
+      if (primaryKeyword) {
+        const searchRes = await medicineService.searchBranchMedicines(currentBranch, {
+          search: primaryKeyword,
+          limit: 20,
+        });
+        candidates = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
+      }
+
+      // 3. Đánh giá từng ứng viên theo quy chuẩn Dược Lâm Sàng & GPP
+      const evaluatedList = candidates
+        // Loại trừ chính nó nếu trùng ID hoặc tên
+        .filter(c => (medicineId ? String(c.id || c._id) !== String(medicineId) : true) && c.name?.toLowerCase() !== cleanedName.toLowerCase())
+        .map(c => evaluateGppAlternative(originName, originActive, originForm, c));
+
+      // 4. Sắp xếp thứ bậc ưu tiên GPP:
+      // - Tier 1 (Chuẩn GPP khớp hoàn toàn) & stock > 0 lên đầu tiên
+      // - Tier 2 (Khớp có điều kiện hàm lượng) & stock > 0
+      // - Tier 3 (Khác đường dùng / có chất giãn cơ) hoặc hết hàng xếp xuống dưới cùng
+      const sorted = evaluatedList.sort((a, b) => {
+        // Ưu tiên 1: Có tồn kho > 0
+        if (a.stock > 0 && b.stock <= 0) return -1;
+        if (a.stock <= 0 && b.stock > 0) return 1;
+
+        // Ưu tiên 2: Tier chuẩn GPP (1 -> 2 -> 3)
+        if (a.tier !== b.tier) return a.tier - b.tier;
+
+        // Ưu tiên 3: Tồn kho nhiều hơn
+        return b.stock - a.stock;
+      });
+
+      setAiAlternativesList(sorted);
+    } catch (err) {
+      console.error("Lỗi khi tìm thuốc thay thế GPP:", err);
+      showToast("Lỗi khi tìm kiếm thuốc tương đương", "error");
+    } finally {
+      setLoadingAiAlternatives(false);
+    }
+  };
+
+  // Tìm kiếm thuốc tương đương cho item trong đơn AI
+  const handleFetchAiAlternatives = async (item: any, idx: number) => {
+    setSelectedAiItemIdx(idx);
+    setSelectedAiItemForAlt(item);
+    setShowAiAlternativesModal(true);
+    const sku = item.selected_sku;
+    const ext = item.extracted || {};
+    await fetchGppAlternativesUnified(
+      ext.raw_text || sku?.product_name || "",
+      ext.generic_name || sku?.active_ingredient || "",
+      sku?.dosage_form || "",
+      sku?.product_id
+    );
+  };
+
+  // Chọn thuốc tương đương thay thế cho đơn AI
+  const handleSelectAiAlternative = (alt: any) => {
+    if (selectedAiItemIdx === null || !aiScanResult?.items) return;
+
+    if (!alt.isGppEligible) {
+      if (!window.confirm(`⚠️ CẢNH BÁO GPP:\n${alt.clinicalWarning || 'Thuốc này không hoàn toàn tương đương chuẩn GPP.'}\n\nBạn có chắc chắn muốn Dược sĩ chịu trách nhiệm thay thế thuốc này không?`)) {
+        return;
+      }
+    }
+
+    const updatedItems = [...aiScanResult.items];
+    const targetItem = updatedItems[selectedAiItemIdx];
+
+    // Xác định lô FEFO nếu có
+    const fefoBatch = alt.fefoBatchNo ? {
+      batch_no: alt.fefoBatchNo,
+      exp_date: alt.fefoExpDate,
+    } : (alt.batches && alt.batches.length > 0 ? {
+      batch_no: alt.batches[0].batchNo,
+      exp_date: alt.batches[0].expiryDate,
+    } : null);
+
+    updatedItems[selectedAiItemIdx] = {
+      ...targetItem,
+      match_status: "SUBSTITUTE_AVAILABLE", // Đánh dấu đã khớp hoạt chất thay thế
+      selected_sku: {
+        product_id: alt.id || alt._id,
+        product_name: alt.name,
+        active_ingredient: alt.active_ingredient,
+        dosage_form: alt.dosage_form || alt.type,
+        unit: alt.unit || targetItem.extracted?.unit || "Hộp",
+        retail_price: alt.price || 0,
+        stock: alt.stock || alt.branchStock || 0,
+      },
+      fefo_batch: fefoBatch,
+    };
+
+    setAiScanResult({
+      ...aiScanResult,
+      items: updatedItems,
+    });
+
+    setShowAiAlternativesModal(false);
+    setSelectedAiItemIdx(null);
+    setSelectedAiItemForAlt(null);
+    showToast(`Đã chọn thuốc thay thế: "${alt.name}" (Còn ${alt.stock || 0} ${alt.unit || 'đơn vị'})!`, "success");
+  };
+
+  // Tìm thuốc thay thế cho thuốc trong giỏ hàng kê đơn (Cart)
+  const handleFetchCartAlternatives = async (cartItem: any) => {
+    setSelectedCartMedForAlt(cartItem);
+    setShowCartAlternativesModal(true);
+    await fetchGppAlternativesUnified(
+      cartItem.name,
+      cartItem.active_ingredient,
+      cartItem.dosage_form || "",
+      cartItem.medicineId
+    );
+  };
+
+  // Chọn thuốc thay thế trong giỏ hàng kê đơn (Cart)
+  const handleSelectCartAlternative = (alt: any) => {
+    if (!selectedCartMedForAlt) return;
+
+    if (!alt.isGppEligible) {
+      if (!window.confirm(`⚠️ CẢNH BÁO GPP:\n${alt.clinicalWarning || 'Thuốc này không hoàn toàn tương đương chuẩn GPP.'}\n\nBạn có chắc chắn muốn Dược sĩ chịu trách nhiệm thay thế thuốc này không?`)) {
+        return;
+      }
+    }
+
+    const oldMedId = selectedCartMedForAlt.medicineId;
+    const newMedId = alt.id || alt._id;
+
+    setPrescriptionItems(prev => prev.map(item => {
+      if (item.medicineId === oldMedId) {
+        return {
+          ...item,
+          medicineId: newMedId,
+          name: alt.name,
+          active_ingredient: alt.active_ingredient || item.active_ingredient,
+          price: alt.price || item.price,
+          unit: alt.unit || item.unit,
+          stock: alt.stock || alt.branchStock || 0,
+          expiry: alt.expiry || alt.fefoExpDate || item.expiry,
+          status: (alt.stock || 0) > 0 ? "In Stock" : "Out of Stock",
+        };
+      }
+      return item;
+    }));
+
+    setShowCartAlternativesModal(false);
+    setSelectedCartMedForAlt(null);
+    showToast(`Đã thay thế "${selectedCartMedForAlt.name}" bằng "${alt.name}"!`, "success");
   };
 
   const handleQuickConfirmAI = () => {
@@ -1300,158 +1589,209 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               </div>
             )}
 
-            {/* Danh muc thuoc ke don */}
+            {/* Danh mục thuốc kê đơn dạng Card bán lẻ POS chuyên nghiệp */}
             <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[480px]">
-              <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100">
-                <h2 className="text-[16px] font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <ShoppingCart size={18} className="text-[#0057cd]" /> Danh mục thuốc kê đơn
-                </h2>
-                {hasNearExpiry && (
-                  <span className="px-3 py-1 bg-amber-50 text-[#a63b00] border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wider animate-pulse flex items-center gap-1.5">
-                    <AlertTriangle size={12} /> Cảnh báo lô cận hạn sử dụng
+              <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-slate-50 rounded-t-[16px]">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <ShoppingCart size={18} className="text-[#0057cd]" />
+                  <span>Danh mục thuốc kê đơn & Phác đồ điều trị</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasNearExpiry && (
+                    <span className="px-3 py-1 bg-amber-50 text-[#a63b00] border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wider animate-pulse flex items-center gap-1.5 shadow-2xs">
+                      <AlertTriangle size={12} /> Cảnh báo lô cận hạn sử dụng
+                    </span>
+                  )}
+                  <span className="px-3 py-1 bg-[#d8e3fb] text-[#00419e] font-bold text-[11px] rounded-full uppercase tracking-wider">
+                    {prescriptionItems.reduce((sum, it) => sum + (it.quantity || 1), 0)} SẢN PHẨM
                   </span>
-                )}
+                </div>
               </div>
 
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4">Tên thuốc / Item</th>
-                      <th className="px-6 py-4">Hoạt chất / Ingredient</th>
-                      <th className="px-6 py-4">Liều dùng / Dosage (Sửa trực tiếp)</th>
-                      <th className="px-4 py-4 text-center">Yêu cầu</th>
-                      <th className="px-4 py-4 text-center">Tồn kho</th>
-                      <th className="px-6 py-4 text-right">Đơn giá</th>
-                      <th className="px-6 py-4 text-right">Thành tiền</th>
-                      <th className="px-4 py-4 text-center">Xóa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {prescriptionItems.map((it: any) => {
-                      const isOutOfStock = it.stock < it.quantity;
+              {/* Danh sách thẻ thuốc kê đơn Card view */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-4 space-y-4">
+                {prescriptionItems.map((it: any) => {
+                  const isOutOfStock = (it.stock || 0) < it.quantity;
+                  const diffTime = it.expiry ? new Date(it.expiry).getTime() - Date.now() : 0;
+                  const diffDays = it.expiry ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : null;
+                  const isNearExp = diffDays !== null && diffDays > 0 && diffDays <= 180;
 
-                      // Kiem tra xem HSD cua lo xuat kho sap toi co can han hay khong (< 180 ngay)
-                      const diffTime = new Date(it.expiry).getTime() - new Date().getTime();
-                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      const isNearExp = diffDays > 0 && diffDays <= 180;
+                  return (
+                    <div
+                      key={it.medicineId}
+                      className={`rounded-2xl p-4 flex flex-col gap-3 transition-all hover:shadow-sm ${
+                        isOutOfStock
+                          ? "bg-rose-50/40 border-2 border-rose-300"
+                          : isNearExp
+                          ? "bg-amber-50/30 border border-amber-200/90"
+                          : "bg-slate-50/60 border border-slate-200/80 hover:border-emerald-600/50"
+                      }`}
+                    >
+                      {/* Cảnh báo vượt tồn kho / hết hàng kèm nút tìm thuốc thay thế */}
+                      {isOutOfStock && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-800 text-xs">
+                          <div className="flex items-center gap-2 font-bold">
+                            <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                            <span>
+                              Vượt quá tồn kho khả dụng! Cần <span className="text-rose-700 underline font-black">{it.quantity} {it.unit}</span>, nhưng kho chỉ còn <span className="text-rose-700 font-black">{it.stock || 0} {it.unit}</span>.
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleFetchCartAlternatives(it)}
+                            className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer shrink-0 shadow-2xs"
+                          >
+                            🔄 Tìm thuốc thay thế
+                          </button>
+                        </div>
+                      )}
 
-                      return (
-                        <tr
-                          key={it.medicineId}
-                          className={`hover:bg-slate-50/50 transition-colors ${isOutOfStock ? "bg-red-50/30" : isNearExp ? "bg-amber-50/30" : ""
-                            }`}
+                      {/* Dòng 1: Tên thuốc, hoạt chất, badges FEFO & nút xóa */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="font-black text-slate-900 text-[15px] leading-snug">{it.name}</span>
+                            {it.active_ingredient && (
+                              <span className="text-[12px] text-slate-500 font-medium">
+                                ({it.active_ingredient})
+                              </span>
+                            )}
+                            {it.aiSuggested && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                                <Sparkles size={10} className="text-sky-600" /> AI Đề xuất • Đã duyệt GPP
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Badges kho tồn & Lô FEFO nằm ngang thoáng đãng */}
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                              📦 Đơn vị: {it.unit}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shadow-2xs ${
+                              isOutOfStock ? "bg-rose-100 text-rose-800 border-rose-200" : "bg-sky-50 text-sky-800 border-sky-200"
+                            }`}>
+                              Tồn kho: {it.stock || 0} {it.unit}
+                            </span>
+                            {it.batchNo && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-200 flex items-center gap-1">
+                                <Zap size={11} className="text-sky-600" /> Lô FEFO: {it.batchNo}
+                              </span>
+                            )}
+                            {isNearExp && (
+                              <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                <AlertTriangle size={11} className="text-amber-600" /> Lô cận hạn (Còn {diffDays} ngày)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Nút xóa thuốc khỏi đơn */}
+                        <button
+                          type="button"
+                          onClick={() => setPrescriptionItems(prescriptionItems.filter((p: any) => p.medicineId !== it.medicineId))}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Xóa thuốc khỏi đơn"
                         >
-                          <td className="px-6 py-4 font-bold text-slate-900 text-[14px]">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span>{it.name}</span>
-                              {it.aiSuggested && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-sky-800 bg-sky-100/90 px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
-                                  <Sparkles size={10} className="text-sky-600" /> AI Đề xuất • Đã duyệt GPP
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-[#a63b00] font-bold mt-1 uppercase tracking-wider flex items-center gap-1">
-                              Đơn vị: {it.unit}
-                              {isNearExp && (
-                                <span className="ml-2 text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded text-[9px]">
-                                  Lô cận hạn (Còn {diffDays} ngày)
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-slate-500 text-[13px]">{it.active_ingredient}</td>
-                          <td className="px-6 py-4 min-w-[260px]">
-                            <div className="flex flex-col gap-1.5">
-                              <div className="relative">
-                                <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                                  <Sparkles size={13} className="text-[#0057cd]" />
-                                </span>
-                                <input
-                                  type="text"
-                                  value={it.dosage}
-                                  onChange={(e) => {
-                                    setPrescriptionItems(prescriptionItems.map(p =>
-                                      p.medicineId === it.medicineId
-                                        ? { ...p, dosage: e.target.value }
-                                        : p
-                                    ));
-                                  }}
-                                  placeholder="Ví dụ: Ngày uống 2 lần..."
-                                  className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0057cd] focus:border-emerald-600 transition-all"
-                                />
-                              </div>
-                              {/* Quick select presets */}
-                              <div className="flex flex-wrap gap-1">
-                                {[
-                                  "Sáng 1 - Tối 1 (Sau ăn)",
-                                  "Sáng 1 - Trưa 1 - Tối 1",
-                                  "Uống trước ăn 30p",
-                                  "Uống khi đau"
-                                ].map((preset) => (
-                                  <button
-                                    key={preset}
-                                    type="button"
-                                    onClick={() => {
-                                      setPrescriptionItems(prescriptionItems.map(p =>
-                                        p.medicineId === it.medicineId
-                                          ? { ...p, dosage: preset }
-                                          : p
-                                      ));
-                                    }}
-                                    className="px-1.5 py-0.5 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-600 rounded text-[9px] font-bold transition-colors"
-                                  >
-                                    {preset}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => {
-                                  if (it.quantity > 1) {
-                                    setPrescriptionItems(prescriptionItems.map(p => p.medicineId === it.medicineId ? { ...p, quantity: p.quantity - 1 } : p));
-                                  }
-                                }}
-                                className="w-6 h-6 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100"
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="font-bold text-slate-900 text-[14px] w-6 text-center">{it.quantity}</span>
-                              <button
-                                onClick={() => {
-                                  if (it.quantity < it.stock) {
-                                    setPrescriptionItems(prescriptionItems.map(p => p.medicineId === it.medicineId ? { ...p, quantity: p.quantity + 1 } : p));
-                                  } else {
-                                    showToast("Vượt quá tồn kho khả dụng!", "warning");
-                                  }
-                                }}
-                                className="w-6 h-6 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100"
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
-                          </td>
-                          <td className={`px-4 py-4 text-center font-bold text-[14px] ${isOutOfStock ? "text-red-600 bg-red-50" : "text-sky-700"}`}>
-                            {it.stock}
-                          </td>
-                          <td className="px-6 py-4 text-right font-medium text-slate-600">{it.price.toLocaleString()}₫</td>
-                          <td className="px-6 py-4 text-right font-bold text-slate-900">{(it.price * it.quantity).toLocaleString()}₫</td>
-                          <td className="px-4 py-4 text-center">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      {/* Dòng 2: Bộ nhập & sửa Liều dùng trực tiếp (Dosage) kèm Preset */}
+                      <div className="bg-white border border-slate-200/90 rounded-xl p-3 flex flex-col gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1 shrink-0">
+                            <Sparkles size={13} className="text-[#0057cd]" /> Liều dùng (Sửa trực tiếp):
+                          </span>
+                          <input
+                            type="text"
+                            value={it.dosage}
+                            onChange={(e) => {
+                              setPrescriptionItems(prescriptionItems.map((p: any) =>
+                                p.medicineId === it.medicineId ? { ...p, dosage: e.target.value } : p
+                              ));
+                            }}
+                            placeholder="Ví dụ: Ngày uống 2 lần, mỗi lần 1 viên sau ăn..."
+                            className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0057cd] transition-all"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          <span className="text-[10px] text-slate-400 font-semibold">Chọn nhanh:</span>
+                          {[
+                            "Sáng 1 - Tối 1 (Sau ăn)",
+                            "Sáng 1 - Trưa 1 - Tối 1",
+                            "Uống trước ăn 30p",
+                            "Uống khi đau"
+                          ].map((preset) => (
                             <button
-                              onClick={() => setPrescriptionItems(prescriptionItems.filter(p => p.medicineId !== it.medicineId))}
-                              className="text-red-500 hover:text-red-800"
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                setPrescriptionItems(prescriptionItems.map((p: any) =>
+                                  p.medicineId === it.medicineId ? { ...p, dosage: preset } : p
+                                ));
+                              }}
+                              className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold transition-colors cursor-pointer"
                             >
-                              <XCircle size={18} />
+                              {preset}
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Dòng 3: Thao tác Số lượng, Đơn giá & Thành tiền */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/70">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500">Số lượng:</span>
+                          <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-xs overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (it.quantity > 1) {
+                                  setPrescriptionItems(prescriptionItems.map((p: any) =>
+                                    p.medicineId === it.medicineId ? { ...p, quantity: p.quantity - 1 } : p
+                                  ));
+                                }
+                              }}
+                              className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="font-black text-[13px] text-slate-900 px-3 min-w-[32px] text-center">
+                              {it.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (it.quantity < (it.stock || 0)) {
+                                  setPrescriptionItems(prescriptionItems.map((p: any) =>
+                                    p.medicineId === it.medicineId ? { ...p, quantity: p.quantity + 1 } : p
+                                  ));
+                                } else {
+                                  showToast("Vượt quá tồn kho khả dụng!", "warning");
+                                }
+                              }}
+                              className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                          <span className="text-xs font-bold text-slate-600">{it.unit}</span>
+                        </div>
+
+                        {/* Đơn giá & Thành tiền */}
+                        <div className="text-right">
+                          <div className="font-black text-[#0057cd] text-[16px] leading-tight">
+                            {((it.price || 0) * it.quantity).toLocaleString()}₫
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                            {(it.price || 0).toLocaleString()}₫ / {it.unit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>
@@ -2079,7 +2419,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   {isAiDragging && (
                     <div className="absolute inset-0 bg-indigo-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white font-bold gap-2">
                       <Sparkles size={32} className="animate-bounce text-indigo-300" />
-                      <span>Tha anh vao day de them trang don</span>
+                      <span>Thả ảnh vào đây để thêm trang đơn</span>
                     </div>
                   )}
                 </div>
@@ -2089,12 +2429,12 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     <FileText size={32} />
                   </div>
                   <div>
-                    <p className="font-bold text-sm text-slate-300">Chua co anh don thuoc nao</p>
-                    <p className="text-xs text-slate-500 mt-1">Keo tha, dan anh (Ctrl + V) hoac tai len tap tin anh don thuoc cua khach hang</p>
+                    <p className="font-bold text-sm text-slate-300">Chưa có ảnh đơn thuốc nào</p>
+                    <p className="text-xs text-slate-500 mt-1">Kéo thả, dán ảnh (Ctrl + V) hoặc tải lên tập tin ảnh đơn thuốc của khách hàng</p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-2 mt-2">
                     <label className="cursor-pointer px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">
-                      Tai anh len ngay
+                      Tải ảnh lên ngay
                       <input
                         type="file"
                         accept="image/*"
@@ -2104,7 +2444,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       />
                     </label>
                     <span className="text-[11px] font-semibold text-slate-400 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5">
-                      Hoac nhan <kbd className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] border border-slate-600">Ctrl + V</kbd> de dan anh
+                      Hoặc nhấn <kbd className="bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] border border-slate-600">Ctrl + V</kbd> để dán ảnh
                     </span>
                   </div>
                 </div>
@@ -2116,16 +2456,16 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               <button
                 onClick={handleExecuteAIScan}
                 disabled={aiLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider cursor-pointer"
               >
                 {aiLoading ? (
                   <>
                     <Loader2 size={16} className="animate-spin text-white" />
-                    AI dang doc & khop du lieu kho...
+                    AI đang đọc & khớp dữ liệu kho...
                   </>
                 ) : (
                   <>
-                    <Sparkles size={18} /> Phan Tich & Khop San Pham (AI)
+                    <Sparkles size={18} /> Phân Tích & Khớp Sản Phẩm (AI)
                   </>
                 )}
               </button>
@@ -2139,9 +2479,9 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
                   <Sparkles size={36} />
                 </div>
-                <h4 className="font-extrabold text-slate-800 text-base">San sang boc tach don thuoc bang AI</h4>
+                <h4 className="font-extrabold text-slate-800 text-base">Sẵn sàng bóc tách đơn thuốc bằng AI</h4>
                 <p className="text-xs text-slate-500 max-w-md mt-1">
-                  Sau khi phan tich, he thong AI se tu dong trich xuat thong tin benh nhan, chuan hoa ten biet duoc & hoat chat, va tu chon Lo HSD gan nhat (FEFO) trong CSDL chi nhanh.
+                  Sau khi phân tích, hệ thống AI sẽ tự động trích xuất thông tin bệnh nhân, chuẩn hóa tên biệt dược & hoạt chất, và tự chọn Lô HSD gần nhất (FEFO) trong CSDL chi nhánh.
                 </p>
               </div>
             ) : (
@@ -2149,18 +2489,18 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 {/* Header bar: Patient summary & Processing stats */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thong tin don thuoc</div>
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thông tin đơn thuốc</div>
                     <div className="font-black text-slate-900 text-base flex items-center gap-2 mt-0.5">
-                      {aiScanResult.patient?.name || "Khach le"}
-                      {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuoi, {aiScanResult.patient.gender || "Nam"})</span>}
+                      {aiScanResult.patient?.name || "Khách lẻ"}
+                      {aiScanResult.patient?.age && <span className="text-xs font-bold text-slate-500">({aiScanResult.patient.age} tuổi, {aiScanResult.patient.gender || "Nam"})</span>}
                     </div>
                     {aiScanResult.patient?.diagnosis && (
-                      <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chan doan: {aiScanResult.patient.diagnosis}</div>
+                      <div className="text-xs text-indigo-700 font-semibold mt-0.5">Chẩn đoán: {aiScanResult.patient.diagnosis}</div>
                     )}
                   </div>
                   <div className="flex flex-col items-end text-[11px] font-bold text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                    <span className="text-indigo-600">Thoi gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
-                    <span>Ma quet: {aiScanResult.scan_id}</span>
+                    <span className="text-indigo-600">Thời gian AI: {aiScanResult.processing_time_sec}s {aiScanResult.from_cache && '(Cache Hit⚡)'}</span>
+                    <span>Mã quét: {aiScanResult.scan_id}</span>
                     <span className="text-slate-400">Prompt: {aiScanResult.prompt_version}</span>
                   </div>
                 </div>
@@ -2169,7 +2509,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 {aiScanResult.validation_warnings && aiScanResult.validation_warnings.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-amber-900 text-xs">
                     <div className="font-bold uppercase flex items-center gap-1.5 mb-1 text-amber-800">
-                      <AlertTriangle size={15} /> Canh bao kiem soat nghiep vu:
+                      <AlertTriangle size={15} /> Cảnh báo kiểm soát nghiệp vụ:
                     </div>
                     <ul className="list-disc pl-5 space-y-0.5 font-medium">
                       {aiScanResult.validation_warnings.map((w: string, i: number) => (
@@ -2182,13 +2522,13 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                 {/* Extracted items table */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center">
-                    <span>Danh muc thuoc boc tach & Khop CSDL chi nhanh</span>
-                    <span className="text-[11px] font-normal text-slate-300">Tong: {aiScanResult.items?.length || 0} san pham</span>
+                    <span>Danh mục thuốc bóc tách & Khớp CSDL chi nhánh</span>
+                    <span className="text-[11px] font-normal text-slate-300">Tổng: {aiScanResult.items?.length || 0} sản phẩm</span>
                   </div>
 
                   <div className="divide-y divide-slate-100">
                     {aiScanResult.items?.map((item: any, idx: number) => {
-                      const ext = item.extracted;
+                      const ext = item.extracted || {};
                       const sku = item.selected_sku;
                       const fefo = item.fefo_batch;
                       const status = item.match_status;
@@ -2199,67 +2539,82 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               {status === "EXACT_MATCH" && (
-                                <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-extrabold text-[10px] rounded-full border border-sky-300 flex items-center gap-1">
-                                  🟢 Khop SKU 100%
+                                <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-extrabold text-[10px] rounded-full border border-sky-300 flex items-center gap-1 shadow-2xs">
+                                  🟢 Khớp SKU 100%
                                 </span>
                               )}
                               {status === "SUBSTITUTE_AVAILABLE" && (
-                                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] rounded-full border border-amber-300 flex items-center gap-1">
-                                  🟡 Khop Hoat Chat (Thay the)
+                                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] rounded-full border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                  🟡 Khớp Hoạt Chất (Thay thế)
                                 </span>
                               )}
                               {status === "NOT_FOUND" && (
-                                <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full border border-red-300 flex items-center gap-1">
-                                  🔴 Chua thay trong CSDL
+                                <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-extrabold text-[10px] rounded-full border border-red-300 flex items-center gap-1 shadow-2xs">
+                                  🔴 Chưa thấy trong CSDL
                                 </span>
                               )}
                               <span className="text-xs font-mono font-bold text-slate-500">#{ext.item_index || idx + 1}</span>
                             </div>
                             <div className="text-[11px] font-bold text-slate-400">
-                              Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-sky-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100).toFixed(0)}%</span>
+                              Confidence: <span className={ext.confidence?.overall >= 0.85 ? "text-sky-600" : "text-amber-600 font-black"}>{(ext.confidence?.overall * 100 || 95).toFixed(0)}%</span>
                             </div>
                           </div>
 
                           {/* Details comparison */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">1. Doc tu anh don:</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">1. ĐỌC TỪ ẢNH ĐƠN:</span>
                               <div className="font-extrabold text-slate-900 mt-0.5">{ext.raw_text}</div>
                               <div className="text-slate-500 mt-0.5">
-                                Hoat chat: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Ham luong: {ext.strength || "N/A"}
+                                Hoạt chất: <span className="font-semibold text-slate-700">{ext.generic_name || "N/A"}</span> | Hàm lượng: {ext.strength || "N/A"}
                               </div>
                               <div className="text-slate-500 mt-0.5">
-                                Lieu dung: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chi dinh bac si"}</span>
+                                Liều dùng: <span className="font-semibold text-indigo-700">{ext.usage_instruction || "Theo chỉ định bác sĩ"}</span>
                               </div>
                             </div>
 
                             <div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">2. Khop SKU Ban hang & FEFO:</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">2. KHỚP SKU BÁN HÀNG & FEFO:</span>
                               {sku ? (
                                 <div>
                                   <div className="font-extrabold text-indigo-900 mt-0.5">{sku.product_name}</div>
                                   <div className="text-slate-600 font-bold mt-0.5">
-                                    Gia: {sku.retail_price?.toLocaleString()}₫/{sku.unit} | Ton kho: <span className={sku.stock > 0 ? "text-sky-700 font-black" : "text-red-600 font-black"}>{sku.stock} {sku.unit}</span>
+                                    Giá: {(sku.retail_price || 0).toLocaleString()}₫/{sku.unit || 'Hộp'} | Tồn kho: <span className={(sku.stock || 0) > 0 ? "text-sky-700 font-black" : "text-red-600 font-black"}>{sku.stock || 0} {sku.unit || 'Hộp'}</span>
                                   </div>
                                   {fefo ? (
-                                    <div className="text-[11px] font-bold text-sky-700 mt-0.5 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
-                                      Lo FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
+                                    <div className="text-[11px] font-bold text-sky-700 mt-0.5 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block shadow-2xs">
+                                      Lô FEFO: {fefo.batch_no} (HSD: {fefo.exp_date})
                                     </div>
                                   ) : (
-                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lo mac dinh</div>
+                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">Lô mặc định</div>
                                   )}
                                 </div>
                               ) : (
-                                <div className="text-red-600 font-bold mt-1">Khong tim thay ma thuoc phu hop trong CSDL chi nhanh</div>
+                                <div className="text-red-600 font-bold mt-1">Không tìm thấy mã thuốc phù hợp trong CSDL chi nhánh</div>
                               )}
                             </div>
                           </div>
 
-                          {/* Quantity & Actions */}
-                          <div className="flex items-center justify-between text-xs pt-1">
+                          {/* Quantity & Actions: Số lượng mua đề xuất + Nút Đề xuất thuốc tương đương */}
+                          <div className="flex flex-wrap items-center justify-between text-xs pt-1 gap-2">
                             <div className="font-bold text-slate-700">
-                              So luong mua de xuat: <span className="text-indigo-600 font-black text-sm">{ext.quantity} {ext.unit}</span>
+                              Số lượng mua đề xuất: <span className="text-indigo-600 font-black text-sm">{ext.quantity || 1} {ext.unit || 'Hộp'}</span>
                             </div>
+
+                            {/* Nút đề xuất thuốc tương đương (cùng hoạt chất) */}
+                            <button
+                              type="button"
+                              onClick={() => handleFetchAiAlternatives(item, idx)}
+                              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                                !sku || (sku.stock || 0) <= 0
+                                  ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20"
+                                  : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                              }`}
+                              title="Tìm kiếm và chọn các thuốc tương đương cùng hoạt chất có sẵn tồn kho tại chi nhánh"
+                            >
+                              <RefreshCw size={13} className={loadingAiAlternatives && selectedAiItemIdx === idx ? "animate-spin" : ""} />
+                              {!sku || (sku.stock || 0) <= 0 ? "⚠️ Đề xuất thuốc tương đương" : "Đổi thuốc tương đương"}
+                            </button>
                           </div>
                         </div>
                       );
@@ -2267,7 +2622,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   </div>
                 </div>
 
-                {/* Khoi Tham Dinh Buoc Cuoi Cua Duoc Si */}
+                {/* Khối Thẩm Định Bước Cuối Của Dược Sĩ */}
                 <div className="bg-gradient-to-r from-sky-50 via-teal-50 to-blue-50 border-2 border-sky-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-3">
                     <div className="flex items-center gap-2.5">
@@ -2276,35 +2631,35 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-2">
-                          Buoc Cuoi: Tham Dinh Lam Sang & Phe Duyet Cua Duoc Si
+                          BƯỚC CUỐI: THẨM ĐỊNH LÂM SÀNG & PHÊ DUYỆT CỦA DƯỢC SĨ
                           <span className="bg-sky-200 text-sky-900 text-[10px] px-2 py-0.5 rounded-full font-black border border-sky-300">
-                            Bat buoc GPP
+                            BẮT BUỘC GPP
                           </span>
                         </h4>
                         <p className="text-[11px] text-sky-800 mt-0.5">
-                          Duoc si phu trach: <strong>{getBranchInfoFromToken().fullName || "Duoc si Tran Thi A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
+                          Dược sĩ phụ trách: <strong>{getBranchInfoFromToken().fullName || "Dược sĩ Trần Thị A"}</strong> • CCHN: <strong>CCHN-GPP/02849-HN</strong>
                         </p>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold text-sky-900 bg-white/90 px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs shrink-0 self-start sm:self-auto">
-                      🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hom nay
+                      🕒 {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - Hôm nay
                     </span>
                   </div>
 
-                  {/* Checklist kiem soat an toan */}
+                  {/* Checklist kiểm soát an toàn */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                     <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
-                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khop hoat chat & ham luong
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khớp hoạt chất & hàm lượng
                     </div>
                     <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
-                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Khong tuong tac chong chi dinh
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Không tương tác chống chỉ định
                     </div>
                     <div className="flex items-center gap-1.5 text-sky-900 bg-white/80 p-2 rounded-xl border border-sky-100 font-medium">
-                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Gan lo FEFO can han tu dong
+                      <CheckCircle2 size={14} className="text-sky-600 shrink-0" /> Gán lô FEFO cận hạn tự động
                     </div>
                   </div>
 
-                  {/* Checkbox cam ket trach nhiem chuyen mon */}
+                  {/* Checkbox cam kết trách nhiệm chuyên môn */}
                   <label className="flex items-start gap-2.5 cursor-pointer select-none bg-white p-3 rounded-xl border border-sky-300 hover:bg-sky-50/50 transition-colors shadow-2xs">
                     <input
                       type="checkbox"
@@ -2313,7 +2668,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
                     />
                     <span className="text-xs text-slate-700 leading-snug">
-                      Toi la Duoc si phu trach, da doi soat don thuoc goc, tham dinh lam sang danh muc thuoc do AI ho tro de xuat va <strong>chiu hoan toan trach nhiem chuyen mon</strong> khi dua vao don hang xuat ban theo tieu chuan GPP.
+                      Tôi là Dược sĩ phụ trách, đã đối soát đơn thuốc gốc, thẩm định lâm sàng danh mục thuốc do AI hỗ trợ đề xuất và <strong>chịu hoàn toàn trách nhiệm chuyên môn</strong> khi đưa vào đơn hàng xuất bán theo tiêu chuẩn GPP.
                     </span>
                   </label>
                 </div>
@@ -2324,13 +2679,13 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                     onClick={handleApplyAIScanToCart}
                     className="flex-1 py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-teal-700 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-lg hover:shadow-sky-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                   >
-                    <ShieldCheck size={19} /> Duoc Si Xac Nhan & Dua Vao Don Hang POS
+                    <ShieldCheck size={19} /> DƯỢC SĨ XÁC NHẬN & ĐƯA VÀO ĐƠN HÀNG POS
                   </button>
                   <button
                     onClick={() => { setAiScanResult(null); }}
                     className="px-5 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
                   >
-                    Quet don khac
+                    QUÉT ĐƠN KHÁC
                   </button>
                 </div>
               </div>
@@ -2349,6 +2704,358 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
         onClose={() => setShowAuditModal(false)}
         data={aiPharmacistConfirmation}
       />
+
+      {/* =======================================
+       * 🔄 MODAL ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG CHO ĐƠN AI
+       * ======================================= */}
+      {showAiAlternativesModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-sky-900 to-indigo-900 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <RefreshCw size={20} className="text-sky-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-wide flex items-center gap-2">
+                    Đề Xuất Thuốc Tương Đương
+                    <span className="text-[10px] font-bold bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded-full border border-sky-400/30">Chuẩn GPP</span>
+                  </h3>
+                  <p className="text-xs text-sky-200 mt-0.5">
+                    Gợi ý thuốc cùng hoạt chất, dạng bào chế hoặc nhóm điều trị khả dụng tại chi nhánh
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAiAlternativesModal(false);
+                  setSelectedAiItemIdx(null);
+                  setSelectedAiItemForAlt(null);
+                }}
+                className="text-slate-300 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Target item info banner */}
+            {selectedAiItemForAlt && (
+              <div className="px-6 py-3 bg-amber-50/80 border-b border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Thuốc trích xuất từ đơn:</span>
+                  <div className="font-black text-slate-900 text-sm">{selectedAiItemForAlt.extracted?.raw_text || selectedAiItemForAlt.selected_sku?.product_name}</div>
+                  <div className="text-slate-600 mt-0.5">
+                    Hoạt chất: <span className="font-bold text-indigo-800">{selectedAiItemForAlt.extracted?.generic_name || selectedAiItemForAlt.selected_sku?.active_ingredient || "N/A"}</span>
+                    {selectedAiItemForAlt.extracted?.strength && ` • Hàm lượng: ${selectedAiItemForAlt.extracted?.strength}`}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[11px] font-bold">
+                    Cần mua: {selectedAiItemForAlt.extracted?.quantity || 1} {selectedAiItemForAlt.extracted?.unit || 'Hộp'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Cảnh báo lâm sàng GPP nếu thuốc gốc là dạng tiêm */}
+            {(() => {
+              const oName = (selectedAiItemForAlt?.extracted?.raw_text || selectedAiItemForAlt?.selected_sku?.product_name || "").toLowerCase();
+              const oForm = (selectedAiItemForAlt?.selected_sku?.dosage_form || "").toLowerCase();
+              const isInj = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm/i.test(oName + " " + oForm);
+              const hasInjAlt = aiAlternativesList.some((a: any) => a.tier === 1 && a.stock > 0);
+
+              if (isInj && !hasInjAlt && !loadingAiAlternatives) {
+                return (
+                  <div className="mx-6 mt-3 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-xs text-rose-900 shadow-sm flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-black text-rose-800 uppercase tracking-wide flex items-center gap-1.5">
+                        ⚠️ CẢNH BÁO DƯỢC LÂM SÀNG & QUY CHUẨN GPP
+                      </div>
+                      <p className="mt-1 text-rose-900 leading-relaxed font-medium">
+                        Đơn thuốc chỉ định <strong>Dạng Tiêm (Injection)</strong>. Chi nhánh hiện không có thuốc tiêm tương đương còn tồn kho.
+                        Theo Thông tư 52/2017/TT-BYT & Chuẩn GPP, <strong>Dược sĩ tuyệt đối không được tự ý đổi thuốc tiêm sang dạng uống/siro</strong> khi chưa có chỉ định lại của Bác sĩ điều trị!
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
+              {loadingAiAlternatives ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
+                  <Loader2 size={36} className="animate-spin text-sky-600" />
+                  <p className="text-sm font-semibold text-slate-600">Đang tra cứu danh mục thuốc tương đương chuẩn GPP...</p>
+                </div>
+              ) : aiAlternativesList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 gap-2">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                    <FileText size={28} />
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">Không tìm thấy thuốc thay thế phù hợp</h4>
+                  <p className="text-xs text-slate-500 max-w-sm">
+                    Kho chi nhánh hiện không có sản phẩm cùng hoạt chất tương đương.
+                  </p>
+                </div>
+              ) : (
+                aiAlternativesList.map((alt: any) => {
+                  const altStock = Number(alt.stock || alt.branchStock || 0);
+                  const isAvailable = altStock > 0;
+
+                  return (
+                    <div
+                      key={alt.id || alt._id}
+                      className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all bg-white hover:shadow-md ${
+                        isAvailable ? "border-slate-200 hover:border-sky-500" : "border-slate-200 opacity-60 bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-black text-slate-900 text-[15px]">{alt.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border shadow-2xs ${alt.badgeClass || 'bg-sky-100 text-sky-800 border-sky-300'}`}>
+                            {alt.badgeLabel || 'Cùng hoạt chất'}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          <span>Hoạt chất: <strong className="text-slate-700">{alt.active_ingredient || "N/A"}</strong></span>
+                          {alt.dosage_form && <span>Dạng: <strong className="text-slate-700">{alt.dosage_form}</strong></span>}
+                          <span>Quy cách: <strong className="text-slate-700">{alt.unit || "Hộp"}</strong></span>
+                        </div>
+
+                        {alt.clinicalWarning && (
+                          <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-medium flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                            <span>{alt.clinicalWarning}</span>
+                          </div>
+                        )}
+
+                        {alt.fefoBatchNo && (
+                          <div className="mt-1.5 text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
+                            Lô FEFO: {alt.fefoBatchNo} {alt.fefoExpDate && `(HSD: ${alt.fefoExpDate})`}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-right shrink-0 flex flex-col items-end w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <div className="font-black text-[#0057cd] text-lg">{(alt.price || 0).toLocaleString()}₫</div>
+                        <div className={`text-[11px] font-bold mt-0.5 mb-2.5 ${isAvailable ? "text-sky-700" : "text-rose-600"}`}>
+                          Tồn kho: {altStock} {alt.unit || 'Hộp'} {isAvailable ? '(Sẵn sàng)' : '(Hết hàng)'}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!isAvailable}
+                          onClick={() => handleSelectAiAlternative(alt)}
+                          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95 ${
+                            !isAvailable
+                              ? "bg-slate-200 text-slate-400"
+                              : !alt.isGppEligible
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : "bg-[#0057cd] hover:bg-[#00419e] text-white"
+                          }`}
+                        >
+                          <Check size={14} /> {!alt.isGppEligible ? "Chọn (Có rủi ro GPP)" : "Chọn thay thế"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-white flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAiAlternativesModal(false);
+                  setSelectedAiItemIdx(null);
+                  setSelectedAiItemForAlt(null);
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================
+       * 🔄 MODAL ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG CHO GIỎ HÀNG CART
+       * ======================================= */}
+      {showCartAlternativesModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-sky-900 to-indigo-900 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <RefreshCw size={20} className="text-sky-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-wide flex items-center gap-2">
+                    Tìm Thuốc Thay Thế Khả Dụng
+                    <span className="text-[10px] font-bold bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded-full border border-sky-400/30">Chuẩn GPP</span>
+                  </h3>
+                  <p className="text-xs text-sky-200 mt-0.5">
+                    Thuốc trong đơn hiện tại đang hết hàng hoặc vượt tồn kho khả dụng
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCartAlternativesModal(false);
+                  setSelectedCartMedForAlt(null);
+                }}
+                className="text-slate-300 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Target info */}
+            {selectedCartMedForAlt && (
+              <div className="px-6 py-3 bg-rose-50 border-b border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wide">Thuốc đang thiếu trong kho:</span>
+                  <div className="font-black text-slate-900 text-sm">{selectedCartMedForAlt.name}</div>
+                  <div className="text-slate-600 mt-0.5">
+                    Hoạt chất: <span className="font-bold text-slate-800">{selectedCartMedForAlt.active_ingredient || "N/A"}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold">
+                    Cần: {selectedCartMedForAlt.quantity} {selectedCartMedForAlt.unit} • Tồn: {selectedCartMedForAlt.stock || 0}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Cảnh báo lâm sàng GPP nếu thuốc trong cart là dạng tiêm */}
+            {(() => {
+              const oName = (selectedCartMedForAlt?.name || "").toLowerCase();
+              const oForm = (selectedCartMedForAlt?.dosage_form || "").toLowerCase();
+              const isInj = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm/i.test(oName + " " + oForm);
+              const hasInjAlt = aiAlternativesList.some((a: any) => a.tier === 1 && a.stock > 0);
+
+              if (isInj && !hasInjAlt && !loadingAiAlternatives) {
+                return (
+                  <div className="mx-6 mt-3 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-xs text-rose-900 shadow-sm flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-black text-rose-800 uppercase tracking-wide flex items-center gap-1.5">
+                        ⚠️ CẢNH BÁO DƯỢC LÂM SÀNG & QUY CHUẨN GPP
+                      </div>
+                      <p className="mt-1 text-rose-900 leading-relaxed font-medium">
+                        Đơn thuốc chỉ định <strong>Dạng Tiêm (Injection)</strong>. Chi nhánh hiện không có thuốc tiêm tương đương còn tồn kho.
+                        Theo Thông tư 52/2017/TT-BYT & Chuẩn GPP, <strong>Dược sĩ tuyệt đối không được tự ý đổi thuốc tiêm sang dạng uống/siro</strong> khi chưa có chỉ định lại của Bác sĩ điều trị!
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* List */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
+              {loadingAiAlternatives ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
+                  <Loader2 size={36} className="animate-spin text-sky-600" />
+                  <p className="text-sm font-semibold text-slate-600">Đang tra cứu danh mục thuốc thay thế chuẩn GPP...</p>
+                </div>
+              ) : aiAlternativesList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 gap-2">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                    <FileText size={28} />
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">Không tìm thấy thuốc thay thế phù hợp</h4>
+                  <p className="text-xs text-slate-500 max-w-sm">
+                    Kho chi nhánh hiện không có sản phẩm cùng hoạt chất tương đương còn hàng.
+                  </p>
+                </div>
+              ) : (
+                aiAlternativesList.map((alt: any) => {
+                  const altStock = Number(alt.stock || alt.branchStock || 0);
+                  const isAvailable = altStock > 0;
+
+                  return (
+                    <div
+                      key={alt.id || alt._id}
+                      className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all bg-white hover:shadow-md ${
+                        isAvailable ? "border-slate-200 hover:border-sky-500" : "border-slate-200 opacity-60 bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-black text-slate-900 text-[15px]">{alt.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border shadow-2xs ${alt.badgeClass || 'bg-sky-100 text-sky-800 border-sky-300'}`}>
+                            {alt.badgeLabel || 'Cùng hoạt chất'}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          <span>Hoạt chất: <strong className="text-slate-700">{alt.active_ingredient || "N/A"}</strong></span>
+                          <span>Đơn vị: <strong className="text-slate-700">{alt.unit || "Hộp"}</strong></span>
+                        </div>
+
+                        {alt.clinicalWarning && (
+                          <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-medium flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                            <span>{alt.clinicalWarning}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-right shrink-0 flex flex-col items-end w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <div className="font-black text-[#0057cd] text-lg">{(alt.price || 0).toLocaleString()}₫</div>
+                        <div className={`text-[11px] font-bold mt-0.5 mb-2.5 ${isAvailable ? "text-sky-700" : "text-rose-600"}`}>
+                          Tồn kho: {altStock} {alt.unit || 'Hộp'} {isAvailable ? '(Sẵn sàng)' : '(Hết hàng)'}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!isAvailable}
+                          onClick={() => handleSelectCartAlternative(alt)}
+                          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95 ${
+                            !isAvailable
+                              ? "bg-slate-200 text-slate-400"
+                              : !alt.isGppEligible
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : "bg-[#0057cd] hover:bg-[#00419e] text-white"
+                          }`}
+                        >
+                          <Check size={14} /> {!alt.isGppEligible ? "Thay (Có rủi ro GPP)" : "Thay vào đơn"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-white flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCartAlternativesModal(false);
+                  setSelectedCartMedForAlt(null);
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

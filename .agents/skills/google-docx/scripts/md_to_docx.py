@@ -244,6 +244,62 @@ def convert_md_to_docx(md_path, docx_path):
             i += 1
             continue
 
+        # Images handling: ![caption](path/to/img)
+        m_img = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)', stripped)
+        if m_img:
+            caption = m_img.group(1).strip()
+            img_rel_path = m_img.group(2).strip()
+            
+            # Xử lý đường dẫn tương đối từ file md hoặc thư mục làm việc
+            if os.path.isabs(img_rel_path):
+                img_full_path = img_rel_path
+            else:
+                md_dir = os.path.dirname(os.path.abspath(md_path))
+                img_full_path = os.path.normpath(os.path.join(md_dir, img_rel_path))
+                if not os.path.exists(img_full_path):
+                    cwd_path = os.path.normpath(os.path.join(os.getcwd(), img_rel_path))
+                    if os.path.exists(cwd_path):
+                        img_full_path = cwd_path
+                        
+            if os.path.exists(img_full_path):
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_img.paragraph_format.space_before = Pt(10)
+                p_img.paragraph_format.space_after = Pt(2)
+                run_img = p_img.add_run()
+                try:
+                    # Kiểm tra và chuyển đổi qua PNG nếu là ảnh có header lạ
+                    actual_img_path = img_full_path
+                    if img_full_path.lower().endswith(('.jpg', '.jpeg', '.webp')):
+                        png_converted = os.path.splitext(img_full_path)[0] + ".png"
+                        if not os.path.exists(png_converted):
+                            try:
+                                from PIL import Image as PILImage
+                                with PILImage.open(img_full_path) as im:
+                                    im.save(png_converted, "PNG")
+                                actual_img_path = png_converted
+                            except Exception:
+                                pass
+                        else:
+                            actual_img_path = png_converted
+
+                    run_img.add_picture(actual_img_path, width=Inches(5.6))
+                    if caption:
+                        p_cap = doc.add_paragraph()
+                        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p_cap.paragraph_format.space_before = Pt(2)
+                        p_cap.paragraph_format.space_after = Pt(10)
+                        run_cap = p_cap.add_run(f"Hình: {caption}")
+                        run_cap.italic = True
+                        run_cap.font.size = Pt(9.5)
+                        run_cap.font.color.rgb = RGBColor(100, 116, 139) # Slate Grey
+                except Exception as ex:
+                    print(f"⚠️ Error inserting picture {img_full_path}: {ex}")
+            else:
+                print(f"⚠️ Image not found: {img_full_path}")
+            i += 1
+            continue
+
         # Callout alerts / Blockquotes
         if stripped.startswith('>'):
             quote_text = stripped.lstrip('>').strip()
@@ -390,9 +446,18 @@ def convert_md_to_docx(md_path, docx_path):
         add_styled_paragraph(doc, stripped, space_before=2, space_after=5)
         i += 1
 
-    # Overwrite directly to target docx
-    doc.save(docx_path)
-    print(f"✅ Document successfully saved/overwritten to: {docx_path}")
+    # Overwrite directly to target docx, handle PermissionError if file is open
+    saved_path = docx_path
+    try:
+        doc.save(docx_path)
+    except PermissionError:
+        base, ext = os.path.splitext(docx_path)
+        fallback_path = f"{base}_FINAL{ext}"
+        doc.save(fallback_path)
+        saved_path = fallback_path
+        print(f"⚠️ Warning: '{docx_path}' is currently open in Word! Saved to fallback: {fallback_path}")
+
+    print(f"✅ Document successfully saved/overwritten to: {saved_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

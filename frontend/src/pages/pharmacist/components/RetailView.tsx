@@ -76,6 +76,9 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
   const [isScanActive, setIsScanActive] = useState(true);
   const scanBufferRef = useRef<string>("");
   const lastKeyTimeRef = useRef<number>(0);
+  // Hàng đợi tuần tự hóa quét Barcode chống race condition & bộ nhớ đệm tra cứu siêu tốc 0ms
+  const scanQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const barcodeCacheRef = useRef<Map<string, { res: any; timestamp: number }>>(new Map());
 
   // Pharmacist Filter States
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -965,6 +968,21 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
     if (!barcode || barcode.trim().length < 3) return;
     const cleanBarcode = barcode.trim();
     setLastScannedCode(cleanBarcode);
+
+    // Đưa vào hàng đợi tuần tự hóa để các lượt quét dồn dập (ví dụ quét liên tục 3 miếng cao dán)
+    // được xử lý đúng thứ tự, cộng dồn số lượng chính xác trên cùng dòng sản phẩm, không tách lẻ
+    scanQueueRef.current = scanQueueRef.current
+      .then(async () => {
+        await processBarcodeScanned(cleanBarcode);
+      })
+      .catch((err) => {
+        console.error("Lỗi hàng đợi xử lý barcode:", err);
+      });
+
+    return scanQueueRef.current;
+  };
+
+  const processBarcodeScanned = async (cleanBarcode: string) => {
     setIsBarcodeLoading(true);
 
     // ==========================================
@@ -1013,7 +1031,20 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
     try {
       const { branchId } = getBranchInfoFromToken();
-      const res = await medicineService.getByBarcode(cleanBarcode, branchId || '');
+
+      // Kiểm tra bộ nhớ đệm (cache) trong vòng 60 giây để quét liên tục tức thì 0ms
+      const now = Date.now();
+      const cached = barcodeCacheRef.current.get(cleanBarcode);
+      let res: any;
+
+      if (cached && now - cached.timestamp < 60000) {
+        res = cached.res;
+      } else {
+        res = await medicineService.getByBarcode(cleanBarcode, branchId || '');
+        if (res && res.found && res.medicine) {
+          barcodeCacheRef.current.set(cleanBarcode, { res, timestamp: now });
+        }
+      }
 
       if (!res || !res.found || !res.medicine) {
         showToast(`❌ Không tìm thấy thuốc khớp mã: ${cleanBarcode}`, "error");
@@ -1045,27 +1076,59 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
       } catch (e) { }
 
       const medId = med.id || med._id;
-      const existing = cart.find(it => (it.id || it._id) === medId);
+      const unitOptions = buildUnitOptions(med);
+      const selectedUnitObj = res.matchedUnit || getDefaultUnitOption(med);
+      const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+      const targetUnitName = (selectedUnitObj.unitName || med.unit || '').trim();
 
-      if (existing) {
-        const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
-          unitName: existing.selectedUnit || existing.unit,
-          exchangeValue: existing.exchangeValue,
+      let isStockExceeded = false;
+      let wasAccumulated = false;
+      let newQty = 1;
+      let updatedCartSnapshot: any[] = [];
+
+      setCart((prev) => {
+        // Tìm xem trong giỏ hàng đã có dòng sản phẩm này chưa (khớp medId và đơn vị tính)
+        const existingIndex = prev.findIndex((it) => {
+          const isSameId = (it.id || it._id) === medId;
+          if (!isSameId) return false;
+          const currentUnit = (it.selectedUnit || it.unit || '').trim();
+          if (currentUnit && targetUnitName) {
+            return currentUnit.toLowerCase() === targetUnitName.toLowerCase();
+          }
+          return true;
         });
-        if (nextBaseQty > totalStock) {
-          showToast(`⚠️ Đã đạt số lượng tồn khả dụng tối đa (${totalStock}) của chi nhánh!`, "warning");
-          return;
-        }
-        setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
-        showToast(`⚡ Quét mã: Đã tăng số lượng "${med.name}" (+1)!`, "success");
-      } else {
-        const unitOptions = buildUnitOptions(med);
-        const selectedUnitObj = res.matchedUnit || getDefaultUnitOption(med);
-        const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
 
-        setCart(prev => [
-          ...prev,
-          {
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const nextQty = (Number(existing.quantity) || 1) + 1;
+          const factor = getUnitFactor({
+            unitName: existing.selectedUnit || existing.unit,
+            exchangeValue: existing.exchangeValue,
+          });
+          const nextBaseQty = nextQty * factor;
+
+          if (nextBaseQty > totalStock) {
+            isStockExceeded = true;
+            updatedCartSnapshot = prev;
+            return prev;
+          }
+
+          wasAccumulated = true;
+          newQty = nextQty;
+
+          const nextCart = [...prev];
+          nextCart[existingIndex] = {
+            ...existing,
+            quantity: nextQty,
+          };
+          updatedCartSnapshot = nextCart;
+          return nextCart;
+        } else {
+          // Thêm mới một dòng sản phẩm vào giỏ hàng
+          wasAccumulated = false;
+          newQty = 1;
+
+          const newItem = {
             ...med,
             id: medId,
             baseUnit,
@@ -1085,12 +1148,27 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
               unitName: selectedUnitObj.unitName,
               dosageForm: med.dosage_form,
               baseUnitName: baseUnit,
-            })
-          }
-        ]);
+            }),
+          };
+          updatedCartSnapshot = [...prev, newItem];
+          return updatedCartSnapshot;
+        }
+      });
 
+      if (isStockExceeded) {
+        showToast(`⚠️ Đã đạt số lượng tồn khả dụng tối đa (${totalStock}) của chi nhánh!`, "warning");
+        return;
+      }
+
+      if (wasAccumulated) {
+        showToast(`⚡ Quét mã: Đã tăng số lượng "${med.name}" (${newQty} ${targetUnitName})!`, "success");
+      } else {
         const fefoTag = fefoBatch ? ` [Lô FEFO: ${fefoBatch.batchNo}]` : '';
-        showToast(`⚡ Quét thành công: Đã thêm "${med.name}"${fefoTag}!`, "success");
+        showToast(`⚡ Quét thành công: Đã thêm "${med.name}" (${targetUnitName})${fefoTag}!`, "success");
+      }
+
+      if (appliedVoucher && updatedCartSnapshot.length > 0) {
+        revalidatePosVoucher(updatedCartSnapshot);
       }
     } catch (err: any) {
       console.error("Lỗi tra cứu Barcode:", err);
@@ -1237,42 +1315,66 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
 
   const addToCart = (med: any) => {
     const medId = med.id || med._id;
-    const existing = cart.find(it => (it.id || it._id) === medId);
-    if (existing) {
-      const nextBaseQty = (existing.quantity + 1) * getUnitFactor({
-        unitName: existing.selectedUnit || existing.unit,
-        exchangeValue: existing.exchangeValue,
-      });
-      if (nextBaseQty > (med.stock || 0)) {
-        showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
-        return;
-      }
-      setCart(cart.map(it => (it.id || it._id) === medId ? { ...it, quantity: it.quantity + 1 } : it));
-    } else {
-      const unitOptions = buildUnitOptions(med);
-      const defaultUnit = getDefaultUnitOption(med);
-      const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
-      const dosePerTime = 1;
-      const timesPerDay = 2;
-      const durationDays = 7;
-      const dailyDose = dosePerTime * timesPerDay;
-      const qty = calculateRetailQuantity({
-        unit: defaultUnit,
-        dailyDose,
-        durationDays,
-      });
-      const dosageInstructions = buildRetailDosageInstruction({
-        unitName: defaultUnit.unitName,
-        dosageForm: med.dosage_form,
-        dosePerTime,
-        timesPerDay,
-        durationDays,
-        baseUnitName: baseUnit,
+    const unitOptions = buildUnitOptions(med);
+    const defaultUnit = getDefaultUnitOption(med);
+    const baseUnit = med.baseUnit || getBaseUnitOption(unitOptions).unitName || 'đơn vị';
+    const targetUnitName = (defaultUnit.unitName || med.unit || '').trim();
+
+    let isStockExceeded = false;
+    let wasAccumulated = false;
+    let newQty = 1;
+    let updatedCartSnapshot: any[] = [];
+
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((it) => {
+        const isSameId = (it.id || it._id) === medId;
+        if (!isSameId) return false;
+        const currentUnit = (it.selectedUnit || it.unit || '').trim();
+        if (currentUnit && targetUnitName) {
+          return currentUnit.toLowerCase() === targetUnitName.toLowerCase();
+        }
+        return true;
       });
 
-      setCart([
-        ...cart,
-        {
+      if (existingIndex >= 0) {
+        const existing = prev[existingIndex];
+        const nextQty = (Number(existing.quantity) || 1) + 1;
+        const factor = getUnitFactor({
+          unitName: existing.selectedUnit || existing.unit,
+          exchangeValue: existing.exchangeValue,
+        });
+        const nextBaseQty = nextQty * factor;
+        if (nextBaseQty > (med.stock || 0)) {
+          isStockExceeded = true;
+          updatedCartSnapshot = prev;
+          return prev;
+        }
+        wasAccumulated = true;
+        newQty = nextQty;
+        const nextCart = [...prev];
+        nextCart[existingIndex] = { ...existing, quantity: nextQty };
+        updatedCartSnapshot = nextCart;
+        return nextCart;
+      } else {
+        const dosePerTime = 1;
+        const timesPerDay = 2;
+        const durationDays = 7;
+        const dailyDose = dosePerTime * timesPerDay;
+        const qty = calculateRetailQuantity({
+          unit: defaultUnit,
+          dailyDose,
+          durationDays,
+        });
+        const dosageInstructions = buildRetailDosageInstruction({
+          unitName: defaultUnit.unitName,
+          dosageForm: med.dosage_form,
+          dosePerTime,
+          timesPerDay,
+          durationDays,
+          baseUnitName: baseUnit,
+        });
+
+        const newItem = {
           ...med,
           id: medId,
           baseUnit: baseUnit,
@@ -1287,13 +1389,26 @@ export default function RetailView({ showToast, isShiftActive = true }: RetailVi
           durationDays,
           dailyDose,
           dosageInstructions,
-        }
-      ]);
+        };
+        updatedCartSnapshot = [...prev, newItem];
+        return updatedCartSnapshot;
+      }
+    });
 
+    if (isStockExceeded) {
+      showToast(`Cảnh báo: Số lượng thuốc "${med.name}" vượt quá tồn kho (${med.stock || 0} ${med.unit || 'viên'})!`, "warning");
+    } else if (wasAccumulated) {
+      showToast(`Đã tăng số lượng "${med.name}" lên ${newQty}!`, "success");
+    } else {
       if ((med.stock || 0) <= 0) {
         showToast(`Thuốc "${med.name}" hiện đang hết hàng ở chi nhánh (Tồn: 0). Vui lòng tìm thuốc thay thế hoặc điều chuyển kho!`, "warning");
       }
     }
+
+    if (appliedVoucher && updatedCartSnapshot.length > 0) {
+      revalidatePosVoucher(updatedCartSnapshot);
+    }
+
     setSearchQuery("");
     setSearchResults([]);
     setShowAlternativesModal(false);

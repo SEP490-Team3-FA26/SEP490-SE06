@@ -226,9 +226,10 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     }
 
     setCart((prev) => {
-      const itemKey = `${med.id}_${selectedUnit}`;
+      const medId = med.id || (med as any)._id;
+      const itemKey = `${medId}_${selectedUnit}`;
       const idx = prev.findIndex(
-        (i) => `${i.medicine.id}_${i.selectedUnit || i.medicine.unit}` === itemKey
+        (i) => `${i.medicine.id || (i.medicine as any)._id}_${i.selectedUnit || i.medicine.unit}` === itemKey
       );
       if (idx >= 0) {
         const next = [...prev];
@@ -341,7 +342,7 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       const result = await ApiService.getByBarcode(code);
       if (result && result.medicine) {
         const med = result.medicine;
-        addToCart(med);
+        addToCart(med, result.matchedUnit?.unitName, result.matchedUnit?.price);
 
         let batchInfo = '';
         if (result.matchedLot) {
@@ -363,7 +364,8 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               m.units?.some((u) => u.barcode === code)
           );
         if (localMatched) {
-          addToCart(localMatched);
+          const matchedUnitObj = localMatched.units?.find((u) => u.barcode === code);
+          addToCart(localMatched, matchedUnitObj?.unitName, matchedUnitObj?.price);
           showToast.success('Quét Barcode Thành Công', `Đã tìm thấy và thêm ${localMatched.name} vào giỏ hàng!`);
         } else {
           showToast.error('Không tìm thấy thuốc', `Không có sản phẩm nào khớp với mã vạch: ${code}`);

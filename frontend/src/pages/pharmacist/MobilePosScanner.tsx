@@ -245,8 +245,8 @@ export function MobilePosScanner() {
         !isSending
       ) {
         const now = Date.now();
-        // Giãn cách 1500ms chống bắn lặp dồn dập
-        if (now - lastScanTime > 1500) {
+        // Giãn cách 650ms chống bắn lặp dồn dập nhưng vẫn cho phép quét cộng dồn liên tục nhiều miếng/hộp
+        if (now - lastScanTime > 650) {
           try {
             const barcodes = await detector.detect(video);
             if (barcodes && barcodes.length > 0) {
