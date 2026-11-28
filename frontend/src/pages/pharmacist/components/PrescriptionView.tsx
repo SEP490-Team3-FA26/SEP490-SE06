@@ -347,73 +347,196 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
   };
 
   // =========================================================================
-  // 🔄 CƠ CHẾ ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG (CÙNG HOẠT CHẤT / CÙNG NHÓM ĐIỀU TRỊ)
+  // 🔄 CƠ CHẾ ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG CHUẨN GPP (ĐỒNG BỘ 100% MODAL AI & CART)
   // =========================================================================
-  // Tìm kiếm thuốc tương đương cho item trong đơn AI
-  const handleFetchAiAlternatives = async (item: any, idx: number) => {
-    setSelectedAiItemIdx(idx);
-    setSelectedAiItemForAlt(item);
-    setShowAiAlternativesModal(true);
+
+  // Phân tích & Đánh giá lâm sàng chuẩn GPP cho từng thuốc ứng viên
+  const evaluateGppAlternative = (originName: string, originActive: string, originForm: string, candidate: any) => {
+    const cName = (candidate.name || "").toLowerCase();
+    const cActive = (candidate.active_ingredient || "").toLowerCase();
+    const cForm = (candidate.dosage_form || "").toLowerCase();
+    const oName = (originName || "").toLowerCase();
+    const oActive = (originActive || "").toLowerCase();
+
+    // 1. Nhận diện đường dùng gốc (Route of administration)
+    const originIsInjection = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm|lo tiem/i.test(oName + " " + originForm);
+    const candidateIsInjection = /tiêm|tiem|injection|dung môi pha tiêm/i.test(cName + " " + cForm);
+
+    // 2. Nhận diện chất giãn cơ / phối hợp đặc biệt
+    const candidateHasMuscleRelaxant = /methocarbamol/i.test(cActive + " " + cName); // SaViMetoc
+    const originHasMuscleRelaxant = /methocarbamol/i.test(oActive + " " + oName);
+
+    // 3. Nhận diện đa sinh tố tổng hợp (Multivitamin) vs Vitamin C đơn chất
+    const originIsVitaminC = /vitamin c|acid ascorbic|ascorbic acid/i.test(oName + " " + oActive);
+    const candidateIsMultivitamin = /nhân sâm|ginseng|retinol|thiamin|khoáng chất|multivitamin/i.test(cActive + " " + cName);
+
+    // 4. Nhận diện thuốc cảm sốt (Paracetamol)
+    const originIsParacetamol = /paracetamol|acetaminophen|ameflu/i.test(oName + " " + oActive);
+    const candidateIsParacetamol = /paracetamol|acetaminophen/i.test(cActive + " " + cName);
+
+    let tier: 1 | 2 | 3 = 2;
+    let isGppEligible = true;
+    let badgeLabel = "Cùng hoạt chất";
+    let badgeClass = "bg-sky-100 text-sky-800 border-sky-300";
+    let clinicalWarning: string | undefined = undefined;
+
+    // PHÁN QUYẾT 1: THUỐC GỐC LÀ DẠNG TIÊM (INJECTION)
+    if (originIsInjection) {
+      if (!candidateIsInjection) {
+        tier = 3;
+        isGppEligible = false;
+        badgeLabel = "⚠️ Khác đường dùng (Dạng uống/siro)";
+        badgeClass = "bg-amber-100 text-amber-900 border-amber-300 font-bold";
+        clinicalWarning = "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro mà phải có chỉ định của Bác sĩ điều trị!";
+      } else {
+        tier = 1;
+        badgeLabel = "✓ Chuẩn GPP: Cùng hoạt chất & Dạng tiêm";
+        badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+      }
+    }
+
+    // PHÁN QUYẾT 2: THUỐC CÓ CHẤT GIÃN CƠ (SAVIMETOC) TRONG KHI ĐƠN LÀ CẢM CÚM / HẠ SỐT
+    if (originIsParacetamol && !originHasMuscleRelaxant && candidateHasMuscleRelaxant) {
+      tier = 3;
+      isGppEligible = false;
+      badgeLabel = "⛔ Không chuẩn GPP: Có chất giãn cơ";
+      badgeClass = "bg-rose-100 text-rose-800 border-rose-300 font-black";
+      clinicalWarning = "Thuốc chứa Methocarbamol (chất giãn cơ trung ương, gây an thần, buồn ngủ). Không dùng thay thế cho thuốc cảm sốt thông thường!";
+    }
+
+    // PHÁN QUYẾT 3: THUỐC ĐA SINH TỐ (HOMTAMIN) TRONG KHI ĐƠN LÀ VITAMIN C ĐIỀU TRỊ
+    if (originIsVitaminC && candidateIsMultivitamin) {
+      tier = 3;
+      isGppEligible = false;
+      badgeLabel = "⚠️ Đa sinh tố & khoáng chất tổng hợp";
+      badgeClass = "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+      clinicalWarning = originIsInjection && !candidateIsInjection
+        ? "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro (Đa sinh tố) mà phải có chỉ định của Bác sĩ điều trị!"
+        : "Thuốc gốc là Vitamin C đơn chất liều điều trị. Thuốc này là Đa sinh tố & khoáng chất tổng hợp, không tương đương về dược động học.";
+    }
+
+    // PHÁN QUYẾT 4: THUỐC ĐƠN CHẤT CÙNG HOẠT CHẤT & DẠNG UỐNG
+    if (originIsParacetamol && candidateIsParacetamol && !candidateHasMuscleRelaxant && !originIsInjection && !candidateIsInjection) {
+      const isLowDoseChild = /150mg|250mg|gói|goi|sủi/i.test(cName + " " + cActive);
+      if (isLowDoseChild) {
+        tier = 2;
+        badgeLabel = "⚠️ Khác hàm lượng (Liều trẻ em)";
+        badgeClass = "bg-amber-50 text-amber-800 border-amber-200 font-bold";
+        clinicalWarning = "Thuốc có hàm lượng thấp (dành cho trẻ em), cần điều chỉnh số lượng nếu dùng cho người lớn.";
+      } else {
+        tier = 1;
+        badgeLabel = "✓ Chuẩn GPP: Khớp hoạt chất & Hàm lượng";
+        badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+      }
+    }
+
+    return {
+      id: candidate.id || candidate._id,
+      name: candidate.name,
+      active_ingredient: candidate.active_ingredient,
+      dosage_form: candidate.dosage_form,
+      unit: candidate.unit || "Hộp",
+      price: candidate.price || 0,
+      stock: Number(candidate.stock || candidate.branchStock || 0),
+      fefoBatchNo: candidate.fefoBatchNo,
+      fefoExpDate: candidate.fefoExpDate,
+      isGppEligible,
+      tier,
+      badgeLabel,
+      badgeClass,
+      clinicalWarning,
+    };
+  };
+
+  // Hàm tra cứu chuẩn hóa GPP dùng chung duy nhất cho CẢ Modal AI và Cart
+  const fetchGppAlternativesUnified = async (originName: string, originActive: string, originForm: string, medicineId?: string) => {
     setLoadingAiAlternatives(true);
     setAiAlternativesList([]);
 
     try {
       const { branchId } = getBranchInfoFromToken();
       const currentBranch = branchId || "BR-001";
-      const sku = item.selected_sku;
-      const ext = item.extracted || {};
-      let alternatives: any[] = [];
+      let candidates: any[] = [];
 
-      // 1. Ưu tiên gọi API getAlternatives nếu đã có product_id
-      if (sku?.product_id || sku?.id) {
-        try {
-          const res = await medicineService.getAlternatives(sku.product_id || sku.id, currentBranch);
-          alternatives = Array.isArray(res) ? res : (res?.data || []);
-        } catch (e) {
-          console.warn("Lỗi gọi getAlternatives, chuyển sang tìm theo hoạt chất:", e);
-        }
+      // 1. Xác định từ khóa hoạt chất tìm kiếm sạch sẽ
+      let primaryKeyword = "";
+      const cleanedActive = (originActive || "").trim();
+      const cleanedName = (originName || "").trim();
+
+      if (/vitamin c|acid ascorbic|ascorbic acid/i.test(cleanedActive + " " + cleanedName)) {
+        primaryKeyword = "Vitamin C";
+      } else if (/paracetamol|acetaminophen|ameflu/i.test(cleanedActive + " " + cleanedName)) {
+        primaryKeyword = "Paracetamol";
+      } else if (cleanedActive) {
+        primaryKeyword = cleanedActive.split(/[,;\(\)\/]/)[0].trim();
+      } else {
+        primaryKeyword = cleanedName.split(/[,;\(\)\/]/)[0].trim();
       }
 
-      // 2. Nếu chưa có kết quả hoặc không có SKU, tìm theo hoạt chất hoặc tên thuốc
-      if (!alternatives || alternatives.length === 0) {
-        const rawKeyword = (ext.generic_name || ext.raw_text || ext.brand_name || "").trim();
-        // Lấy từ khóa hoạt chất chính đầu tiên trước các dấu phẩy hoặc ngoặc
-        const primaryKeyword = rawKeyword.split(/[,;\(\)\/]/)[0].trim() || rawKeyword;
-
-        if (primaryKeyword) {
-          const searchRes = await medicineService.searchBranchMedicines(currentBranch, {
-            search: primaryKeyword,
-            limit: 12,
-          });
-          const searchData = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
-          alternatives = searchData.map((m: any) => ({
-            ...m,
-            matchLevel: m.active_ingredient?.toLowerCase().includes(primaryKeyword.toLowerCase()) ? 1 : 2,
-          }));
-        }
+      // 2. Tra cứu kho chi nhánh theo từ khóa hoạt chất
+      if (primaryKeyword) {
+        const searchRes = await medicineService.searchBranchMedicines(currentBranch, {
+          search: primaryKeyword,
+          limit: 20,
+        });
+        candidates = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
       }
 
-      // 3. Sắp xếp: Thuốc có sẵn tồn kho chi nhánh lên trước
-      const sorted = alternatives.sort((a, b) => {
-        const stockA = Number(a.stock || a.branchStock || 0);
-        const stockB = Number(b.stock || b.branchStock || 0);
-        if (stockA > 0 && stockB <= 0) return -1;
-        if (stockA <= 0 && stockB > 0) return 1;
-        return (a.matchLevel || 2) - (b.matchLevel || 2);
+      // 3. Đánh giá từng ứng viên theo quy chuẩn Dược Lâm Sàng & GPP
+      const evaluatedList = candidates
+        // Loại trừ chính nó nếu trùng ID hoặc tên
+        .filter(c => (medicineId ? String(c.id || c._id) !== String(medicineId) : true) && c.name?.toLowerCase() !== cleanedName.toLowerCase())
+        .map(c => evaluateGppAlternative(originName, originActive, originForm, c));
+
+      // 4. Sắp xếp thứ bậc ưu tiên GPP:
+      // - Tier 1 (Chuẩn GPP khớp hoàn toàn) & stock > 0 lên đầu tiên
+      // - Tier 2 (Khớp có điều kiện hàm lượng) & stock > 0
+      // - Tier 3 (Khác đường dùng / có chất giãn cơ) hoặc hết hàng xếp xuống dưới cùng
+      const sorted = evaluatedList.sort((a, b) => {
+        // Ưu tiên 1: Có tồn kho > 0
+        if (a.stock > 0 && b.stock <= 0) return -1;
+        if (a.stock <= 0 && b.stock > 0) return 1;
+
+        // Ưu tiên 2: Tier chuẩn GPP (1 -> 2 -> 3)
+        if (a.tier !== b.tier) return a.tier - b.tier;
+
+        // Ưu tiên 3: Tồn kho nhiều hơn
+        return b.stock - a.stock;
       });
 
       setAiAlternativesList(sorted);
     } catch (err) {
-      console.error("Lỗi khi tìm thuốc thay thế tương đương:", err);
+      console.error("Lỗi khi tìm thuốc thay thế GPP:", err);
       showToast("Lỗi khi tìm kiếm thuốc tương đương", "error");
     } finally {
       setLoadingAiAlternatives(false);
     }
   };
 
+  // Tìm kiếm thuốc tương đương cho item trong đơn AI
+  const handleFetchAiAlternatives = async (item: any, idx: number) => {
+    setSelectedAiItemIdx(idx);
+    setSelectedAiItemForAlt(item);
+    setShowAiAlternativesModal(true);
+    const sku = item.selected_sku;
+    const ext = item.extracted || {};
+    await fetchGppAlternativesUnified(
+      ext.raw_text || sku?.product_name || "",
+      ext.generic_name || sku?.active_ingredient || "",
+      sku?.dosage_form || "",
+      sku?.product_id
+    );
+  };
+
   // Chọn thuốc tương đương thay thế cho đơn AI
   const handleSelectAiAlternative = (alt: any) => {
     if (selectedAiItemIdx === null || !aiScanResult?.items) return;
+
+    if (!alt.isGppEligible) {
+      if (!window.confirm(`⚠️ CẢNH BÁO GPP:\n${alt.clinicalWarning || 'Thuốc này không hoàn toàn tương đương chuẩn GPP.'}\n\nBạn có chắc chắn muốn Dược sĩ chịu trách nhiệm thay thế thuốc này không?`)) {
+        return;
+      }
+    }
 
     const updatedItems = [...aiScanResult.items];
     const targetItem = updatedItems[selectedAiItemIdx];
@@ -457,57 +580,23 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
   const handleFetchCartAlternatives = async (cartItem: any) => {
     setSelectedCartMedForAlt(cartItem);
     setShowCartAlternativesModal(true);
-    setLoadingAiAlternatives(true);
-    setAiAlternativesList([]);
-
-    try {
-      const { branchId } = getBranchInfoFromToken();
-      const currentBranch = branchId || "BR-001";
-      let alternatives: any[] = [];
-
-      if (cartItem.medicineId) {
-        try {
-          const res = await medicineService.getAlternatives(cartItem.medicineId, currentBranch);
-          alternatives = Array.isArray(res) ? res : (res?.data || []);
-        } catch (e) { }
-      }
-
-      if (!alternatives || alternatives.length === 0) {
-        const rawKeyword = (cartItem.active_ingredient || cartItem.name || "").trim();
-        const primaryKeyword = rawKeyword.split(/[,;\(\)\/]/)[0].trim() || rawKeyword;
-        if (primaryKeyword) {
-          const searchRes = await medicineService.searchBranchMedicines(currentBranch, {
-            search: primaryKeyword,
-            limit: 12,
-          });
-          const searchData = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
-          alternatives = searchData.map((m: any) => ({
-            ...m,
-            matchLevel: m.active_ingredient?.toLowerCase().includes(primaryKeyword.toLowerCase()) ? 1 : 2,
-          }));
-        }
-      }
-
-      const sorted = alternatives.sort((a, b) => {
-        const stockA = Number(a.stock || a.branchStock || 0);
-        const stockB = Number(b.stock || b.branchStock || 0);
-        if (stockA > 0 && stockB <= 0) return -1;
-        if (stockA <= 0 && stockB > 0) return 1;
-        return 0;
-      });
-
-      setAiAlternativesList(sorted);
-    } catch (err) {
-      console.error(err);
-      showToast("Lỗi khi tìm thuốc thay thế", "error");
-    } finally {
-      setLoadingAiAlternatives(false);
-    }
+    await fetchGppAlternativesUnified(
+      cartItem.name,
+      cartItem.active_ingredient,
+      cartItem.dosage_form || "",
+      cartItem.medicineId
+    );
   };
 
   // Chọn thuốc thay thế trong giỏ hàng kê đơn (Cart)
   const handleSelectCartAlternative = (alt: any) => {
     if (!selectedCartMedForAlt) return;
+
+    if (!alt.isGppEligible) {
+      if (!window.confirm(`⚠️ CẢNH BÁO GPP:\n${alt.clinicalWarning || 'Thuốc này không hoàn toàn tương đương chuẩn GPP.'}\n\nBạn có chắc chắn muốn Dược sĩ chịu trách nhiệm thay thế thuốc này không?`)) {
+        return;
+      }
+    }
 
     const oldMedId = selectedCartMedForAlt.medicineId;
     const newMedId = alt.id || alt._id;
@@ -2656,9 +2745,9 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               <div className="px-6 py-3 bg-amber-50/80 border-b border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div>
                   <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Thuốc trích xuất từ đơn:</span>
-                  <div className="font-black text-slate-900 text-sm">{selectedAiItemForAlt.extracted?.raw_text}</div>
+                  <div className="font-black text-slate-900 text-sm">{selectedAiItemForAlt.extracted?.raw_text || selectedAiItemForAlt.selected_sku?.product_name}</div>
                   <div className="text-slate-600 mt-0.5">
-                    Hoạt chất: <span className="font-bold text-indigo-800">{selectedAiItemForAlt.extracted?.generic_name || "N/A"}</span>
+                    Hoạt chất: <span className="font-bold text-indigo-800">{selectedAiItemForAlt.extracted?.generic_name || selectedAiItemForAlt.selected_sku?.active_ingredient || "N/A"}</span>
                     {selectedAiItemForAlt.extracted?.strength && ` • Hàm lượng: ${selectedAiItemForAlt.extracted?.strength}`}
                   </div>
                 </div>
@@ -2670,12 +2759,38 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               </div>
             )}
 
+            {/* Cảnh báo lâm sàng GPP nếu thuốc gốc là dạng tiêm */}
+            {(() => {
+              const oName = (selectedAiItemForAlt?.extracted?.raw_text || selectedAiItemForAlt?.selected_sku?.product_name || "").toLowerCase();
+              const oForm = (selectedAiItemForAlt?.selected_sku?.dosage_form || "").toLowerCase();
+              const isInj = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm/i.test(oName + " " + oForm);
+              const hasInjAlt = aiAlternativesList.some((a: any) => a.tier === 1 && a.stock > 0);
+
+              if (isInj && !hasInjAlt && !loadingAiAlternatives) {
+                return (
+                  <div className="mx-6 mt-3 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-xs text-rose-900 shadow-sm flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-black text-rose-800 uppercase tracking-wide flex items-center gap-1.5">
+                        ⚠️ CẢNH BÁO DƯỢC LÂM SÀNG & QUY CHUẨN GPP
+                      </div>
+                      <p className="mt-1 text-rose-900 leading-relaxed font-medium">
+                        Đơn thuốc chỉ định <strong>Dạng Tiêm (Injection)</strong>. Chi nhánh hiện không có thuốc tiêm tương đương còn tồn kho.
+                        Theo Thông tư 52/2017/TT-BYT & Chuẩn GPP, <strong>Dược sĩ tuyệt đối không được tự ý đổi thuốc tiêm sang dạng uống/siro</strong> khi chưa có chỉ định lại của Bác sĩ điều trị!
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Body */}
             <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
               {loadingAiAlternatives ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
                   <Loader2 size={36} className="animate-spin text-sky-600" />
-                  <p className="text-sm font-semibold text-slate-600">Đang tìm kiếm thuốc tương đương trong kho chi nhánh...</p>
+                  <p className="text-sm font-semibold text-slate-600">Đang tra cứu danh mục thuốc tương đương chuẩn GPP...</p>
                 </div>
               ) : aiAlternativesList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 gap-2">
@@ -2684,14 +2799,13 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   </div>
                   <h4 className="font-bold text-slate-800 text-sm">Không tìm thấy thuốc thay thế phù hợp</h4>
                   <p className="text-xs text-slate-500 max-w-sm">
-                    Kho hiện tại không có thuốc cùng hoạt chất hoặc sản phẩm đã hết hàng tồn kho. Vui lòng kiểm tra lại với bác sĩ điều trị hoặc chuyển sang chi nhánh khác.
+                    Kho chi nhánh hiện không có sản phẩm cùng hoạt chất tương đương.
                   </p>
                 </div>
               ) : (
                 aiAlternativesList.map((alt: any) => {
                   const altStock = Number(alt.stock || alt.branchStock || 0);
                   const isAvailable = altStock > 0;
-                  const isIngredientMatch = alt.matchLevel === 1 || alt.active_ingredient?.toLowerCase().includes((selectedAiItemForAlt?.extracted?.generic_name || "").toLowerCase());
 
                   return (
                     <div
@@ -2703,16 +2817,9 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="font-black text-slate-900 text-[15px]">{alt.name}</span>
-                          {isIngredientMatch && (
-                            <span className="bg-sky-100 text-sky-800 border border-sky-300 px-2 py-0.5 rounded text-[10px] font-black uppercase">
-                              ✓ Khớp hoạt chất
-                            </span>
-                          )}
-                          {!isIngredientMatch && (
-                            <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                              Cùng nhóm điều trị
-                            </span>
-                          )}
+                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border shadow-2xs ${alt.badgeClass || 'bg-sky-100 text-sky-800 border-sky-300'}`}>
+                            {alt.badgeLabel || 'Cùng hoạt chất'}
+                          </span>
                         </div>
 
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -2720,6 +2827,13 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                           {alt.dosage_form && <span>Dạng: <strong className="text-slate-700">{alt.dosage_form}</strong></span>}
                           <span>Quy cách: <strong className="text-slate-700">{alt.unit || "Hộp"}</strong></span>
                         </div>
+
+                        {alt.clinicalWarning && (
+                          <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-medium flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                            <span>{alt.clinicalWarning}</span>
+                          </div>
+                        )}
 
                         {alt.fefoBatchNo && (
                           <div className="mt-1.5 text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
@@ -2737,9 +2851,15 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                           type="button"
                           disabled={!isAvailable}
                           onClick={() => handleSelectAiAlternative(alt)}
-                          className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95"
+                          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95 ${
+                            !isAvailable
+                              ? "bg-slate-200 text-slate-400"
+                              : !alt.isGppEligible
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : "bg-[#0057cd] hover:bg-[#00419e] text-white"
+                          }`}
                         >
-                          <Check size={14} /> Chọn thay thế
+                          <Check size={14} /> {!alt.isGppEligible ? "Chọn (Có rủi ro GPP)" : "Chọn thay thế"}
                         </button>
                       </div>
                     </div>
@@ -2818,12 +2938,38 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
               </div>
             )}
 
+            {/* Cảnh báo lâm sàng GPP nếu thuốc trong cart là dạng tiêm */}
+            {(() => {
+              const oName = (selectedCartMedForAlt?.name || "").toLowerCase();
+              const oForm = (selectedCartMedForAlt?.dosage_form || "").toLowerCase();
+              const isInj = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm/i.test(oName + " " + oForm);
+              const hasInjAlt = aiAlternativesList.some((a: any) => a.tier === 1 && a.stock > 0);
+
+              if (isInj && !hasInjAlt && !loadingAiAlternatives) {
+                return (
+                  <div className="mx-6 mt-3 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-xs text-rose-900 shadow-sm flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-black text-rose-800 uppercase tracking-wide flex items-center gap-1.5">
+                        ⚠️ CẢNH BÁO DƯỢC LÂM SÀNG & QUY CHUẨN GPP
+                      </div>
+                      <p className="mt-1 text-rose-900 leading-relaxed font-medium">
+                        Đơn thuốc chỉ định <strong>Dạng Tiêm (Injection)</strong>. Chi nhánh hiện không có thuốc tiêm tương đương còn tồn kho.
+                        Theo Thông tư 52/2017/TT-BYT & Chuẩn GPP, <strong>Dược sĩ tuyệt đối không được tự ý đổi thuốc tiêm sang dạng uống/siro</strong> khi chưa có chỉ định lại của Bác sĩ điều trị!
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* List */}
             <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
               {loadingAiAlternatives ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
                   <Loader2 size={36} className="animate-spin text-sky-600" />
-                  <p className="text-sm font-semibold text-slate-600">Đang tìm kiếm thuốc thay thế trong kho chi nhánh...</p>
+                  <p className="text-sm font-semibold text-slate-600">Đang tra cứu danh mục thuốc thay thế chuẩn GPP...</p>
                 </div>
               ) : aiAlternativesList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 gap-2">
@@ -2832,7 +2978,7 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                   </div>
                   <h4 className="font-bold text-slate-800 text-sm">Không tìm thấy thuốc thay thế phù hợp</h4>
                   <p className="text-xs text-slate-500 max-w-sm">
-                    Kho chi nhánh hiện không có sản phẩm tương đương còn hàng.
+                    Kho chi nhánh hiện không có sản phẩm cùng hoạt chất tương đương còn hàng.
                   </p>
                 </div>
               ) : (
@@ -2848,25 +2994,44 @@ export default function PrescriptionView({ showToast, isShiftActive = true }: Pr
                       }`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="font-black text-slate-900 text-[15px]">{alt.name}</div>
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-black text-slate-900 text-[15px]">{alt.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border shadow-2xs ${alt.badgeClass || 'bg-sky-100 text-sky-800 border-sky-300'}`}>
+                            {alt.badgeLabel || 'Cùng hoạt chất'}
+                          </span>
+                        </div>
+
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
                           <span>Hoạt chất: <strong className="text-slate-700">{alt.active_ingredient || "N/A"}</strong></span>
                           <span>Đơn vị: <strong className="text-slate-700">{alt.unit || "Hộp"}</strong></span>
                         </div>
+
+                        {alt.clinicalWarning && (
+                          <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-medium flex items-start gap-1.5">
+                            <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                            <span>{alt.clinicalWarning}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="text-right shrink-0 flex flex-col items-end w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                         <div className="font-black text-[#0057cd] text-lg">{(alt.price || 0).toLocaleString()}₫</div>
                         <div className={`text-[11px] font-bold mt-0.5 mb-2.5 ${isAvailable ? "text-sky-700" : "text-rose-600"}`}>
-                          Tồn kho: {altStock} {alt.unit || 'Hộp'}
+                          Tồn kho: {altStock} {alt.unit || 'Hộp'} {isAvailable ? '(Sẵn sàng)' : '(Hết hàng)'}
                         </div>
                         <button
                           type="button"
                           disabled={!isAvailable}
                           onClick={() => handleSelectCartAlternative(alt)}
-                          className="px-4 py-2 bg-[#0057cd] hover:bg-[#00419e] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95"
+                          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed active:scale-95 ${
+                            !isAvailable
+                              ? "bg-slate-200 text-slate-400"
+                              : !alt.isGppEligible
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : "bg-[#0057cd] hover:bg-[#00419e] text-white"
+                          }`}
                         >
-                          <Check size={14} /> Thay vào đơn
+                          <Check size={14} /> {!alt.isGppEligible ? "Thay (Có rủi ro GPP)" : "Thay vào đơn"}
                         </button>
                       </div>
                     </div>

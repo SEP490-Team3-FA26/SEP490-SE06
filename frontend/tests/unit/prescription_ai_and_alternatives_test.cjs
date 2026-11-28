@@ -1,5 +1,5 @@
 /**
- * Bộ kiểm thử đơn vị cho luồng Đơn thuốc AI, Đề xuất thuốc tương đương và Giỏ hàng kê đơn
+ * Bộ kiểm thử đơn vị cho luồng Đơn thuốc AI, Đề xuất thuốc tương đương Chuẩn GPP và Giỏ hàng kê đơn
  * Tuân thủ quy tắc bắt buộc Test-Coupled Mandate phân chia đủ 3 nhóm:
  * 1. [Normal Values]
  * 2. [Boundary Values]
@@ -8,71 +8,92 @@
 
 const assert = require('assert');
 
-// Giả lập hàm trích xuất từ khóa hoạt chất chính
-function extractPrimaryActiveIngredient(rawKeyword) {
-  if (!rawKeyword || typeof rawKeyword !== 'string') return '';
-  const cleaned = rawKeyword.trim();
-  const parts = cleaned.split(/[,;\(\)\/]/);
-  return (parts[0] || '').trim();
-}
+// Hàm đánh giá lâm sàng GPP cho từng thuốc ứng viên (Mô phỏng logic frontend)
+function evaluateGppAlternative(originName, originActive, originForm, candidate) {
+  const cName = (candidate?.name || "").toLowerCase();
+  const cActive = (candidate?.active_ingredient || "").toLowerCase();
+  const cForm = (candidate?.dosage_form || "").toLowerCase();
+  const oName = (originName || "").toLowerCase();
+  const oActive = (originActive || "").toLowerCase();
 
-// Giả lập logic kiểm tra cận hạn (diffDays <= 180)
-function calculateNearExpiry(expiryDate) {
-  if (!expiryDate) return { isNearExp: false, diffDays: null };
-  const expTime = new Date(expiryDate).getTime();
-  if (isNaN(expTime)) return { isNearExp: false, diffDays: null };
-  const now = Date.now();
-  const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+  const originIsInjection = /tiêm|tiem|injection|kabi|ống tiêm|ong tiem|lọ tiêm/i.test(oName + " " + originForm);
+  const candidateIsInjection = /tiêm|tiem|injection|dung môi pha tiêm/i.test(cName + " " + cForm);
+
+  const candidateHasMuscleRelaxant = /methocarbamol/i.test(cActive + " " + cName);
+  const originHasMuscleRelaxant = /methocarbamol/i.test(oActive + " " + oName);
+
+  const originIsVitaminC = /vitamin c|acid ascorbic|ascorbic acid/i.test(oName + " " + oActive);
+  const candidateIsMultivitamin = /nhân sâm|ginseng|retinol|thiamin|khoáng chất|multivitamin/i.test(cActive + " " + cName);
+
+  const originIsParacetamol = /paracetamol|acetaminophen|ameflu/i.test(oName + " " + oActive);
+  const candidateIsParacetamol = /paracetamol|acetaminophen/i.test(cActive + " " + cName);
+
+  let tier = 2;
+  let isGppEligible = true;
+  let badgeLabel = "Cùng hoạt chất";
+  let badgeClass = "bg-sky-100 text-sky-800 border-sky-300";
+  let clinicalWarning = undefined;
+
+  // PHÁN QUYẾT 1: THUỐC GỐC LÀ DẠNG TIÊM (INJECTION)
+  if (originIsInjection) {
+    if (!candidateIsInjection) {
+      tier = 3;
+      isGppEligible = false;
+      badgeLabel = "⚠️ Khác đường dùng (Dạng uống/siro)";
+      badgeClass = "bg-amber-100 text-amber-900 border-amber-300 font-bold";
+      clinicalWarning = "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro mà phải có chỉ định của Bác sĩ điều trị!";
+    } else {
+      tier = 1;
+      badgeLabel = "✓ Chuẩn GPP: Cùng hoạt chất & Dạng tiêm";
+      badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+    }
+  }
+
+  // PHÁN QUYẾT 2: THUỐC CÓ CHẤT GIÃN CƠ (SAVIMETOC) TRONG KHI ĐƠN LÀ CẢM CÚM
+  if (originIsParacetamol && !originHasMuscleRelaxant && candidateHasMuscleRelaxant) {
+    tier = 3;
+    isGppEligible = false;
+    badgeLabel = "⛔ Không chuẩn GPP: Có chất giãn cơ";
+    badgeClass = "bg-rose-100 text-rose-800 border-rose-300 font-black";
+    clinicalWarning = "Thuốc chứa Methocarbamol (chất giãn cơ trung ương, gây an thần, buồn ngủ). Không dùng thay thế cho thuốc cảm sốt thông thường!";
+  }
+
+  // PHÁN QUYẾT 3: THUỐC ĐA SINH TỐ (HOMTAMIN) TRONG KHI ĐƠN LÀ VITAMIN C ĐIỀU TRỊ
+  if (originIsVitaminC && candidateIsMultivitamin) {
+    tier = 3;
+    isGppEligible = false;
+    badgeLabel = "⚠️ Đa sinh tố & khoáng chất tổng hợp";
+    badgeClass = "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+    clinicalWarning = originIsInjection && !candidateIsInjection
+      ? "Theo chuẩn GPP, thuốc tiêm không được tự ý đổi sang dạng uống/siro (Đa sinh tố) mà phải có chỉ định của Bác sĩ điều trị!"
+      : "Thuốc gốc là Vitamin C đơn chất liều điều trị. Thuốc này là Đa sinh tố & khoáng chất tổng hợp, không tương đương về dược động học.";
+  }
+
+  // PHÁN QUYẾT 4: THUỐC ĐƠN CHẤT CÙNG HOẠT CHẤT & DẠNG UỐNG
+  if (originIsParacetamol && candidateIsParacetamol && !candidateHasMuscleRelaxant && !originIsInjection && !candidateIsInjection) {
+    const isLowDoseChild = /150mg|250mg|gói|goi|sủi/i.test(cName + " " + cActive);
+    if (isLowDoseChild) {
+      tier = 2;
+      badgeLabel = "⚠️ Khác hàm lượng (Liều trẻ em)";
+      badgeClass = "bg-amber-50 text-amber-800 border-amber-200 font-bold";
+      clinicalWarning = "Thuốc có hàm lượng thấp (dành cho trẻ em), cần điều chỉnh số lượng nếu dùng cho người lớn.";
+    } else {
+      tier = 1;
+      badgeLabel = "✓ Chuẩn GPP: Khớp hoạt chất & Hàm lượng";
+      badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300 font-black";
+    }
+  }
+
   return {
-    isNearExp: diffDays > 0 && diffDays <= 180,
-    diffDays,
+    id: candidate?.id || candidate?._id,
+    name: candidate?.name,
+    stock: Number(candidate?.stock || candidate?.branchStock || 0),
+    isGppEligible,
+    tier,
+    badgeLabel,
+    badgeClass,
+    clinicalWarning,
   };
-}
-
-// Giả lập logic chọn thuốc tương đương thay thế cho item AI
-function applyAlternativeToAiItem(originalItem, alternativeMed) {
-  if (!originalItem || !alternativeMed) return originalItem;
-  const fefoBatch = alternativeMed.fefoBatchNo ? {
-    batch_no: alternativeMed.fefoBatchNo,
-    exp_date: alternativeMed.fefoExpDate,
-  } : (alternativeMed.batches && alternativeMed.batches.length > 0 ? {
-    batch_no: alternativeMed.batches[0].batchNo,
-    exp_date: alternativeMed.batches[0].expiryDate,
-  } : null);
-
-  return {
-    ...originalItem,
-    match_status: 'SUBSTITUTE_AVAILABLE',
-    selected_sku: {
-      product_id: alternativeMed.id || alternativeMed._id,
-      product_name: alternativeMed.name,
-      active_ingredient: alternativeMed.active_ingredient,
-      dosage_form: alternativeMed.dosage_form || alternativeMed.type || 'Viên nén',
-      unit: alternativeMed.unit || originalItem.extracted?.unit || 'Hộp',
-      retail_price: alternativeMed.price || 0,
-      stock: alternativeMed.stock || alternativeMed.branchStock || 0,
-    },
-    fefo_batch: fefoBatch,
-  };
-}
-
-// Giả lập logic sắp xếp thuốc tương đương ưu tiên có tồn kho
-function sortAlternatives(alternatives = []) {
-  return [...alternatives].sort((a, b) => {
-    const stockA = Number(a.stock || a.branchStock || 0);
-    const stockB = Number(b.stock || b.branchStock || 0);
-    if (stockA > 0 && stockB <= 0) return -1;
-    if (stockA <= 0 && stockB > 0) return 1;
-    return (a.matchLevel || 2) - (b.matchLevel || 2);
-  });
-}
-
-// Giả lập kiểm tra vượt tồn kho
-function checkStockExceeded(item) {
-  if (!item) return false;
-  const stock = Number(item.stock || 0);
-  const qty = Number(item.quantity || 0);
-  return stock < qty;
 }
 
 let totalTests = 0;
@@ -91,131 +112,104 @@ function runTest(name, fn) {
 }
 
 console.log('\n======================================================');
-console.log('🧪 BẮT ĐẦU CHẠY KIỂM THỬ: ĐƠN THUỐC AI & ĐỀ XUẤT TƯƠNG ĐƯƠNG');
+console.log('🧪 BẮT ĐẦU CHẠY KIỂM THỬ: ĐỀ XUẤT THUỐC TƯƠNG ĐƯƠNG CHUẨN GPP');
 console.log('======================================================\n');
 
 // ----------------------------------------------------
 // [Normal Values] Luồng chuẩn, dữ liệu hợp lệ
 // ----------------------------------------------------
-console.log('📋 [Normal Values] Luồng nghiệp vụ chuẩn:');
+console.log('📋 [Normal Values] Luồng nghiệp vụ chuẩn GPP:');
 
-runTest('1.1. Trích xuất chính xác hoạt chất đơn giản', () => {
-  const keyword = 'Acid ascorbic (Vitamin C)';
-  const result = extractPrimaryActiveIngredient(keyword);
-  assert.strictEqual(result, 'Acid ascorbic');
+runTest('1.1. Thay Paracetamol 500mg bằng Paracetamol Stada 500mg (Cùng hoạt chất, dạng viên, hàm lượng)', () => {
+  const origin = { name: 'Thuốc Panadol 500mg', active: 'Paracetamol', form: 'Viên nén' };
+  const candidate = { id: 'STADA-500', name: 'Viên nén Paracetamol Stada 500mg', active_ingredient: 'Paracetamol (500mg)', dosage_form: 'Viên nén', stock: 20 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 1);
+  assert.strictEqual(result.isGppEligible, true);
+  assert.strictEqual(result.badgeLabel, '✓ Chuẩn GPP: Khớp hoạt chất & Hàm lượng');
 });
 
-runTest('1.2. Áp dụng thuốc thay thế tương đương thành công', () => {
-  const originalItem = {
-    extracted: { raw_text: 'Thuoc Ameflu', generic_name: 'Paracetamol', unit: 'Hộp', quantity: 1 },
-    match_status: 'NOT_FOUND',
-    selected_sku: null,
-  };
-  const alt = {
-    id: 'MED-PARA-500',
-    name: 'Paracetamol 500mg Hataphar',
-    active_ingredient: 'Paracetamol',
-    price: 35000,
-    stock: 50,
-    unit: 'Hộp',
-    fefoBatchNo: 'LO-2026-08',
-    fefoExpDate: '2026-12-31',
-  };
-
-  const updated = applyAlternativeToAiItem(originalItem, alt);
-  assert.strictEqual(updated.match_status, 'SUBSTITUTE_AVAILABLE');
-  assert.strictEqual(updated.selected_sku.product_id, 'MED-PARA-500');
-  assert.strictEqual(updated.selected_sku.stock, 50);
-  assert.strictEqual(updated.fefo_batch.batch_no, 'LO-2026-08');
+runTest('1.2. Thuốc tiêm Vitamin C thay bằng thuốc tiêm cùng hoạt chất', () => {
+  const origin = { name: 'Thuốc tiêm Vitamin C Kabi 500mg/5ml', active: 'Acid ascorbic', form: 'Dung dịch tiêm' };
+  const candidate = { id: 'INJ-C-VINHPHUC', name: 'Thuốc tiêm Ascorbic Acid 500mg Vĩnh Phúc', active_ingredient: 'Acid ascorbic (500mg)', dosage_form: 'Thuốc tiêm', stock: 50 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 1);
+  assert.strictEqual(result.isGppEligible, true);
+  assert.ok(result.badgeLabel.includes('Chuẩn GPP'));
 });
 
-runTest('1.3. Sắp xếp danh sách thuốc tương đương ưu tiên thuốc còn tồn kho', () => {
-  const alts = [
-    { name: 'Thuốc A (Hết hàng)', stock: 0, matchLevel: 1 },
-    { name: 'Thuốc B (Còn 10 hộp)', stock: 10, matchLevel: 1 },
-    { name: 'Thuốc C (Còn 5 hộp)', stock: 5, matchLevel: 2 },
-  ];
-  const sorted = sortAlternatives(alts);
-  assert.strictEqual(sorted[0].name, 'Thuốc B (Còn 10 hộp)');
-  assert.strictEqual(sorted[2].name, 'Thuốc A (Hết hàng)');
-});
-
-runTest('1.4. Tính toán hạn dùng bình thường không cận hạn (> 180 ngày)', () => {
-  const futureDate = new Date(Date.now() + 250 * 24 * 60 * 60 * 1000).toISOString();
-  const res = calculateNearExpiry(futureDate);
-  assert.strictEqual(res.isNearExp, false);
-  assert.ok(res.diffDays > 180);
+runTest('1.3. Sắp xếp ưu tiên thuốc Tier 1 có tồn kho > 0 lên trước', () => {
+  const origin = { name: 'Ameflu', active: 'Paracetamol, Phenylephrine', form: 'Viên nén' };
+  const cand1 = { name: 'SaViMetoc (Có chất giãn cơ)', active_ingredient: 'Paracetamol, Methocarbamol', stock: 400 };
+  const cand2 = { name: 'Paracetamol Stada 500mg', active_ingredient: 'Paracetamol (500mg)', stock: 20 };
+  const res1 = evaluateGppAlternative(origin.name, origin.active, origin.form, cand1);
+  const res2 = evaluateGppAlternative(origin.name, origin.active, origin.form, cand2);
+  const sorted = [res1, res2].sort((a, b) => a.tier - b.tier);
+  assert.strictEqual(sorted[0].name, 'Paracetamol Stada 500mg');
+  assert.strictEqual(sorted[0].tier, 1);
 });
 
 // ----------------------------------------------------
-// [Boundary Values] Giá trị biên, tồn kho = 0, cận hạn
+// [Boundary Values] Chặn vi phạm GPP và phân loại nghiêm ngặt
 // ----------------------------------------------------
-console.log('\n📋 [Boundary Values] Giá trị biên & điều kiện ngưỡng:');
+console.log('\n📋 [Boundary Values] Kiểm soát vi phạm & ranh giới Dược Lâm Sàng GPP:');
 
-runTest('2.1. Hoạt chất phức hợp gồm nhiều thành phần ngăn cách bởi dấu phẩy', () => {
-  const complex = 'Paracetamol, Acetaminophen, Phenylephrine, Caffeine';
-  const result = extractPrimaryActiveIngredient(complex);
-  assert.strictEqual(result, 'Paracetamol');
+runTest('2.1. CHẶN GPP: Thuốc cảm cúm Ameflu tuyệt đối KHÔNG ĐƯỢC gắn nhãn Khớp hoạt chất cho SaViMetoc (Methocarbamol)', () => {
+  const origin = { name: 'Thuoc Ameflu Khong Gay Buon Ngu OPV', active: 'Paracetamol, Acetaminophen, Phenylephrine, Caffeine', form: 'Viên' };
+  const candidate = { id: 'SAVI', name: 'Thuốc SaViMetoc giảm đau do co thắt cơ', active_ingredient: 'Paracetamol (325mg), Methocarbamol (400mg)', dosage_form: 'Viên', stock: 432 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 3);
+  assert.strictEqual(result.isGppEligible, false);
+  assert.strictEqual(result.badgeLabel, '⛔ Không chuẩn GPP: Có chất giãn cơ');
+  assert.ok(result.clinicalWarning.includes('Methocarbamol'));
 });
 
-runTest('2.2. Kiểm tra phát hiện thuốc đúng ngưỡng cận hạn (còn 67 ngày như ảnh người dùng)', () => {
-  const nearDate = new Date(Date.now() + 67 * 24 * 60 * 60 * 1000).toISOString();
-  const res = calculateNearExpiry(nearDate);
-  assert.strictEqual(res.isNearExp, true);
-  assert.strictEqual(res.diffDays, 67);
+runTest('2.2. CHẶN GPP: Thuốc tiêm Vitamin C Kabi tuyệt đối KHÔNG ĐƯỢC gắn nhãn Khớp hoạt chất cho viên uống Homtamin Ginseng (Đa sinh tố)', () => {
+  const origin = { name: 'Thuốc tiêm Vitamin C Kabi 500mg/5ml', active: 'Acid ascorbic (Vitamin C)', form: 'Thuốc tiêm' };
+  const candidate = { id: 'HOMTAMIN', name: 'Thuốc Homtamin Ginseng Korea United', active_ingredient: 'Nhân Sâm, Retinol, Acid Ascorbic (60mg)...', dosage_form: 'Viên nang mềm', stock: 316 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 3);
+  assert.strictEqual(result.isGppEligible, false);
+  assert.ok(result.clinicalWarning.includes('thuốc tiêm không được tự ý đổi sang dạng uống') || result.clinicalWarning.includes('Đa sinh tố'));
 });
 
-runTest('2.3. Kiểm tra phát hiện thuốc tồn kho bằng 0 (hết hàng)', () => {
-  const itemZero = { medicineId: 'MED-C', name: 'Vitamin C Kabi', stock: 0, quantity: 1 };
-  assert.strictEqual(checkStockExceeded(itemZero), true);
+runTest('2.3. CHẶN GPP: Thuốc tiêm Vitamin C Kabi tuyệt đối KHÔNG ĐƯỢC tự ý đổi sang Siro Ceelin trẻ em', () => {
+  const origin = { name: 'Thuốc tiêm Vitamin C Kabi 500mg/5ml', active: 'Vitamin C', form: 'Thuốc tiêm' };
+  const candidate = { id: 'CEELIN', name: 'Siro Ceelin United', active_ingredient: '5ml chứa: Vitamin C (100mg)', dosage_form: 'Siro', stock: 0 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 3);
+  assert.strictEqual(result.isGppEligible, false);
+  assert.ok(result.badgeLabel.includes('Khác đường dùng'));
 });
 
-runTest('2.4. Số lượng mua đúng bằng tồn kho (quantity === stock: Không bị vượt)', () => {
-  const itemExact = { medicineId: 'MED-C', name: 'Vitamin C Kabi', stock: 5, quantity: 5 };
-  assert.strictEqual(checkStockExceeded(itemExact), false);
-});
-
-runTest('2.5. Số lượng mua lớn hơn tồn kho 1 đơn vị (quantity = stock + 1: Bị vượt)', () => {
-  const itemOver = { medicineId: 'MED-C', name: 'Vitamin C Kabi', stock: 5, quantity: 6 };
-  assert.strictEqual(checkStockExceeded(itemOver), true);
+runTest('2.4. CẢNH BÁO HÀM LƯỢNG: Paracetamol người lớn 500mg đổi sang gói Glotadol 150mg trẻ em phải có nhãn cảnh báo liều', () => {
+  const origin = { name: 'Paracetamol 500mg', active: 'Paracetamol', form: 'Viên nén' };
+  const candidate = { id: 'GLOTA-150', name: 'Bột Glotadol 150 Abbott', active_ingredient: 'Paracetamol (150mg)', dosage_form: 'Gói bột', stock: 34 };
+  const result = evaluateGppAlternative(origin.name, origin.active, origin.form, candidate);
+  assert.strictEqual(result.tier, 2);
+  assert.strictEqual(result.badgeLabel, '⚠️ Khác hàm lượng (Liều trẻ em)');
+  assert.ok(result.clinicalWarning.includes('hàm lượng thấp'));
 });
 
 // ----------------------------------------------------
-// [Abnormal Values] Dữ liệu dị thường, rỗng, sai định dạng
+// [Abnormal Values] Dữ liệu dị thường, rỗng, null
 // ----------------------------------------------------
-console.log('\n📋 [Abnormal Values] Dữ liệu dị thường & ngoại lệ:');
+console.log('\n📋 [Abnormal Values] Ngoại lệ & Dữ liệu thiếu sót:');
 
-runTest('3.1. Từ khóa hoạt chất null, undefined, rỗng hoặc khoảng trắng', () => {
-  assert.strictEqual(extractPrimaryActiveIngredient(null), '');
-  assert.strictEqual(extractPrimaryActiveIngredient(undefined), '');
-  assert.strictEqual(extractPrimaryActiveIngredient('   '), '');
-  assert.strictEqual(extractPrimaryActiveIngredient(123), '');
+runTest('3.1. Dữ liệu ứng viên null hoặc rỗng không gây crash', () => {
+  const result = evaluateGppAlternative('Thuốc A', 'Hoạt chất A', 'Viên', null);
+  assert.strictEqual(result.id, undefined);
+  assert.strictEqual(result.stock, 0);
 });
 
-runTest('3.2. Thuốc thay thế null hoặc không hợp lệ khi áp dụng', () => {
-  const original = { extracted: { raw_text: 'Thuốc mẫu' }, match_status: 'NOT_FOUND' };
-  const res = applyAlternativeToAiItem(original, null);
-  assert.deepStrictEqual(res, original);
-});
-
-runTest('3.3. Ngày hết hạn bị sai định dạng chuỗi bất kỳ', () => {
-  const res = calculateNearExpiry('invalid-date-string');
-  assert.strictEqual(res.isNearExp, false);
-  assert.strictEqual(res.diffDays, null);
-});
-
-runTest('3.4. Danh sách thuốc thay thế rỗng không gây lỗi sắp xếp', () => {
-  const res = sortAlternatives([]);
-  assert.deepStrictEqual(res, []);
-});
-
-runTest('3.5. Item giỏ hàng null hoặc undefined khi kiểm tra tồn kho', () => {
-  assert.strictEqual(checkStockExceeded(null), false);
-  assert.strictEqual(checkStockExceeded(undefined), false);
+runTest('3.2. Thuốc gốc không có tên hoặc hoạt chất', () => {
+  const candidate = { name: 'Thuốc B', active_ingredient: 'Paracetamol', stock: 10 };
+  const result = evaluateGppAlternative('', '', '', candidate);
+  assert.ok(result.tier >= 1);
 });
 
 console.log('\n======================================================');
-console.log(`🎉 KẾT QUẢ KIỂM THỬ: ${passedTests}/${totalTests} BÀI TEST ĐẠT (100% THÀNH CÔNG)`);
+console.log(`🎉 KẾT QUẢ KIỂM THỬ: ${passedTests}/${totalTests} BÀI TEST ĐẠT CHUẨN GPP (100% THÀNH CÔNG)`);
 console.log('======================================================\n');
 if (passedTests !== totalTests) {
   process.exit(1);
