@@ -24,7 +24,7 @@ export class PurchaseRequisition extends Document {
   @Prop({ type: String, required: true, unique: true })
   prCode: string; // Auto-generated PR-YYYYMMDD-XXXX
 
-  @Prop({ type: String, required: true })
+  @Prop({ type: String, required: true, index: true })
   branchId: string; // ID chi nhánh tạo yêu cầu
 
   @Prop({ type: String, required: true })
@@ -39,12 +39,13 @@ export class PurchaseRequisition extends Document {
   @Prop({ type: String })
   notes: string; // Ghi chú thêm
 
-  @Prop({ type: Boolean, default: false })
+  @Prop({ type: Boolean, default: false, index: true })
   isUrgent: boolean; // Flag hỏa tốc
 
   @Prop({
     type: String,
     default: "SUBMITTED",
+    index: true,
     enum: [
       "DRAFT",
       "SUBMITTED",
@@ -52,6 +53,7 @@ export class PurchaseRequisition extends Document {
       "CONSOLIDATED",
       "URGENT_PENDING",
       "APPROVED",
+      "DISPATCH_PENDING",
       "SHIPPING",
       "COMPLETED",
       "OUT_OF_STOCK",

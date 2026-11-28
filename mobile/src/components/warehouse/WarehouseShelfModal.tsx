@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiService } from '../../services/api.service';
+import { BinQRLabelModal } from './BinQRLabelModal';
 
 interface WarehouseShelfModalProps {
   visible: boolean;
@@ -40,6 +41,7 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [shelfData, setShelfData] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [qrBinTarget, setQrBinTarget] = useState<{ bin: number; medicineName?: string } | null>(null);
 
   useEffect(() => {
     if (visible && zone && rack && shelf !== undefined) {
@@ -189,6 +191,7 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
                   const medId = String(item.id || item.medicineId || item._id || item.sku || `med_${idx}`);
                   const isSelected = selectedIds.includes(medId);
                   const batchList = Array.isArray(item.batches) ? item.batches : [];
+                  const binNum = Number(item.bin || idx + 1);
 
                   return (
                     <TouchableOpacity
@@ -205,42 +208,62 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
                             color={isSelected ? '#38BDF8' : '#64748B'}
                           />
                           <Text style={styles.medName} numberOfLines={1}>
-                            {item.name || item.medicineName || 'Dược phẩm'}
+                            {item.medicineName || item.name || 'Dược phẩm'}
                           </Text>
                         </View>
-                        <View style={styles.catBadge}>
-                          <Text style={styles.catBadgeText}>{item.category || 'Thuốc'}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <TouchableOpacity
+                            onPress={() => setQrBinTarget({ bin: binNum, medicineName: item.medicineName || item.name })}
+                            style={styles.catBadge}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Text style={styles.catBadgeText}>QR Thùng {binNum}</Text>
+                          </TouchableOpacity>
+                          <View style={[styles.catBadge, { backgroundColor: '#1E293B' }]}>
+                            <Text style={styles.catBadgeText}>{item.category || 'Thuốc'}</Text>
+                          </View>
                         </View>
                       </View>
 
                       <View style={styles.metaGrid}>
                         <View style={styles.metaCol}>
-                          <Text style={styles.metaLabel}>Mã SKU:</Text>
-                          <Text style={styles.metaVal}>{item.sku || 'N/A'}</Text>
+                          <Text style={styles.metaLabel}>Mã Khay QR:</Text>
+                          <Text style={styles.metaVal}>{`BIN-${zone}-${rack}-S${shelf}-B${binNum}`}</Text>
                         </View>
                         <View style={styles.metaCol}>
-                          <Text style={styles.metaLabel}>Barcode GS1:</Text>
-                          <Text style={[styles.metaVal, { color: '#38BDF8' }]}>{item.barcode || 'Chưa gán'}</Text>
+                          <Text style={styles.metaLabel}>Tồn Thực / Giữ Chỗ:</Text>
+                          <Text style={[styles.metaVal, { color: '#38BDF8' }]}>
+                            {`${item.stock ?? 0} / Giữ ${batchList.reduce((s: number, b: any) => s + Number(b.reservedQty || 0), 0)}`}
+                          </Text>
                         </View>
                       </View>
 
                       {/* Batches inside this shelf */}
                       <Text style={styles.batchSectionTitle}>Các Lô Thuốc Lưu Tại Kệ:</Text>
-                      {batchList.map((b: any, bIdx: number) => (
-                        <View key={`b-${bIdx}`} style={styles.batchPill}>
-                          <View>
-                            <Text style={styles.batchNo}>Số Lô: {b.batchNo}</Text>
-                            <Text style={styles.expDate}>
-                              HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
-                            </Text>
+                      {batchList.map((b: any, bIdx: number) => {
+                        const reserved = Number(b.reservedQty || 0);
+                        const avail = b.availableQty !== undefined ? Number(b.availableQty) : Math.max(0, Number(b.stock || 0) - reserved);
+                        return (
+                          <View key={`b-${bIdx}`} style={styles.batchPill}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.batchNo}>Số Lô: {b.batchNo}</Text>
+                              <Text style={styles.expDate}>
+                                HSD: {b.expDate ? new Date(b.expDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                              </Text>
+                              {reserved > 0 ? (
+                                <Text style={[styles.expDate, { color: '#F59E0B' }]}>
+                                  Giữ trong giỏ: {reserved} • Khả dụng: {avail}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <View style={styles.stockBadge}>
+                              <Text style={styles.stockText}>
+                                {avail} {item.unit || 'Hộp'}
+                              </Text>
+                            </View>
                           </View>
-                          <View style={styles.stockBadge}>
-                            <Text style={styles.stockText}>
-                              {b.stock} {item.unit || 'Hộp'}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </TouchableOpacity>
                   );
                 })}
@@ -271,6 +294,18 @@ export const WarehouseShelfModal: React.FC<WarehouseShelfModalProps> = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      {qrBinTarget ? (
+        <BinQRLabelModal
+          visible={true}
+          onClose={() => setQrBinTarget(null)}
+          zone={zone}
+          rack={rack}
+          shelf={shelf}
+          bin={qrBinTarget.bin}
+          medicineName={qrBinTarget.medicineName}
+        />
+      ) : null}
     </Modal>
   );
 };

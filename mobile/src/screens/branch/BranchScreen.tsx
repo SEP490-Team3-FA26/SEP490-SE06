@@ -33,6 +33,7 @@ import { StaffCertificateModal } from '../../components/certificate/StaffCertifi
 import { BranchPayrollModal } from '../../components/payroll/BranchPayrollModal';
 import { StaffIdCardScanModal } from '../../components/attendance/StaffIdCardScanModal';
 import { ClinicalSidebarDrawer } from '../../components/clinical/ClinicalSidebarDrawer';
+import { SocketService } from '../../services/socket.service';
 
 // Phân giải tên nhân sự chuyên nghiệp, không để lọt email thô
 const getStaffDisplayName = (st: any): string => {
@@ -199,6 +200,12 @@ export const BranchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   useEffect(() => {
     loadData();
+    const unsub = SocketService.subscribe((n) => {
+      if (n?.type === 'TRANSFER_SHIPPED' || n?.type === 'DISPATCH_COMPLETED') {
+        void loadData();
+      }
+    });
+    return unsub;
   }, [loadData]);
 
   const handleCreateRequest = async () => {

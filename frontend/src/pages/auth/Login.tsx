@@ -98,6 +98,7 @@ export function Login() {
           role: decoded.role || "user",
           branchId: decoded.branchId || null,
           branchName: decoded.branchName || null,
+          isBranchPIC: Boolean(decoded.isBranchPIC),
         };
 
         authService.setSession(googleToken, userObj);

@@ -307,7 +307,14 @@ export class SalesService implements OnModuleInit {
         });
       }
 
-      let totalAvailable = batches.reduce((sum, b) => sum + b.stock, 0);
+      let totalAvailable = batches.reduce(
+        (sum, b) =>
+          sum +
+          (isBranchInventoryUsed
+            ? Number(b.stock || 0)
+            : Math.max(0, Number(b.stock || 0) - Number((b as any).reservedQty || 0))),
+        0,
+      );
 
       // Tính toán quy đổi đơn vị từ danh mục thuốc, không tin hệ số client gửi lên.
       const requestedQuantity = Number(item.quantity);
@@ -344,13 +351,28 @@ export class SalesService implements OnModuleInit {
           );
         }
 
-        const deductQty = Math.min(batch.stock, remainingQty);
+        const batchAvailable = isBranchInventoryUsed
+          ? Number(batch.stock || 0)
+          : Math.max(0, Number(batch.stock || 0) - Number((batch as any).reservedQty || 0));
+        if (batchAvailable <= 0) {
+          continue;
+        }
+        const deductQty = Math.min(batchAvailable, remainingQty);
         const stockBefore = batch.stock;
-        // Conditional atomic decrement prevents two concurrent sales from
-        // both consuming the same last units of a batch.
+        // Cập nhật nguyên tử kiểm tra tồn khả dụng (stock - reservedQty) chống bán tranh hàng trong giỏ Tote
         const inventoryModel: any = isBranchInventoryUsed ? this.branchInvModel : this.batchModel;
+        const atomicFilter: any = isBranchInventoryUsed
+          ? { _id: batch._id, status: 'ACTIVE', expDate: { $gte: today }, stock: { $gte: deductQty } }
+          : {
+              _id: batch._id,
+              status: 'ACTIVE',
+              expDate: { $gte: today },
+              $expr: {
+                $gte: [{ $subtract: ['$stock', { $ifNull: ['$reservedQty', 0] }] }, deductQty],
+              },
+            };
         const updatedBatch = await inventoryModel.findOneAndUpdate(
-          { _id: batch._id, status: 'ACTIVE', expDate: { $gte: today }, stock: { $gte: deductQty } },
+          atomicFilter,
           { $inc: { stock: -deductQty } },
           { new: true },
         ).exec();

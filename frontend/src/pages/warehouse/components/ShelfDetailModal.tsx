@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import {
   X, Loader2, Package, Calendar, AlertTriangle,
   Clock, CheckCircle, MapPin, Archive,
-  AlertCircle, ArrowLeftRight, ChevronDown, Trash2
+  AlertCircle, ArrowLeftRight, ChevronDown, Trash2, QrCode
 } from "lucide-react";
 import { inventoryMapService, BinDetailResponse } from "../../../services/inventory/inventoryMap.service";
 import { RelocateBinModal } from "./RelocateBinModal";
@@ -67,6 +68,9 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
   });
 
   const isBinMode = bin != null && bin > 0;
+  // Mã QR khay kệ chuẩn cho PDA quét kiểm tra vị trí vật lý
+  const binQrCode = `BIN-${zone}-${rack}-S${shelf}-B${bin || 1}`;
+  const [showBinQr, setShowBinQr] = useState(false);
 
   const loadData = () => {
     setLoading(true);
@@ -161,6 +165,19 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
             </div>
 
             <div className="flex items-center gap-2.5">
+              {/* Nút mở mã QR Khay chuẩn BIN-Zone-Rack-Shelf-Bin cho Mobile PDA */}
+              {isBinMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowBinQr((prev) => !prev)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 shadow-2xs transition cursor-pointer"
+                  title="Hiển thị mã QR Khay cho máy quét Mobile PDA"
+                >
+                  <QrCode size={13} />
+                  <span>QR Khay</span>
+                </button>
+              )}
+
               {/* Nút Chuyển Ô / Dồn Kho ở Header của Thùng */}
               {isBinMode && medicineName && totalMainStock > 0 && (
                 <button
@@ -360,7 +377,16 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                               >
                                 <td className="px-4 py-3 font-mono font-bold text-sky-700">{mb.batchNo}</td>
                                 <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums text-xs">
-                                  {mb.stock?.toLocaleString("vi-VN")}
+                                  <div>{mb.stock?.toLocaleString("vi-VN")}</div>
+                                  {Number(mb.reservedQty || 0) > 0 && (
+                                    <div className="text-[10px] font-medium text-amber-700 mt-0.5">
+                                      Giữ chỗ: {Number(mb.reservedQty).toLocaleString("vi-VN")} • Khả dụng:{" "}
+                                      {Math.max(
+                                        0,
+                                        Number(mb.availableQty ?? (mb.stock || 0) - Number(mb.reservedQty || 0))
+                                      ).toLocaleString("vi-VN")}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 text-slate-500">{unit}</td>
                                 <td className="px-4 py-3">
@@ -630,7 +656,16 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
                               )}
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">
-                              {item.stock.toLocaleString("vi-VN")}
+                              <div>{item.stock.toLocaleString("vi-VN")}</div>
+                              {Number(item.reservedQty || 0) > 0 && (
+                                <div className="text-[10px] font-medium text-amber-700 mt-0.5">
+                                  Giữ chỗ: {Number(item.reservedQty).toLocaleString("vi-VN")} • Khả dụng:{" "}
+                                  {Math.max(
+                                    0,
+                                    Number(item.availableQty ?? item.stock - Number(item.reservedQty || 0))
+                                  ).toLocaleString("vi-VN")}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-xs text-slate-500">{item.unit || "Hộp"}</td>
                             <td className="px-4 py-3">
@@ -752,7 +787,35 @@ export function ShelfDetailModal({ zone, rack, shelf, bin, onClose, onRefresh }:
         />
       )}
 
-
+      {/* Modal Hiển Thị Mã QR Khay Kệ Cho Mobile PDA Quét Thực Địa */}
+      {showBinQr && isBinMode && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
+            onClick={() => setShowBinQr(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-3 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowBinQr(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            <h4 className="font-black text-slate-900 text-base">Mã QR Khay Kệ Kho Tổng</h4>
+            <p className="text-xs text-slate-500">
+              Khu {zone} — Kệ {rack} — Tầng {shelf} — Thùng {bin}
+              {medicineName ? ` (${medicineName})` : ""}
+            </p>
+            <div className="inline-block p-4 rounded-2xl bg-white border-2 border-sky-200 shadow-inner">
+              <QRCodeSVG value={binQrCode} size={200} level="M" includeMargin />
+            </div>
+            <div className="font-mono font-black text-sm text-sky-700 tracking-wide">
+              {binQrCode}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast thông báo chuyên nghiệp */}
       {toast && (

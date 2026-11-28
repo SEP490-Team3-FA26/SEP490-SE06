@@ -15,8 +15,9 @@ import { supplierService } from "../../services/purchase/supplier.service";
 import { BranchRequestsTab } from "./components/BranchRequestsTab";
 import { PurchaseRequestsTab } from "./components/PurchaseRequestsTab";
 import { IncomingOrdersTab } from "./components/IncomingOrdersTab";
+import { DispatchOrdersPage } from "./DispatchOrdersPage";
 
-type HubTab = "branch_requests" | "purchase_requests" | "incoming_orders";
+type HubTab = "branch_requests" | "dispatch_orders" | "purchase_requests" | "incoming_orders";
 
 export function WarehouseInventoryHub() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,6 +72,13 @@ export function WarehouseInventoryHub() {
       color: "blue",
     },
     {
+      key: "dispatch_orders" as HubTab,
+      label: "Phiếu Xuất Kho Tổng",
+      icon: <Truck size={16} />,
+      desc: "Theo dõi phiếu xuất 2 pha (chờ duyệt → quét GS1 → xuất bến)",
+      color: "sky",
+    },
+    {
       key: "purchase_requests" as HubTab,
       label: "Yêu cầu Mua hàng",
       icon: <ShoppingCart size={16} />,
@@ -106,34 +114,38 @@ export function WarehouseInventoryHub() {
         )}
       </AnimatePresence>
 
-      <div className="p-6 pb-0 flex flex-col gap-6 shrink-0">
+      <div className="px-6 pt-5 pb-0 flex flex-col gap-3.5 shrink-0">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             Quản lý Kho Tổng & Yêu cầu
           </h1>
-          <p className="text-slate-500 mt-1">Điều phối hàng hóa chi nhánh và quản lý đơn nhập hàng từ Nhà Cung Cấp.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Điều phối hàng hóa chi nhánh và quản lý đơn nhập hàng từ Nhà Cung Cấp.</p>
         </div>
 
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm gap-1">
+        <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-xs gap-1">
           {TABS.map(t => {
             const isActive = activeTab === t.key;
             return (
               <button key={t.key} onClick={() => setActiveTab(t.key)}
-                className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl transition-all ${isActive ? colorMap[t.color] + " shadow-sm font-bold" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700 font-medium"}`}>
-                <div className={`p-2 rounded-full mb-2 ${isActive ? `bg-${t.color}-100` : "bg-slate-100"}`}>{t.icon}</div>
-                <span className="text-sm">{t.label}</span>
-                <span className="text-xs opacity-70 mt-1 max-w-[200px] text-center truncate">{t.desc}</span>
+                className={`flex-1 flex items-center justify-center gap-2.5 py-2 px-3 rounded-lg transition-all cursor-pointer ${isActive ? colorMap[t.color] + " shadow-xs font-bold" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700 font-medium"}`}>
+                <div className={`p-1.5 rounded-lg shrink-0 ${isActive ? `bg-${t.color}-100` : "bg-slate-100"}`}>{t.icon}</div>
+                <div className="text-left hidden sm:block">
+                  <div className="text-xs font-bold leading-tight">{t.label}</div>
+                  <div className="text-[10px] opacity-70 truncate max-w-[180px] hidden md:block">{t.desc}</div>
+                </div>
+                <span className="text-xs font-bold sm:hidden">{t.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="flex-1 p-6 overflow-hidden">
+      <div className="flex-1 px-6 py-3.5 overflow-hidden flex flex-col min-h-0">
         {activeTab === "branch_requests" && (
           <BranchRequestsTab
             branches={branches}
             onMsg={setMsg}
+            onDispatchCreated={() => setActiveTab("dispatch_orders")}
             onCreatePO={(items) => {
               setPrefillData(items);
               setShowCreatePOModal(true);
@@ -151,6 +163,14 @@ export function WarehouseInventoryHub() {
             }}
           />
         )}
+        {activeTab === "dispatch_orders" && (
+          <DispatchOrdersPage
+            mode="WAREHOUSE"
+            embedded
+            onMsg={setMsg}
+          />
+        )}
+
         {activeTab === "incoming_orders" && (
           <IncomingOrdersTab
             suppliers={suppliers}

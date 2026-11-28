@@ -2,7 +2,7 @@ import React from 'react';
 
 export const PR_STATUS: Record<string, { label: string; cls: string }> = {
   SUBMITTED: { label: "Chờ xử lý", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  DISPATCH_PENDING: { label: "Chờ xuất kho", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  DISPATCH_PENDING: { label: "Chờ xuất kho (Đã lập PX)", cls: "bg-sky-50 text-sky-700 border-sky-200" },
   SHIPPING: { label: "Đang giao hàng", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   COMPLETED: { label: "Hoàn thành ✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   OUT_OF_STOCK: { label: "Hết hàng ⚠", cls: "bg-orange-50 text-orange-700 border-orange-200" },

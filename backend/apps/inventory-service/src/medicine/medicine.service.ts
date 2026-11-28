@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
@@ -9,6 +9,7 @@ import { BranchInventory } from './schemas/branch-inventory.schema';
 import { BranchStockBalance } from './schemas/branch-stock-balance.schema';
 import { InventoryCheck } from './schemas/inventory-check.schema';
 import { InventoryTransaction } from '../purchase/schemas/inventory-transaction.schema';
+import { DispatchOrder } from '../dispatch/schemas/dispatch-order.schema';
 import { NationalPharmaService } from '../national-pharma/national-pharma.service';
 import { MedicineMapper } from './medicine.mapper';
 
@@ -32,6 +33,7 @@ export class MedicineService implements OnModuleInit {
     @InjectModel(InventoryCheck.name) private readonly checkModel: Model<InventoryCheck>,
     @InjectModel(InventoryTransaction.name) private readonly txnModel: Model<InventoryTransaction>,
     private readonly nationalPharmaService: NationalPharmaService,
+    @Optional() @InjectModel(DispatchOrder.name) private readonly dispatchOrderModel?: Model<DispatchOrder>,
   ) { }
 
   onModuleInit() {
@@ -1666,6 +1668,23 @@ export class MedicineService implements OnModuleInit {
     }
 
     const branchId = data.branchId || 'CENTRAL_WH';
+
+    // Quy tắc kiểm kê định kỳ Kho Tổng (Mục 5.6): Chặn kiểm kê nếu còn phiếu xuất đang PICKING hoặc STAGED
+    if (branchId === 'CENTRAL_WH' && this.dispatchOrderModel) {
+      const blockingOrders = await this.dispatchOrderModel
+        .find({ status: { $in: ['PICKING', 'STAGED'] } })
+        .select('dispatchCode status')
+        .lean()
+        .exec();
+
+      if (blockingOrders.length > 0) {
+        const codes = blockingOrders.map((o: any) => `${o.dispatchCode} (${o.status})`).join(', ');
+        throw new RpcException({
+          statusCode: 409,
+          message: `Không thể kiểm kê Kho Tổng khi vẫn còn phiếu xuất đang nhặt hoặc tập kết ngoài khay: ${codes}. Vui lòng xuất xong hoặc trả hàng về khay trước.`,
+        });
+      }
+    }
     const seen = new Set<string>();
     const items = [];
     for (const item of data.items) {
@@ -2886,6 +2905,8 @@ export class MedicineService implements OnModuleInit {
           batchStatus = 'LOW_STOCK';
         }
 
+        const batchReservedQty = Math.max(0, Number((b as any).reservedQty || 0));
+        const batchAvailableQty = Math.max(0, Number(b.stock || 0) - batchReservedQty);
         const batchItem = {
           _id: b._id.toString(),
           id: b._id.toString(),
@@ -2893,6 +2914,8 @@ export class MedicineService implements OnModuleInit {
           medicineId: b.medicineId?.toString() || '',
           medicineName: med?.name || 'Unknown',
           stock: b.stock,
+          reservedQty: batchReservedQty,
+          availableQty: batchAvailableQty,
           unit: med?.unit || 'Hộp',
           expDate: b.expDate ? new Date(b.expDate).toISOString().split('T')[0] : '',
           rawExpDate: b.expDate,
@@ -3584,8 +3607,12 @@ export class MedicineService implements OnModuleInit {
         }
 
         const medObj = extraMedMap.get(b.medicineId?.toString()) || medicineInfo;
+        const reservedQty = Math.max(0, Number((b as any).reservedQty || 0));
+        const availableQty = Math.max(0, Number(b.stock || 0) - reservedQty);
         return {
           ...b,
+          reservedQty,
+          availableQty,
           status,
           daysToExpiry: daysToExp,
           overdueDays: (daysToExp !== null && daysToExp < 0) ? Math.abs(daysToExp) : null,

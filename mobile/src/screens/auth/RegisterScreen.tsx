@@ -93,7 +93,7 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       agreePrivacy: true,
       privacyPolicyVersion: 'v1.0',
       privacyAgreedAt: new Date().toISOString(),
-    });
+    } as any);
     setLoading(false);
 
     if (result?.success) {

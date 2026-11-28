@@ -33,10 +33,12 @@ import { ShiftSwapModal } from '../../components/schedule/ShiftSwapModal';
 import { catalogStorageService } from '../../services/catalogStorage.service';
 import { ClinicalSidebarDrawer, DrawerMenuItem } from '../../components/clinical/ClinicalSidebarDrawer';
 import { DigitalHealthPassportModal } from '../../components/clinical/DigitalHealthPassportModal';
+import { DispatchApprovalSection } from '../../components/warehouse/DispatchApprovalSection';
 
 export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'POS' | 'OCR'>('POS');
+  const isPicPharmacist = Boolean((user as any)?.isBranchPIC);
+  const [activeTab, setActiveTab] = useState<'POS' | 'OCR' | 'PIC_APPROVAL'>('POS');
   const [showDrawer, setShowDrawer] = useState<boolean>(false);
 
   // Attendance & Shift State
@@ -613,6 +615,22 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           </Text>
         </AnimatedTouchable>
 
+        {isPicPharmacist ? (
+          <AnimatedTouchable
+            onPress={() => setActiveTab('PIC_APPROVAL')}
+            style={[styles.tabItem, activeTab === 'PIC_APPROVAL' && styles.activeTabItem]}
+          >
+            <Ionicons
+              name="shield-checkmark"
+              size={18}
+              color={activeTab === 'PIC_APPROVAL' ? '#0369A1' : '#94A3B8'}
+            />
+            <Text style={[styles.tabText, activeTab === 'PIC_APPROVAL' && styles.activeTabText]}>
+              Duyệt Xuất PIC
+            </Text>
+          </AnimatedTouchable>
+        ) : null}
+
       </View>
 
       <ScrollView
@@ -1019,6 +1037,14 @@ export const PharmacistScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             )}
           </View>
         )}
+
+        {/* TAB 3: DUYỆT PHIẾU XUẤT THUỐC ĐẶC BIỆT / HỦY (CHỈ HIỂN THỊ KHI isBranchPIC = true) */}
+        {activeTab === 'PIC_APPROVAL' && isPicPharmacist ? (
+          <DispatchApprovalSection
+            mode="PIC_PHARMACIST"
+            currentUserId={(user as any)?.id || (user as any)?._id}
+          />
+        ) : null}
 
       </ScrollView>
 

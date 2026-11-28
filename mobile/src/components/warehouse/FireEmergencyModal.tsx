@@ -158,7 +158,7 @@ export const FireEmergencyModal: React.FC = () => {
       statusBarTranslucent
       onRequestClose={handleDeclineOrEnd}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#090D16" translucent />
+      <StatusBar barStyle="light-content" />
       <View style={styles.container}>
         {/* Hào quang đỏ cảnh báo phía đỉnh màn hình */}
         <View style={styles.topGlow} />
