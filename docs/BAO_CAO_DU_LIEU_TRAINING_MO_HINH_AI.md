@@ -2,7 +2,7 @@
 
 **HỆ THỐNG QUẢN TRỊ & BÁN LẺ DƯỢC PHẨM CHUẨN GPP/GDP TOÀN DIỆN (WDP PHARMACY)**  
 **Đồ án Tốt nghiệp Kỹ sư Phần mềm - Mã đề tài: WDP301 / SEP490**  
-*Phiên bản tài liệu: 2.5 - Lưu trữ chính thức phục vụ nghiệm thu & báo cáo đồ án*
+*Phiên bản tài liệu: 2.6 - Tích hợp đầy đủ Hình ảnh Thực nghiệm & Video Kịch bản Demo phục vụ nghiệm thu*
 
 ---
 
@@ -17,18 +17,24 @@
    - 2.3. Tập dữ liệu huấn luyện (Training Dataset): Dữ liệu thực tế & Tăng cường (Augmented)
    - 2.4. Phân chia tập dữ liệu (Train/Validation Split) & Siêu tham số huấn luyện
    - 2.5. Hàm mất mát đa nhiệm (Composite Loss) & Kết quả huấn luyện thực nghiệm
-   - 2.6. Tệp Artifacts mô hình đã đóng gói (`.pth`, `.pt`, `metadata.json`)
+   - 2.6. Biểu đồ tiến trình hội tụ Loss & Đánh giá sai số MAE/RMSE
+   - 2.7. Biểu đồ dự báo thực nghiệm 4 hình thái dược phẩm & Khoảng tin cậy 95%
+   - 2.8. Tệp Artifacts mô hình đã đóng gói (`.pth`, `.pt`, `metadata.json`)
 3. **CHƯƠNG 3: DỮ LIỆU HÌNH ẢNH & THỊ GIÁC MÁY TÍNH BÓC TÁCH ĐƠN THUỐC (AI VISION OCR)**
    - 3.1. Bài toán số hóa đơn thuốc y tế & Rào chắn quy chuẩn GPP
    - 3.2. Chính sách cấm chữ viết tay (Strict Handwritten Rejection Policy)
    - 3.3. Dữ liệu tập mẫu hình ảnh đơn thuốc bệnh viện (Prescription Image Dataset)
    - 3.4. Pipeline xử lý đa phương thức (Multimodal Extraction & Post-processing Pipeline)
-   - 3.5. Thị giác máy tính nhận diện Barcode/GS1 DataBar thời gian thực tại quầy POS
+   - 3.5. Hình ảnh giao diện thực tế: Quét AI, Khớp SKU & Thẩm định Dược sĩ GPP
+   - 3.6. Hình ảnh giao diện thực tế: Đề xuất thuốc tương đương an toàn lâm sàng
+   - 3.7. Hình ảnh giao diện thực tế: Giỏ hàng thuốc kê đơn POS tích hợp cảnh báo GPP
+   - 3.8. Thị giác máy tính nhận diện Barcode/GS1 DataBar thời gian thực tại quầy POS
 4. **CHƯƠNG 4: DỮ LIỆU DƯỢC THƯ QUỐC GIA & CƠ SỞ DỮ LIỆU VECTOR RAG (CLINICAL KNOWLEDGE BASE)**
    - 4.1. Cơ sở dữ liệu Dược thư Quốc gia 11.000+ bản ghi thuốc
    - 4.2. Cấu trúc trường dữ liệu chuyên sâu phục vụ AI
    - 4.3. Mô hình Embedding Vector & Không gian ngữ nghĩa Qdrant Vector DB
-   - 4.4. Ma trận tương tác thuốc & Phát hiện chống chỉ định lâm sàng
+   - 4.4. Biểu đồ trực quan hóa không gian Vector ngữ nghĩa (t-SNE 11.200 thuốc)
+   - 4.5. Ma trận tương tác thuốc & Phát hiện chống chỉ định lâm sàng
 5. **CHƯƠNG 5: DỮ LIỆU HUẤN LUYỆN & QUY TẮC AN TOÀN CHO TRỢ LÝ GIỌNG NÓI (VOICE AI CONSULTATION)**
    - 5.1. Nhận diện giọng nói tiếng Việt chuyên ngành Y tế (Speech-to-Text Whisper)
    - 5.2. Ma trận 5 nhóm đối tượng bệnh nhân đặc thù
@@ -36,8 +42,16 @@
 6. **CHƯƠNG 6: DỮ LIỆU HÀNH VI MUA SẮM & PHÂN CỤM KHÁCH HÀNG (ADAPTIVE PHARMACY RFM)**
    - 6.1. Dữ liệu lịch sử giao dịch POS & Đặc thù bệnh mãn tính
    - 6.2. Phân cụm RFM thích ứng ngành Dược (Adaptive Quintile & K-Means)
-   - 6.3. Kiến trúc tính toán lệch giờ (Off-peak Nightly Batch Pipeline)
+   - 6.3. Biểu đồ Ma trận 5 phân khúc khách hàng chuỗi Dược phẩm
+   - 6.4. Kiến trúc tính toán lệch giờ (Off-peak Nightly Batch Pipeline)
 7. **CHƯƠNG 7: TỔNG HỢP VỊ TRÍ LƯU TRỮ TRONG REPO & HƯỚNG DẪN THỰC THI**
+   - 7.1. Bảng đối soát vị trí lưu trữ dữ liệu, mô hình và mã nguồn AI
+   - 7.2. Lệnh kiểm tra và thực thi huấn luyện lại (Re-training Command)
+8. **CHƯƠNG 8: TỔNG HỢP VIDEO DEMO VÀ KỊCH BẢN THỰC THI HỆ THỐNG AI**
+   - 8.1. Video Demo 1: Quét Đơn Thuốc AI, Bóc Tách OCR & Gán Lô FEFO Tự Động
+   - 8.2. Video Demo 2: Thẩm Định Lâm Sàng & Gợi Ý Thuốc Tương Đương Chuẩn GPP
+   - 8.3. Video Demo 3: Hệ Thống AI Demand Forecasting & Đề Xuất Nhập Kho PO
+   - 8.4. Video Demo 4: Quét Liên Tục Barcode GS1 Bằng Camera & Cộng Dồn POS
 
 ---
 
@@ -104,11 +118,8 @@ Mô hình được nhóm tác giả tự thiết kế và huấn luyện bằng 
 1. **Head 1 - Mean Head (Kỳ vọng doanh số):** Đi qua hàm kích hoạt `ReLU()` đảm bảo sản lượng thuốc dự báo luôn là số thực không âm ($\hat{y} \ge 0$).
 2. **Head 2 - Uncertainty Head (Khoảng bất định / Sai số):** Dự báo độ lệch chuẩn sai số $\sigma$. Đi qua hàm kích hoạt `Softplus()` để $\sigma > 0$, từ đó xây dựng **Khoảng tin cậy 95% (95% Confidence Interval)**:
    $$\text{CI}_{95\%} = [\hat{y} - 1.96\sigma, \; \hat{y} + 1.96\sigma]$$
-   Điều này giúp Giám đốc Chuỗi cung ứng nắm được kịch bản rủi ro cao nhất (Worst-case) và thấp nhất (Best-case) của thị trường.
 
 ## 2.3. Tập dữ liệu huấn luyện (Training Dataset): Dữ liệu thực tế & Tăng cường
-
-Để mô hình vừa học được quy luật thực tế trong CSDL của đồ án, vừa có khả năng tổng quát hóa (Generalization) trước các biến động thị trường, dữ liệu được kết hợp từ **2 nguồn chính**:
 
 ```
 Tổng số chuỗi thời gian: 5,106 chuỗi
@@ -121,14 +132,13 @@ Tổng số chuỗi thời gian: 5,106 chuỗi
 - **Collection `medicinebatches`:** 1.144 lô tồn kho thực tế (`stock`, `expiryDate`).
 - **Collection `salesorders` & `orders`:** Toàn bộ đơn hàng đã hoàn tất trong hệ thống.
 - **Collection `inventorytransactions`:** Toàn bộ lịch sử xuất bán thực tế (`SALE`, `DISPENSE`, `EXPORT`, `TRANSFER_OUT`) qua trường `quantityChange`.
-- **Kỹ thuật xử lý chuỗi:** Gom nhóm theo từng chu kỳ tháng ($t_1, t_2, \dots, t_{12}$). Với các thuốc mới chưa đủ 12 tháng lịch sử, áp dụng **Adaptive Baseline Padding** dựa trên mức tồn kho an toàn và phương sai tự nhiên.
 
 ### Nguồn 2: Dữ liệu tăng cường ngành Dược (`generate_synthetic_pharma_history`)
 Bổ sung **3.500 chuỗi dữ liệu** bao phủ 4 hình thái tiêu thụ dược phẩm kinh điển:
-1. **Seasonal (Mùa vụ - Dịch bệnh):** Mô phỏng nhóm thuốc cảm cúm, sốt xuất huyết, hô hấp theo chu kỳ sóng hình sin biến thiên theo mùa thời tiết: $y(t) = A \cdot \sin(2\pi t / 6) + B + \epsilon$.
-2. **Steady (Mãn tính - Ổn định):** Mô phỏng thuốc tim mạch, huyết áp, tiểu đường có nhu cầu đều đặn quanh năm với độ nhiễu Gauss nhỏ.
-3. **Growing (Tăng trưởng cao):** Mô phỏng thực phẩm chức năng, vitamin, vắc xin có xu hướng dốc lên theo thời gian ($1.0 + 0.05t$).
-4. **Intermittent (Bán chậm / Ngắt quãng):** Mô phỏng thuốc cấp cứu, thuốc hiếm với tỷ lệ xuất hiện giao dịch ngẫu nhiên (Zero-demand kéo dài).
+1. **Seasonal (Mùa vụ - Dịch bệnh):** Nhóm thuốc cảm cúm, sốt xuất huyết, hô hấp theo chu kỳ sóng hình sin.
+2. **Steady (Mãn tính - Ổn định):** Nhóm thuốc tim mạch, huyết áp, tiểu đường có nhu cầu đều đặn.
+3. **Growing (Tăng trưởng cao):** Thực phẩm chức năng, vitamin có xu hướng tăng đều theo thời gian.
+4. **Intermittent (Bán chậm / Ngắt quãng):** Thuốc cấp cứu, thuốc hiếm với tỷ lệ xuất hiện giao dịch ngẫu nhiên.
 
 ## 2.4. Phân chia tập dữ liệu & Siêu tham số huấn luyện
 
@@ -147,42 +157,34 @@ Bổ sung **3.500 chuỗi dữ liệu** bao phủ 4 hình thái tiêu thụ dư�
 
 ## 2.5. Hàm mất mát đa nhiệm (Composite Loss) & Kết quả huấn luyện
 
-Để mô hình không bị nhạy cảm quá mức với các đơn hàng bán sỉ đột biến (Outliers), mô hình sử dụng hàm **Huber Loss (Smooth L1 Loss)** kết hợp ước lượng độ bất định:
-
 $$\mathcal{L}_{total} = \mathcal{L}_{\text{Huber}}(\hat{y}, y) + 0.5 \times \mathcal{L}_{\text{Huber}}(\hat{\sigma}, |\hat{y} - y|)$$
 
-* **Nhánh $\mathcal{L}_{\text{Huber}}(\hat{y}, y)$:** Tối ưu độ chính xác của dự báo doanh số trung bình.
-* **Nhánh $0.5 \times \mathcal{L}_{\text{Huber}}(\hat{\sigma}, |\hat{y} - y|)$:** Rèn luyện nhánh Uncertainty tự học khoảng chênh lệch tuyệt đối giữa dự đoán và thực tế.
+## 2.6. Biểu đồ tiến trình hội tụ Loss & Đánh giá sai số MAE/RMSE
 
-### Bảng kết quả thực nghiệm huấn luyện qua 60 Epochs:
+![Biểu đồ tiến trình hội tụ hàm mất mát Composite Huber Loss và đánh giá sai số MAE/RMSE qua 60 Epochs](image/ai/01_lstm_training_curves.png)
 
-```
-========================================================================================
-🚀 TIẾN TRÌNH HUẤN LUYỆN MÔ HÌNH PHARMA FORECAST LSTM (60 EPOCHS)
-========================================================================================
-Epoch [01/60] | Train Loss: 277.93 | Val Loss: 266.39 | Val MAE: 266.87 | Val RMSE: 332.50
-Epoch [10/60] | Train Loss: 120.29 | Val Loss: 138.54 | Val MAE: 139.02 | Val RMSE: 209.24
-Epoch [20/60] | Train Loss: 106.93 | Val Loss: 128.85 | Val MAE: 129.33 | Val RMSE: 202.84
-Epoch [30/60] | Train Loss: 104.37 | Val Loss: 125.25 | Val MAE: 125.73 | Val RMSE: 201.17
-Epoch [40/60] | Train Loss: 102.00 | Val Loss: 131.47 | Val MAE: 131.95 | Val RMSE: 205.95
-Epoch [50/60] | Train Loss: 101.64 | Val Loss: 122.87 | Val MAE: 123.35 | Val RMSE: 200.47
-Epoch [60/60] | Train Loss: 100.11 | Val Loss: 121.18 | Val MAE: 121.66 | Val RMSE: 200.54
-========================================================================================
-✅ KẾT QUẢ ĐÁNH GIÁ CHỐNG OVERFITTING TRÊN TẬP VALIDATION:
-   • Mean Absolute Error (MAE): 121.66 đơn vị sản phẩm
-   • Root Mean Square Error (RMSE): 200.54 đơn vị sản phẩm
-   • Thời gian huấn luyện toàn bộ: 78.07 giây (Nền tảng PyTorch GPU/CPU)
-   • Tốc độ suy luận (Inference Latency): < 2.0 mili-giây / mã thuốc
-========================================================================================
-```
+Kết quả ghi nhận:
+- **Final Validation MAE:** **121.66 đơn vị sản phẩm**.
+- **Final Validation RMSE:** **200.54 đơn vị sản phẩm**.
+- **Thời gian huấn luyện:** **78.07 giây** (Nền tảng PyTorch GPU/CPU).
+- **Tốc độ suy luận (Inference Latency):** **< 2.0 mili-giây / mã thuốc**.
 
-## 2.6. Tệp Artifacts mô hình đã đóng gói
+## 2.7. Biểu đồ dự báo thực nghiệm 4 hình thái dược phẩm & Khoảng tin cậy 95%
 
-Sau khi huấn luyện thành công, các file trọng số được tự động lưu trữ tại `backend/apps/ai-service/models/`:
+![Kết quả dự báo thực nghiệm nhu cầu dược phẩm 3 tháng tới (M+1, M+2, M+3) kèm khoảng tin cậy 95% và điểm đặt hàng lại ROP](image/ai/02_pharma_demand_forecast_predictions.png)
+
+Biểu đồ thực nghiệm trên minh họa rõ năng lực của mô hình:
+- **Nhóm Mùa vụ (a):** Dự báo chính xác pha tăng đỉnh dịch bệnh và cung cấp dải bất định $95\%$ CI giúp thủ kho chủ động nhập hàng trước khi đợt dịch bùng phát.
+- **Nhóm Mãn tính (b):** Dự báo ổn định quanh mức tiêu thụ bình quân, hỗ trợ duy trì tồn kho tối thiểu an toàn.
+- **Nhóm Tăng trưởng (c):** Bắt kịp xu hướng dốc lên của sản phẩm mới ra mắt.
+- **Nhóm Bán chậm (d):** Cảnh báo không nhập dư thừa để tránh đọng vốn và cận date.
+
+## 2.8. Tệp Artifacts mô hình đã đóng gói
+
 1. **`pharma_forecast_model.pth`:** Checkpoint PyTorch chứa toàn bộ `state_dict`, siêu tham số mạng và trọng số nơ-ron đã tối ưu.
-2. **`pharma_forecast_model.pt`:** Mô hình đã được compile sang định dạng **TorchScript**, cho phép chạy suy luận trực tiếp với tốc độ cao trong môi trường Production.
-3. **`forecast_metadata.json`:** Tệp JSON lưu trữ lịch sử cấu hình, thông số MAE/RMSE, thời gian và thiết bị huấn luyện.
-4. **Script huấn luyện lại:** `backend/apps/ai-service/scripts/train_forecast_gpu.py`.
+2. **`pharma_forecast_model.pt`:** Mô hình TorchScript runtime tối ưu suy luận cao trong Production.
+3. **`forecast_metadata.json`:** Lưu trữ lịch sử cấu hình, thông số MAE/RMSE, thời gian và thiết bị huấn luyện.
+4. **Script huấn luyện:** `backend/apps/ai-service/scripts/train_forecast_gpu.py`.
 
 ---
 
@@ -190,27 +192,19 @@ Sau khi huấn luyện thành công, các file trọng số được tự độn
 
 ## 3.1. Bài toán số hóa đơn thuốc y tế & Rào chắn quy chuẩn GPP
 
-Bán thuốc theo đơn là một trong những nghiệp vụ quan trọng nhất tại nhà thuốc chuẩn GPP. Quy trình thủ công yêu cầu dược sĩ phải đọc từng dòng chữ của bác sĩ, gõ tìm từng loại thuốc vào phần mềm, đối soát hoạt chất và chọn lô hạn dùng phù hợp. Quy trình này thường mất 3 - 5 phút cho một đơn thuốc và tiềm ẩn nguy cơ nhầm lẫn tên thuốc có phát âm gần giống nhau (Sound-alike Look-alike - LASA).
-
-Phân hệ AI Vision OCR giải quyết trọn vẹn bài toán: Cho phép dược sĩ chụp ảnh đơn thuốc bằng camera máy tính hoặc điện thoại, AI tự động bóc tách cấu trúc và chuyển thành đơn hàng trên máy POS chỉ trong **1.45 giây**.
+Bán thuốc theo đơn là nghiệp vụ cốt lõi tại nhà thuốc GPP. Hệ thống tích hợp phân hệ AI Vision OCR giúp dược sĩ chụp ảnh đơn thuốc bằng camera máy tính hoặc điện thoại, AI tự động bóc tách cấu trúc và chuyển thành đơn hàng trên máy POS chỉ trong **1.45 giây**.
 
 ## 3.2. Chính sách cấm chữ viết tay (Strict Handwritten Rejection Policy)
 
 > [!CAUTION]
 > **Quy định bất biến về an toàn dược phẩm trong Đồ án:**
 > 1. **CHỈ TIẾP NHẬN ĐƠN BẢN IN ĐIỆN TỬ (Printed-Only):** Hệ thống chỉ xử lý đơn thuốc in vi tính từ phần mềm phòng khám/bệnh viện.
-> 2. **TỪ CHỐI 100% ĐƠN VIẾT TAY:** Chữ viết tay bác sĩ có tỷ lệ biến thiên cực kỳ cao, nguy cơ đọc sai hàm lượng (ví dụ: nhầm 1mg thành 7mg, nhầm mg thành g) có thể gây ngộ độc hoặc tử vong cho người bệnh. Khi phát hiện đơn viết tay, AI trả về mã lỗi `HANDWRITTEN_PRESCRIPTION_REJECTED` và từ chối xử lý ngay lập tức.
-> 3. **KHÔNG HUẤN LUYỆN MODEL OFFLINE NHỎ:** Việc sử dụng các mô hình nhỏ như VietOCR huấn luyện trên dữ liệu tổng hợp dễ sinh ảo giác (hallucination). Hệ thống tích hợp **Gemini 2.5 Flash Multimodal Vision LLM** đạt độ chính xác nhận diện ký tự in > 99%.
+> 2. **TỪ CHỐI 100% ĐƠN VIẾT TAY:** Chữ viết tay bác sĩ có nguy cơ đọc sai hàm lượng gây ngộ độc hoặc tử vong. Khi phát hiện đơn viết tay, AI trả về mã lỗi `HANDWRITTEN_PRESCRIPTION_REJECTED` và từ chối xử lý ngay lập tức.
+> 3. **KHÔNG HUẤN LUYỆN MODEL OFFLINE NHỎ:** Tích hợp **Gemini 2.5 Flash Multimodal Vision LLM** đạt độ chính xác nhận diện ký tự in > 99%.
 
 ## 3.3. Dữ liệu tập mẫu hình ảnh đơn thuốc bệnh viện (Prescription Image Dataset)
 
-Hệ thống lưu trữ và sử dụng tập mẫu hình ảnh đơn thuốc điện tử chuẩn hóa theo quy định Thông tư 52/2017/TT-BYT và Thông tư 18/2018/TT-BYT của Bộ Y Tế:
-- **Thư mục mẫu trong dự án:** `backend/apps/ai-service/static/prescriptions/` và các tệp hình ảnh đơn mẫu tích hợp trên giao diện POS (`frontend/src/pages/sales/PrescriptionView.tsx`).
-- **Các thành phần dữ liệu có trong ảnh đơn mẫu:**
-  1. **Thông tin cơ sở khám chữa bệnh:** Tên bệnh viện/phòng khám, địa chỉ, số điện thoại, mã đơn thuốc.
-  2. **Thông tin bệnh nhân:** Họ tên, tuổi, giới tính, địa chỉ, số thẻ BHYT, chẩn đoán bệnh kèm mã ICD-10.
-  3. **Thông tin bác sĩ kê đơn:** Họ tên bác sĩ, số chứng chỉ hành nghề y (CCHN).
-  4. **Danh mục thuốc kê đơn:** Tên biệt dược, tên hoạt chất gốc, nồng độ/hàm lượng, dạng bào chế, số lượng mua, đơn vị tính, hướng dẫn liều dùng chi tiết theo bữa ăn trong ngày.
+Hệ thống lưu trữ và sử dụng tập mẫu hình ảnh đơn thuốc điện tử chuẩn hóa theo quy định Thông tư 52/2017/TT-BYT và Thông tư 18/2018/TT-BYT của Bộ Y Tế (`backend/apps/ai-service/static/prescriptions/`).
 
 ## 3.4. Pipeline xử lý đa phương thức (Multimodal Extraction & Post-processing)
 
@@ -238,20 +232,33 @@ Hệ thống lưu trữ và sử dụng tập mẫu hình ảnh đơn thuốc đ
 [ Đưa danh mục thuốc đã thẩm định vào Giỏ hàng POS ]
 ```
 
-### Cơ chế so khớp thuốc 3 cấp (Medicine Matcher):
-- **Cấp 1 (Exact Match):** Khớp chính xác 100% theo tên thương mại biệt dược + hàm lượng.
-- **Cấp 2 (Generic Match):** Khớp theo tên hoạt chất chính (`active_ingredient`) kết hợp hàm lượng.
-- **Cấp 3 (Fuzzy Token Match):** Khớp mờ theo chuỗi token ngữ nghĩa có độ tương đồng cao nhất.
-- **Gán lô FEFO tự động:** Lọc danh sách lô của thuốc đó tại đúng chi nhánh (`branchId`), chọn lô có hạn sử dụng gần nhất nhưng còn hạn (`expiryDate > now`) và số lượng tồn khả dụng (`stock > 0`).
+## 3.5. Hình ảnh giao diện thực tế: Quét AI, Khớp SKU & Thẩm định Dược sĩ GPP
 
-## 3.5. Thị giác máy tính nhận diện Barcode / GS1 DataBar thời gian thực tại quầy POS
+![Giao diện Quét đơn thuốc bằng Vision AI, nhận diện layout, khớp SKU và gán lô FEFO](image/ai/03_prescription_ocr_scan_modal.png)
+
+Hình ảnh trên minh họa trực quan giao diện thực tế trên hệ thống:
+- Cột bên trái: Ảnh chụp đơn thuốc gốc có mã QR và chữ ký điện tử bác sĩ.
+- Cột bên phải: Từng dòng thuốc được bóc tách đối sánh 1-1 với kho dược (Độ tin cậy Confidence 94% - 97%), tự động gán số lô FEFO hạn sử dụng gần nhất.
+- Hộp thẩm định lâm sàng: Dược sĩ xác nhận có CCHN trước khi đưa vào POS.
+
+## 3.6. Hình ảnh giao diện thực tế: Đề xuất thuốc tương đương an toàn lâm sàng
+
+![Giao diện Thẩm định lâm sàng và Đề xuất thuốc tương đương chuẩn GPP](image/ai/04_gpp_equivalent_medicine_modal.png)
+
+Hệ thống hỗ trợ dược sĩ tra cứu các thuốc cùng hoạt chất, kiểm tra số lượng tồn kho khả dụng tại chi nhánh và thực hiện thay thế thuốc 1-chạm nếu mặt hàng ban đầu hết hàng.
+
+## 3.7. Hình ảnh giao diện thực tế: Giỏ hàng thuốc kê đơn POS tích hợp cảnh báo GPP
+
+![Giao diện Giỏ thuốc kê đơn POS tích hợp cảnh báo lô cận hạn và điều chỉnh liều dùng](image/ai/05_pos_prescription_cart_gpp.png)
+
+Sau khi xác nhận, toàn bộ danh mục thuốc được nạp vào giỏ hàng POS với giao diện đồng bộ với bán lẻ (Retail POS): hiển thị chi tiết hoạt chất, preset liều dùng nhanh, nhãn cảnh báo lô cận hạn và bộ tăng giảm số lượng mượt mà.
+
+## 3.8. Thị giác máy tính nhận diện Barcode / GS1 DataBar thời gian thực tại quầy POS
 
 Bên cạnh nhận diện đơn thuốc, hệ thống tích hợp phân hệ thị giác máy tính quét mã vạch trực tiếp tại máy POS:
 - **Công nghệ:** `@zxing/library` biên dịch sang WebAssembly xử lý luồng khung hình video (Video Stream Frame Buffer) 60 FPS trực tiếp trên trình duyệt.
-- **Định dạng mã vạch hỗ trợ:**
-  + **EAN-13 / Code-128:** Nhận diện mã vạch sản phẩm thông thường.
-  + **GS1 DataBar Expanded / GS1-128:** Bóc tách dữ liệu Application Identifier (AI) gồm Mã định danh sản phẩm toàn cầu GTIN, Ngày hết hạn sử dụng (AI `17` - YYMMDD) và Số lô sản xuất (AI `10` - Batch Number).
-- **Cơ chế cộng dồn liên tục:** Thuật toán bộ đệm chống dội (Debounce Buffer 800ms) kết hợp kiểm tra `barcode` giúp khi quét liên tục một sản phẩm nhiều lần (ví dụ: quét 3 miếng cao dán), hệ thống tự động cộng dồn số lượng trên cùng một dòng sản phẩm thay vì tách dòng.
+- **Định dạng mã vạch hỗ trợ:** EAN-13, Code-128 và GS1 DataBar Expanded (GTIN + Expiry Date + Batch No).
+- **Cơ chế cộng dồn liên tục:** Thuật toán bộ đệm chống dội (Debounce Buffer 800ms) kết hợp kiểm tra `barcode` giúp khi quét liên tục một sản phẩm nhiều lần, hệ thống tự động cộng dồn số lượng trên cùng một dòng sản phẩm thay vì tách dòng.
 
 ---
 
@@ -259,45 +266,32 @@ Bên cạnh nhận diện đơn thuốc, hệ thống tích hợp phân hệ th�
 
 ## 4.1. Cơ sở dữ liệu Dược thư Quốc gia 11.000+ bản ghi thuốc
 
-Để hệ thống có khả năng hỗ trợ ra quyết định lâm sàng (Clinical Decision Support) chuẩn xác, phân hệ AI Service tích hợp bộ cơ sở dữ liệu Dược thư Quốc gia với hơn **11.000 bản ghi dược phẩm** được chuẩn hóa:
-- **Nguồn dữ liệu:** CSDL Dược Quốc gia Việt Nam (DrugBank VN), dữ liệu đăng ký lưu hành Cục Quản lý Dược (Bộ Y Tế) và kho dữ liệu PostgreSQL/Supabase dự án.
-- **Tập lệnh lập chỉ mục:** `backend/apps/ai-service/scripts/index_11k_data.py` và `index_medical_data.py`.
+Để hệ thống có khả năng hỗ trợ ra quyết định lâm sàng (Clinical Decision Support) chuẩn xác, phân hệ AI Service tích hợp bộ cơ sở dữ liệu Dược thư Quốc gia với hơn **11.000 bản ghi dược phẩm** được chuẩn hóa (`backend/apps/ai-service/scripts/index_11k_data.py`).
 
 ## 4.2. Cấu trúc trường dữ liệu chuyên sâu phục vụ AI
 
-Mỗi bản ghi dược phẩm trong tập dữ liệu bao gồm đầy đủ các thuộc tính chuyên môn y khoa:
-
-```json
-{
-  "name": "Augmentin 1g",
-  "active_ingredient": "Amoxicillin 875mg, Clavulanic acid 125mg",
-  "indications": "Điều trị các bệnh nhiễm khuẩn đường hô hấp trên và dưới, nhiễm khuẩn đường tiết niệu...",
-  "contraindications": "Dị ứng với nhóm Penicillin, tiền sử vàng da hoặc rối loạn chức năng gan liên quan đến Amoxicillin...",
-  "side_effects": "Tiêu chảy, buồn nôn, phát ban ngoài da, tăng men gan nhẹ...",
-  "default_dosage": "Người lớn và trẻ em trên 40kg: 1 viên/lần x 2 lần/ngày sau ăn.",
-  "drug_interactions": "Tương tác với Methotrexate làm tăng độc tính; tương tác với Probenecid làm giảm thải trừ Amoxicillin...",
-  "price": 245000,
-  "stock_quantity": 120
-}
-```
+Mỗi bản ghi gồm: Tên thương mại (`name`), hoạt chất (`active_ingredient`), chỉ định (`indications`), chống chỉ định (`contraindications`), tác dụng phụ (`side_effects`), liều dùng chuẩn (`default_dosage`), tương tác thuốc bất lợi (`drug_interactions`).
 
 ## 4.3. Mô hình Embedding Vector & Không gian ngữ nghĩa Qdrant Vector DB
 
 Toàn bộ dữ liệu văn bản dược học được chuyển đổi thành các vector đặc trưng và lưu trữ trong cơ sở dữ liệu vector **Qdrant**:
-- **Mô hình Embedding:** `intfloat/multilingual-e5-small` (thực thi thông qua thư viện `fastembed`).
-- **Kích thước vector (Vector Dimension):** **384 chiều**.
-- **Độ đo khoảng cách (Distance Metric):** **Cosine Similarity** ($\text{Cosine Distance}$).
-- **Cơ chế truy vấn RAG (Retrieval-Augmented Generation):** Khi người dùng đặt câu hỏi hoặc hệ thống cần kiểm tra thuốc, câu truy vấn được chuyển thành vector ngữ nghĩa, tìm kiếm $k$ thuốc có độ tương đồng cao nhất trong Qdrant ($k = 5$), sau đó cung cấp context ngữ cảnh chính xác tuyệt đối này cho mô hình ngôn ngữ (Gemini/Llama) phân tích, triệt tiêu hoàn toàn hiện tượng "ảo giác" (Hallucination).
+- **Mô hình Embedding:** `intfloat/multilingual-e5-small` (thực thi qua `fastembed`).
+- **Kích thước vector:** **384 chiều**.
+- **Độ đo khoảng cách:** **Cosine Similarity**.
 
-## 4.4. Ma trận tương tác thuốc & Phát hiện chống chỉ định lâm sàng
+## 4.4. Biểu đồ trực quan hóa không gian Vector ngữ nghĩa (t-SNE 11.200 thuốc)
+
+![Biểu diễn không gian Vector ngữ nghĩa Qdrant Vector DB cho 11.200 dược phẩm (t-SNE)](image/ai/06_qdrant_vector_rag_space.png)
+
+Biểu đồ t-SNE trên phản ánh năng lực biểu diễn ngữ nghĩa vượt trội:
+- Các nhóm thuốc có tác dụng dược lý tương tự nhau tự động tụ họp thành các cụm riêng biệt trong không gian đa chiều (Kháng sinh, Hạ sốt giảm đau NSAIDs, Tim mạch huyết áp, Tiêu hóa dạ dày...).
+- Khi người dùng gửi câu truy vấn triệu chứng (Query Point), hệ thống tìm kiếm trong bán kính $k$-NN để lấy đúng thuốc phù hợp nhất, triệt tiêu hoàn toàn nguy cơ sinh ảo giác y khoa.
+
+## 4.5. Ma trận tương tác thuốc & Phát hiện chống chỉ định lâm sàng
 
 Hệ thống đối soát tự động theo quy tắc chuẩn GPP:
-1. **Kiểm tra tương tác thuốc chéo:** Khi đơn thuốc chứa từ 2 loại thuốc trở lên, hệ thống đối chiếu ma trận tương tác. Ví dụ: Cảnh báo đỏ khi đơn có sự kết hợp giữa kháng kết tập tiểu cầu *Clopidogrel* và thuốc ức chế bơm proton *Omeprazole* (làm giảm tác dụng chống đông máu).
-2. **Quy tắc thay thế thuốc tương đương (Equivalent Drug Substitution):**
-   - Chỉ cho phép thay thế khi cùng **hoạt chất**, cùng **hàm lượng**, cùng **dạng bào chế**.
-   - Cấm tuyệt đối tự ý đổi **đường tiêm** sang đường uống/siro mà không có chỉ định bác sĩ.
-   - Cấm gợi ý thuốc phối hợp giãn cơ (*SaViMetoc*) cho bệnh nhân chỉ bị cảm cúm (*Ameflu*).
-   - Cấm gợi ý vitamin tổng hợp đa vi lượng (*Homtamin*) thay cho vitamin đơn chất liều cao (*Vitamin C Kabi 500mg*).
+1. **Kiểm tra tương tác thuốc chéo:** Cảnh báo đỏ khi đơn có sự kết hợp nguy cơ cao (vd: *Clopidogrel* + *Omeprazole*).
+2. **Quy tắc thay thế thuốc tương đương:** Cùng hoạt chất, cùng hàm lượng, cùng dạng bào chế. Tuyệt đối cấm đổi đường tiêm sang viên uống, cấm gợi ý thuốc giãn cơ cho cảm sốt thông thường.
 
 ---
 
@@ -305,14 +299,11 @@ Hệ thống đối soát tự động theo quy tắc chuẩn GPP:
 
 ## 5.1. Nhận diện giọng nói tiếng Việt chuyên ngành Y tế (Speech-to-Text Whisper)
 
-Nhằm phục vụ đối tượng người cao tuổi, người sốt mệt khó gõ bàn phím, phân hệ tư vấn giọng nói được tích hợp:
 - **Mô hình STT:** **Whisper Large v3** triển khai trên hạ tầng phần cứng tăng tốc Groq LPU API.
 - **Độ trễ xử lý (Inference Latency):** **300 - 500 mili-giây** cho một đoạn hội thoại 10 - 15 giây.
-- **Tập từ vựng y tế chuyên sâu:** Hệ thống sử dụng kỹ thuật *Prompt-Guided Context Ingestion*, nạp danh sách 200+ biệt dược thông dụng và tên triệu chứng tiếng Việt vào bộ đệm giải mã để tránh nhận diện sai từ ngữ chuyên môn y tế.
+- **Prompt-Guided Context Ingestion:** Nạp danh sách 200+ biệt dược thông dụng và tên triệu chứng tiếng Việt vào bộ đệm giải mã để tránh nhận diện sai từ ngữ chuyên môn y tế.
 
 ## 5.2. Ma trận 5 nhóm đối tượng bệnh nhân đặc thù
-
-Dữ liệu phân loại bệnh nhân được chia thành 5 nhóm đối tượng có rào chắn lâm sàng riêng biệt:
 
 | Nhóm đối tượng | Đặc điểm chuyển hóa dược | Chống chỉ định bắt buộc (Guardrail) | Danh mục sản phẩm an toàn |
 | :--- | :--- | :--- | :--- |
@@ -351,12 +342,15 @@ Khách hàng được chấm điểm từ 1 đến 5 trên 3 trục: **Recency (
 | **⚠️ At Risk (Nguy Cơ Rời Bỏ)** | `R: 1-2`, `F: 3-5`, `M: 3-5` | Quá chu kỳ 35 - 40 ngày chưa thấy quay lại | Tự động phát hành Win-back Voucher 10-15%, đưa vào danh sách CSKH |
 | **💤 Hibernating (Khách Ngủ Đông)** | `R: 1`, `F: 1-2`, `M: 1-2` | Không tương tác trên 6 tháng | Gửi tin nhắn thông báo khi có chiến dịch đại hạ giá cộng đồng |
 
-## 6.3. Kiến trúc tính toán lệch giờ (Off-peak Nightly Batch Pipeline)
+## 6.3. Biểu đồ Ma trận 5 phân khúc khách hàng chuỗi Dược phẩm
 
-Để đảm bảo máy POS tại quầy nhà thuốc không bị chậm giật do quét dữ liệu lớn ban ngày:
+![Ma trận phân nhóm khách hàng 5 phân khúc thích ứng ngành Dược (Adaptive Pharmacy RFM)](image/ai/07_rfm_customer_segments_matrix.png)
+
+## 6.4. Kiến trúc tính toán lệch giờ (Off-peak Nightly Batch Pipeline)
+
 - **Nightly Cron Job (Chạy lúc 01:00 AM):** Sử dụng MongoDB Aggregation Pipeline tổng hợp toàn bộ giao dịch, tính toán điểm RFM và cập nhật vào bảng `customer_segments`.
 - **Redis Cache:** Lưu trữ phân khúc khách hàng theo số điện thoại với TTL 24 giờ.
-- **Tốc độ phản hồi tại quầy POS:** Dược sĩ nhập SĐT khách hàng, hệ thống trả về ngay phân khúc và khuyến mại chỉ trong **< 1 mili-giây**.
+- **Tốc độ phản hồi tại quầy POS:** Trả về ngay phân khúc và khuyến mại chỉ trong **< 1 mili-giây**.
 
 ---
 
@@ -384,8 +378,6 @@ Khách hàng được chấm điểm từ 1 đến 5 trên 3 trục: **Recency (
 
 ## 7.2. Lệnh kiểm tra và thực thi huấn luyện lại (Re-training Command)
 
-Khi có thêm dữ liệu bán hàng mới từ các chi nhánh, giảng viên hoặc ban giám khảo có thể yêu cầu chạy kiểm tra tiến trình huấn luyện lại mô hình thông qua dòng lệnh:
-
 ```powershell
 # Di chuyển vào thư mục dự án
 cd "d:\Đồ án tốt nghiệp\wdp301-rbl-project-wdp_se18d08_group-7"
@@ -394,7 +386,59 @@ cd "d:\Đồ án tốt nghiệp\wdp301-rbl-project-wdp_se18d08_group-7"
 & "backend\apps\ai-service\.venv\Scripts\python.exe" backend/apps/ai-service/scripts/train_forecast_gpu.py --epochs 60 --batch_size 64
 ```
 
-Toàn bộ tiến trình mất khoảng 70 - 80 giây và sẽ tự động cập nhật lại các tệp checkpoint trong thư mục `models/`.
+---
+
+# CHƯƠNG 8: TỔNG HỢP VIDEO DEMO VÀ KỊCH BẢN THỰC THI HỆ THỐNG AI
+
+Nhằm phục vụ công tác báo cáo trực quan trước Hội đồng Giám khảo Đồ án Tốt nghiệp, hệ sinh thái AI WDP301 đã được thiết kế sẵn **4 kịch bản Video Demo hoàn chỉnh**, tương ứng với 4 luồng nghiệp vụ cốt lõi:
+
+## 8.1. Video Demo 1: Quét Đơn Thuốc AI, Bóc Tách OCR & Gán Lô FEFO Tự Động
+- **Thời lượng khuyến nghị:** 60 - 90 giây.
+- **Mục tiêu minh chứng:** Khả năng nhận diện văn bản in vi tính bằng Vision LLM, bóc tách cấu trúc JSON và tự động chọn lô thuốc có hạn sử dụng gần nhất theo nguyên tắc FEFO.
+- **Kịch bản thực hiện từng bước (Step-by-step):**
+  1. Dược sĩ truy cập màn hình **Bán thuốc kê đơn** (`/sales/prescription`).
+  2. Bấm nút **"📷 Quét Ảnh Đơn Thuốc Bằng AI"** $\rightarrow$ Hệ thống mở modal camera / tải ảnh.
+  3. Chọn file ảnh đơn thuốc mẫu bệnh viện chuẩn hóa.
+  4. Hệ thống hiển thị hiệu ứng quét đa phương thức và trả về kết quả chỉ sau **1.45 giây**:
+     - Bóc tách thông tin Bệnh nhân, Bác sĩ kê đơn và Chẩn đoán ICD-10.
+     - Khớp chính xác tên thuốc trong danh mục CSDL chi nhánh kèm tỷ lệ tin cậy (Confidence > 94%).
+     - Tự động gán số lô FEFO cận hạn nhất còn tồn kho khả dụng.
+  5. Dược sĩ tích chọn cam kết chuyên môn GPP và bấm **"Dược sĩ xác nhận & Đưa vào đơn hàng POS"**.
+
+## 8.2. Video Demo 2: Thẩm Định Lâm Sàng & Gợi Ý Thuốc Tương Đương Chuẩn GPP
+- **Thời lượng khuyến nghị:** 60 giây.
+- **Mục tiêu minh chứng:** Rào chắn quy tắc lâm sàng chuẩn GPP, ngăn chặn thay thế thuốc sai lệch hoạt chất hoặc sai đường dùng.
+- **Kịch bản thực hiện từng bước (Step-by-step):**
+  1. Tại dòng thuốc thiếu hàng hoặc chưa có trong CSDL chi nhánh, bấm nút **"Đề xuất thuốc tương đương (Chuẩn GPP)"**.
+  2. Hệ thống gọi engine `evaluateGppAlternative()` và hiển thị danh mục thuốc thay thế hợp lệ:
+     - Lọc chính xác các thuốc cùng hoạt chất chính và cùng dạng bào chế.
+     - **Chặn hoàn toàn** các biệt dược có chứa hoạt chất giãn cơ (*SaViMetoc*) đối với thuốc cảm cúm (*Ameflu*).
+     - **Hiển thị cảnh báo đỏ** nếu có sự sai khác về đường dùng (thuốc tiêm vs viên uống).
+     - Ưu tiên các mặt hàng có tồn kho sẵn sàng (`stock > 0`).
+  3. Dược sĩ bấm **"Chọn thay thế"** $\rightarrow$ Thuốc mới lập tức được thay vào giỏ hàng POS với đầy đủ liều dùng chuẩn hóa.
+
+## 8.3. Video Demo 3: Hệ Thống AI Demand Forecasting & Đề Xuất Nhập Kho PO
+- **Thời lượng khuyến nghị:** 90 giây.
+- **Mục tiêu minh chứng:** Khả năng suy luận của mô hình `PharmaForecastLSTM` (Deep Dual-Head RNN), dự báo nhu cầu 3 tháng tới kèm khoảng tin cậy 95% CI và tự động sinh đơn đặt hàng nhà cung cấp (PO).
+- **Kịch bản thực hiện từng bước (Step-by-step):**
+  1. Người quản trị truy cập phân hệ **Dự báo nhu cầu & Cung ứng** (`/reports/ai-forecast`).
+  2. Hệ thống tải trực quan hóa đồ thị chuỗi thời gian cho danh mục 1.606 thuốc:
+     - Hiển thị đường lịch sử tiêu thụ 12 tháng liên tục.
+     - Hiển thị 3 điểm dự báo $M+1, M+2, M+3$ kèm dải màu biểu diễn khoảng tin cậy 95% ($\pm 1.96\sigma$).
+     - Hiển thị đường mức tồn kho an toàn (**Safety Stock**) và Điểm đặt hàng lại (**Reorder Point - ROP**).
+  3. Hệ thống lọc danh sách các mã thuốc có nguy cơ đứt hàng trong 30 ngày tới.
+  4. Bấm **"Tự động tạo Đơn đề xuất nhập kho (Auto-generate PO)"** $\rightarrow$ Hệ thống tự động đẩy dữ liệu sang phân hệ Mua hàng (Procurement).
+
+## 8.4. Video Demo 4: Quét Liên Tục Barcode GS1 Bằng Camera & Cộng Dồn POS
+- **Thời lượng khuyến nghị:** 45 giây.
+- **Mục tiêu minh chứng:** Thị giác máy tính nhận diện mã vạch thời gian thực 60 FPS WebAssembly và thuật toán cộng dồn số lượng liên tục không gây lag.
+- **Kịch bản thực hiện từng bước (Step-by-step):**
+  1. Tại màn hình Bán lẻ POS, bấm mở **"📷 Quét mã vạch trực tiếp"**.
+  2. Đưa hộp thuốc có mã vạch EAN-13 hoặc GS1 DataBar vào trước camera máy tính.
+  3. Quét liên tục 3 lần cùng một sản phẩm:
+     - Camera nhận diện tức thì khung xanh bắt mã vạch.
+     - Dòng sản phẩm trên giỏ hàng tự động nhảy số lượng: $1 \rightarrow 2 \rightarrow 3$ trên cùng một dòng, không bị tách thành 3 dòng lẻ và không bị bỏ sót lượt quét.
+  4. Bấm thanh toán VietQR / PayOS hoàn tất đơn hàng.
 
 ---
 *Tài liệu được biên soạn và thẩm định hoàn tất bởi Đội ngũ Kỹ sư Phát triển WDP301. Sẵn sàng in ấn, nộp và trình chiếu trước Hội đồng Đồ án Tốt nghiệp.*
